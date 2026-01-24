@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Teams</h2>
+        <a href="{{ url_for('teams.new_team') }}" class="btn btn-primary">
+            + New Team
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 10%;">ID</th>
+                        <th style="width: 70%;">Team Name</th>
+                        <th class="text-end" style="width: 20%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in teams %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ team.id }}</span></td>
+                        <td class="fw-bold">{{ team.name }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('teams.edit_team', team_id=team.id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                            
+                            <form action="{{ url_for('teams.delete_team', team_id=team.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete Team: {{ team.name }}? This cannot be undone.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center py-5 text-muted">
+                            <i class="fas fa-users-slash fa-2x mb-3 d-block"></i>
+                            No teams found. Click "+ New Team" to create one.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2 class="mb-4">{{ title }}</h2>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            {{ form.team_member.label(class="form-label") }}
+                            {{ form.team_member(class="form-select") }}
+                            {% for error in form.team_member.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.date.label(class="form-label") }}
+                            {{ form.date(class="form-control", type="date") }}
+                            {% for error in form.date.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            {{ form.ro_number.label(class="form-label") }}
+                            {{ form.ro_number(class="form-control", placeholder="e.g. 12345") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.line_item.label(class="form-label") }}
+                            {{ form.line_item(class="form-control", placeholder="e.g. A") }}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            {{ form.flat_rate_hours.label(class="form-label fw-bold") }}
+                            {{ form.flat_rate_hours(class="form-control", placeholder="Sold Hours (e.g. 2.5)") }}
+                            {% for error in form.flat_rate_hours.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.actual_time.label(class="form-label") }}
+                            {{ form.actual_time(class="form-control", placeholder="Clocked Hours (e.g. 1.8)") }}
+                            {% for error in form.actual_time.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="3") }}
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                        <a href="{{ url_for('worklog.work_logs') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

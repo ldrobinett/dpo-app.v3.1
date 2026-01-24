@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">{{ title }}</h2>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            {{ form.name.label(class="form-label") }}
+                            {{ form.name(class="form-control") }}
+                            {% for error in form.name.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.tech_number.label(class="form-label") }}
+                            {{ form.tech_number(class="form-control", placeholder="e.g. 105") }}
+                            {% for error in form.tech_number.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            {{ form.team.label(class="form-label") }}
+                            {{ form.team(class="form-select") }}
+                            {% for error in form.team.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.tech_level.label(class="form-label") }}
+                            {{ form.tech_level(class="form-control") }}
+                            {% for error in form.tech_level.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h5 class="mb-3">Production Settings</h5>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold mb-2">{{ form.dpo_calculation_mode.label }}</label>
+                        <div class="d-flex gap-4">
+                            {% for subfield in form.dpo_calculation_mode %}
+                                <div class="form-check">
+                                    {{ subfield(class="form-check-input") }}
+                                    {{ subfield.label(class="form-check-label") }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div id="manual-dpo-section" class="row mb-4">
+                        <div class="col-12"> 
+                            {{ form.daily_production_objective.label(class="form-label fw-bold") }}
+                            <div class="input-group">
+                                {{ form.daily_production_objective(class="form-control") }}
+                                <span class="input-group-text">FRH</span>
+                            </div>
+                            <div class="form-text">Used if "Set DPO Manually" is selected.</div>
+                        </div>
+                    </div>
+
+                    <div id="historical-calc-section" class="card bg-light border-0 mb-3" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-3 fw-bold">Historical Calculation Parameters</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    {{ form.hist_frh_total.label(class="form-label small") }}
+                                    {{ form.hist_frh_total(class="form-control") }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.hist_days_in_period.label(class="form-label small") }}
+                                    {{ form.hist_days_in_period(class="form-control") }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.hist_training_days.label(class="form-label small") }}
+                                    {{ form.hist_training_days(class="form-control") }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.hist_vacation_days.label(class="form-label small") }}
+                                    {{ form.hist_vacation_days(class="form-control") }}
+                                </div>
+                                <div class="col-md-4">
+                                    {{ form.expected_lift_percent.label(class="form-label small") }}
+                                    <div class="input-group">
+                                        {{ form.expected_lift_percent(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 pt-3 border-top">
+                                <label class="form-label fw-bold text-primary">Projected DPO Result:</label>
+                                <div class="input-group">
+                                    <input class="form-control fw-bold text-primary" value="{{ "%.2f"|format(calculated_dpo) }}" readonly disabled>
+                                    <span class="input-group-text bg-primary text-white">FRH</span>
+                                </div>
+                                <div class="form-text">Based on the historical data entered above.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                        <a href="{{ url_for('teams.team_members') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const radios = document.querySelectorAll('input[name="dpo_calculation_mode"]');
+    const manualSection = document.getElementById('manual-dpo-section');
+    const calcSection = document.getElementById('historical-calc-section');
+
+    function toggleSections() {
+        let selectedValue;
+        for (const radio of radios) {
+            if (radio.checked) {
+                selectedValue = radio.value;
+                break;
+            }
+        }
+        
+        if (selectedValue === 'calculated') {
+            calcSection.style.display = 'block';
+            manualSection.style.display = 'none';
+        } else {
+            calcSection.style.display = 'none';
+            manualSection.style.display = 'flex'; // Important for grid row to span
+        }
+    }
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', toggleSections);
+    });
+
+    // Run once on load
+    toggleSections();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2"> <h2 class="mb-4">{{ title }}</h2>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.name.label(class="form-label") }}
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">{% for e in form.name.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                         <div class="col-md-4 mb-3">
+                            {{ form.starting_rate.label(class="form-label") }}
+                             <div class="input-group">
+                                 <span class="input-group-text">$</span>
+                                {{ form.starting_rate(class="form-control" + (" is-invalid" if form.starting_rate.errors else ""), step="0.01") }}
+                                {% if form.starting_rate.errors %}
+                                    <div class="invalid-feedback">{% for e in form.starting_rate.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows=2) }}
+                        {% if form.description.errors %}
+                            <div class="invalid-feedback">{% for e in form.description.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+                    <p class="text-muted">Define Rate Escalation:</p>
+
+                     <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.peak_hours.label(class="form-label") }}
+                             <div class="input-group">
+                                {{ form.peak_hours(class="form-control" + (" is-invalid" if form.peak_hours.errors else ""), step="0.1") }}
+                                <span class="input-group-text">Hrs</span>
+                                {% if form.peak_hours.errors %}
+                                    <div class="invalid-feedback">{% for e in form.peak_hours.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                             </div>
+                             <div class="form-text">Hour mark where the highest rate applies.</div>
+                        </div>
+                         <div class="col-md-6 mb-3">
+                            {{ form.escalator_percent.label(class="form-label") }}
+                            <div class="input-group">
+                                {{ form.escalator_percent(class="form-control" + (" is-invalid" if form.escalator_percent.errors else ""), step="0.1") }}
+                                <span class="input-group-text">%</span>
+                                {% if form.escalator_percent.errors %}
+                                    <div class="invalid-feedback">{% for e in form.escalator_percent.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                            </div>
+                            <div class="form-text">Max % increase applied at Peak Hours.</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.return_normal_hours.label(class="form-label") }}
+                            <div class="input-group">
+                                {{ form.return_normal_hours(class="form-control" + (" is-invalid" if form.return_normal_hours.errors else ""), step="0.1") }}
+                                <span class="input-group-text">Hrs</span>
+                                {% if form.return_normal_hours.errors %}
+                                    <div class="invalid-feedback">{% for e in form.return_normal_hours.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                             </div>
+                              <div class="form-text">Hour mark where rate returns to Starting Rate.</div>
+                        </div>
+                    </div>
+
+                     <hr>
+                    <p class="text-muted">Define Optional Discount:</p>
+
+                     <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.discount_start_hours.label(class="form-label") }}
+                             <div class="input-group">
+                                {{ form.discount_start_hours(class="form-control" + (" is-invalid" if form.discount_start_hours.errors else ""), step="0.1") }}
+                                 <span class="input-group-text">Hrs</span>
+                                {% if form.discount_start_hours.errors %}
+                                    <div class="invalid-feedback">{% for e in form.discount_start_hours.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                             </div>
+                             <div class="form-text">(Optional) Discount applies AFTER this hour mark.</div>
+                        </div>
+                         <div class="col-md-6 mb-3">
+                             {{ form.discount_percent.label(class="form-label") }}
+                            <div class="input-group">
+                                {{ form.discount_percent(class="form-control" + (" is-invalid" if form.discount_percent.errors else ""), step="0.1") }}
+                                <span class="input-group-text">%</span>
+                                {% if form.discount_percent.errors %}
+                                    <div class="invalid-feedback">{% for e in form.discount_percent.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% endif %}
+                            </div>
+                             <div class="form-text">(Optional) Rate as % of Starting Rate after discount hours.</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('labor_matrix.list_grids') }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

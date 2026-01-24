@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 class="mb-3">Monthly Financial Forecasts</h2>
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info" role="alert">
+                This page shows all saved monthly financial forecasts. To generate or update the forecast for the 
+                <strong>current month</strong>, go to the <a href="{{ url_for('finance.dashboard') }}" class="alert-link">Dashboard</a>.
+            </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm mt-4">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Month</th>
+                        <th scope="col">Expected FRH</th>
+                        <th scope="col">Labor Gross</th>
+                        <th scope="col">Parts Gross</th>
+                        <th scope="col">Total Gross</th>
+                        <th scope="col">Date Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for forecast in all_forecasts %}
+                        <tr>
+                            <td>{{ forecast.month }}/{{ forecast.year }}</td>
+                            <td>{{ "%.2f"|format(forecast.expected_frh) }}</td>
+                            <td>${{ "%.2f"|format(forecast.labor_gross) }}</td>
+                            <td>${{ "%.2f"|format(forecast.parts_gross) }}</td>
+                            <td><strong>${{ "%.2f"|format(forecast.total_gross) }}</strong></td>
+                            <td>{{ forecast.date_updated.strftime('%Y-%m-%d') }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted p-4">
+                                No financial forecasts have been saved.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

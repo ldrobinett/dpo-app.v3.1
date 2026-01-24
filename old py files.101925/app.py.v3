@@ -1,0 +1,575 @@
+# 01.prodapp.0825/app.py
+
+from flask import Flask, render_template, url_for, flash, redirect, request
+from extensions import db, login_manager, bcrypt
+from models import User, Team, TeamMember, ScheduleEntry, WorkLog, TeamSchedule
+from forms import (
+    RegistrationForm, LoginForm, TeamForm, TeamMemberForm, ScheduleEntryForm,
+    WorkLogForm, TeamScheduleForm, RecurringScheduleForm, ScheduleEntryFilterForm, FinancialPerformanceForm
+)
+from flask_login import login_user, current_user, logout_user, login_required
+from datetime import date, time, timedelta
+import calendar
+from collections import defaultdict
+
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'a_very_secret_key'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+    
+    db.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = 'login'
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+    
+    return app
+
+app = create_app()
+
+@app.route("/")
+@app.route("/home")
+@login_required
+def home():
+    recent_schedule_entries = ScheduleEntry.query.order_by(ScheduleEntry.date.desc()).limit(5).all()
+    recent_work_logs = WorkLog.query.order_by(WorkLog.date.desc()).limit(5).all()
+    return render_template('home.html', 
+                           title='Home',
+                           recent_schedule_entries=recent_schedule_entries,
+                           recent_work_logs=recent_work_logs)
+
+@app.route("/dashboard", methods=['GET', 'POST'])
+@login_required
+def dashboard():
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    start_of_next_week = start_of_week + timedelta(days=7)
+    end_of_next_week = start_of_next_week + timedelta(days=6)
+    start_of_month = today.replace(day=1)
+
+    financial_form = FinancialPerformanceForm()
+
+    financial_data = None
+    weekly_financial_total = None
+    next_weekly_financial_total = None
+    full_month_financial_forecast = None
+    
+    if request.method == 'POST' and financial_form.validate_on_submit():
+        elr = financial_form.elr.data
+        parts_to_labor_ratio = financial_form.parts_to_labor_ratio.data
+        labor_margin = financial_form.labor_margin.data / 100
+        parts_margin = financial_form.parts_margin.data / 100
+
+        all_schedules_in_range = ScheduleEntry.query.filter(
+            ScheduleEntry.date >= start_of_week,
+            ScheduleEntry.date <= end_of_next_week
+        ).all()
+        
+        financial_data = defaultdict(lambda: {'labor_gross': 0, 'parts_gross': 0, 'total_gross': 0, 'expected_frh': 0})
+        for s in all_schedules_in_range:
+            expected_frh_day = s.team_member.daily_production_objective
+            labor_gross = expected_frh_day * elr * labor_margin
+            parts_gross = expected_frh_day * elr * parts_to_labor_ratio * parts_margin
+            total_gross = labor_gross + parts_gross
+            
+            financial_data[s.date]['labor_gross'] += labor_gross
+            financial_data[s.date]['parts_gross'] += parts_gross
+            financial_data[s.date]['total_gross'] += total_gross
+            financial_data[s.date]['expected_frh'] += expected_frh_day
+
+        weekly_financial_total = defaultdict(float)
+        next_weekly_financial_total = defaultdict(float)
+
+        for d, data in financial_data.items():
+            if start_of_week <= d <= end_of_week:
+                weekly_financial_total['labor_gross'] += data['labor_gross']
+                weekly_financial_total['parts_gross'] += data['parts_gross']
+                weekly_financial_total['total_gross'] += data['total_gross']
+                weekly_financial_total['expected_frh'] += data['expected_frh']
+            
+            if start_of_next_week <= d <= end_of_next_week:
+                next_weekly_financial_total['labor_gross'] += data['labor_gross']
+                next_weekly_financial_total['parts_gross'] += data['parts_gross']
+                next_weekly_financial_total['total_gross'] += data['total_gross']
+                next_weekly_financial_total['expected_frh'] += data['expected_frh']
+        
+        full_month_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.date >= start_of_month,
+            ScheduleEntry.date <= date.fromordinal(start_of_month.toordinal() + calendar.monthrange(today.year, today.month)[1] - 1)
+        ).all()
+        
+        total_month_frh = sum(s.team_member.daily_production_objective for s in full_month_schedules)
+        
+        full_month_financial_forecast = {
+            'expected_frh': total_month_frh,
+            'labor_gross': total_month_frh * elr * labor_margin,
+            'parts_gross': total_month_frh * elr * parts_to_labor_ratio * parts_margin,
+        }
+        full_month_financial_forecast['total_gross'] = full_month_financial_forecast['labor_gross'] + full_month_financial_forecast['parts_gross']
+
+        flash('Financials calculated successfully!', 'success')
+    
+    # --- This entire block is now outside the POST condition ---
+    weekly_member_data = {}
+    mtd_member_data = {}
+    expected_frh_mtd = 0
+
+    for member in TeamMember.query.all():
+        weekly_scheduled_hours = 0
+        weekly_logged_hours = 0
+        weekly_actual_work_hours = 0
+        weekly_expected_production = 0
+        
+        weekly_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.team_member_id == member.id,
+            ScheduleEntry.date >= start_of_week,
+            ScheduleEntry.date <= today
+        ).all()
+        
+        weekly_work_logs = WorkLog.query.filter(
+            WorkLog.team_member_id == member.id,
+            WorkLog.date >= start_of_week,
+            WorkLog.date <= today
+        ).all()
+        
+        for s in weekly_schedules:
+            scheduled_time = datetime.combine(s.date, s.end_time) - datetime.combine(s.date, s.start_time)
+            scheduled_hours_net = scheduled_time.total_seconds() / 3600
+            if s.lunch_start and s.lunch_end:
+                lunch_time = datetime.combine(s.date, s.lunch_end) - datetime.combine(s.date, s.lunch_start)
+                scheduled_hours_net -= lunch_time.total_seconds() / 3600
+            weekly_scheduled_hours += scheduled_hours_net
+            weekly_expected_production += member.daily_production_objective
+                
+        for log in weekly_work_logs:
+            if log.flat_rate_hours:
+                weekly_logged_hours += log.flat_rate_hours
+            actual_time = datetime.combine(log.date, log.end_time) - datetime.combine(log.date, log.start_time)
+            weekly_actual_work_hours += actual_time.total_seconds() / 3600
+
+        weekly_member_data[member.name] = {
+            'scheduled': weekly_scheduled_hours,
+            'actual_worked': weekly_actual_work_hours,
+            'logged_frh': weekly_logged_hours,
+            'production_objective': weekly_expected_production
+        }
+
+        mtd_scheduled_hours = 0
+        mtd_logged_hours = 0
+        mtd_actual_work_hours = 0
+        mtd_expected_production = 0
+
+        mtd_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.team_member_id == member.id,
+            ScheduleEntry.date >= start_of_month,
+            ScheduleEntry.date <= today
+        ).all()
+        
+        mtd_work_logs = WorkLog.query.filter(
+            WorkLog.team_member_id == member.id,
+            WorkLog.date >= start_of_month,
+            WorkLog.date <= today
+        ).all()
+
+        for s in mtd_schedules:
+            scheduled_time = datetime.combine(s.date, s.end_time) - datetime.combine(s.date, s.start_time)
+            scheduled_hours_net = scheduled_time.total_seconds() / 3600
+            if s.lunch_start and s.lunch_end:
+                lunch_time = datetime.combine(s.date, s.lunch_end) - datetime.combine(s.date, s.lunch_start)
+                scheduled_hours_net -= lunch_time.total_seconds() / 3600
+            mtd_scheduled_hours += scheduled_hours_net
+            mtd_expected_production += member.daily_production_objective
+
+        for log in mtd_work_logs:
+            if log.flat_rate_hours:
+                mtd_logged_hours += log.flat_rate_hours
+            actual_time = datetime.combine(log.date, log.end_time) - datetime.combine(log.date, log.start_time)
+            mtd_actual_work_hours += actual_time.total_seconds() / 3600
+
+        mtd_member_data[member.name] = {
+            'scheduled': mtd_scheduled_hours,
+            'actual_worked': mtd_actual_work_hours,
+            'logged_frh': mtd_logged_hours,
+            'production_objective': mtd_expected_production
+        }
+    
+    expected_frh_mtd = sum(s.team_member.daily_production_objective for s in ScheduleEntry.query.filter(ScheduleEntry.date >= start_of_month, ScheduleEntry.date <= today).all())
+
+    return render_template('dashboard.html',
+                           title='Dashboard',
+                           weekly_member_data=weekly_member_data,
+                           mtd_member_data=mtd_member_data,
+                           financial_form=financial_form,
+                           expected_frh_mtd=expected_frh_mtd,
+                           financial_data=financial_data,
+                           weekly_financial_total=weekly_financial_total,
+                           next_weekly_financial_total=next_weekly_financial_total,
+                           full_month_financial_forecast=full_month_financial_forecast,
+                           current_week_dates=f"{start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')}",
+                           next_week_dates=f"{start_of_next_week.strftime('%b %d')} - {end_of_next_week.strftime('%b %d')}")
+
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Your account has been created! You are now able to log in', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', title='Register', form=form)
+
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user, remember=form.remember.data)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('home'))
+        else:
+            flash('Login Unsuccessful. Please check username and password', 'danger')
+    return render_template('login.html', title='Login', form=form)
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route("/teams")
+@login_required
+def teams():
+    all_teams = Team.query.all()
+    return render_template('teams.html', title='Teams', teams=all_teams)
+
+@app.route("/team/new", methods=['GET', 'POST'])
+@login_required
+def new_team():
+    form = TeamForm()
+    if form.validate_on_submit():
+        team = Team(name=form.name.data)
+        db.session.add(team)
+        db.session.commit()
+        flash('Team created successfully!', 'success')
+        return redirect(url_for('teams'))
+    return render_template('create_edit_team.html', title='New Team', form=form)
+
+@app.route("/team/<int:team_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team(team_id):
+    team = Team.query.get_or_404(team_id)
+    form = TeamForm(obj=team)
+    if form.validate_on_submit():
+        team.name = form.name.data
+        db.session.commit()
+        flash('Team updated successfully!', 'success')
+        return redirect(url_for('teams'))
+    return render_template('create_edit_team.html', title='Edit Team', form=form)
+
+@app.route("/team/<int:team_id>/delete", methods=['POST'])
+@login_required
+def delete_team(team_id):
+    team = Team.query.get_or_404(team_id)
+    db.session.delete(team)
+    db.session.commit()
+    flash('Team deleted successfully!', 'success')
+    return redirect(url_for('teams'))
+
+@app.route("/team_members")
+@login_required
+def team_members():
+    all_members = TeamMember.query.all()
+    return render_template('team_members.html', title='Team Members', members=all_members)
+
+@app.route("/team_member/new", methods=['GET', 'POST'])
+@login_required
+def new_team_member():
+    form = TeamMemberForm()
+    if form.validate_on_submit():
+        team_member = TeamMember(
+            name=form.name.data,
+            team=form.team.data,
+            tech_level=form.tech_level.data,
+            daily_production_objective=form.daily_production_objective.data
+        )
+        db.session.add(team_member)
+        db.session.commit()
+        flash('Team Member created successfully!', 'success')
+        return redirect(url_for('team_members'))
+    return render_template('create_edit_team_member.html', title='New Team Member', form=form)
+
+@app.route("/team_member/<int:member_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team_member(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    form = TeamMemberForm(obj=member)
+    if form.validate_on_submit():
+        member.name = form.name.data
+        member.team = form.team.data
+        member.tech_level = form.tech_level.data
+        member.daily_production_objective = form.daily_production_objective.data
+        db.session.commit()
+        flash('Team Member updated successfully!', 'success')
+        return redirect(url_for('team_members'))
+    return render_template('create_edit_team_member.html', title='Edit Team Member', form=form)
+
+@app.route("/team_member/<int:member_id>/delete", methods=['POST'])
+@login_required
+def delete_team_member(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    db.session.delete(member)
+    db.session.commit()
+    flash('Team Member deleted successfully!', 'success')
+    return redirect(url_for('team_members'))
+
+@app.route("/schedules", methods=['GET', 'POST'])
+@login_required
+def schedules():
+    form = ScheduleEntryFilterForm()
+    query = ScheduleEntry.query
+    
+    if form.validate_on_submit():
+        if form.team_member.data:
+            query = query.filter_by(team_member_id=form.team_member.data.id)
+            
+    schedule_entries = query.order_by(ScheduleEntry.date.desc()).all()
+    return render_template('schedules.html', title='Schedules', entries=schedule_entries, form=form)
+
+@app.route("/schedule/new", methods=['GET', 'POST'])
+@login_required
+def new_schedule_entry():
+    form = ScheduleEntryForm()
+    if form.validate_on_submit():
+        entry = ScheduleEntry(
+            team_member=form.team_member.data,
+            date=form.date.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            lunch_start=form.lunch_start.data,
+            lunch_end=form.lunch_end.data,
+            notes=form.notes.data
+        )
+        db.session.add(entry)
+        db.session.commit()
+        flash('Schedule entry created successfully!', 'success')
+        return redirect(url_for('schedules'))
+    return render_template('create_edit_schedule_entry.html', title='New Schedule Entry', form=form)
+
+@app.route("/schedule/<int:entry_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_schedule_entry(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    form = ScheduleEntryForm(obj=entry)
+    if form.validate_on_submit():
+        entry.team_member = form.team_member.data
+        entry.date = form.date.data
+        entry.start_time = form.start_time.data
+        entry.end_time = form.end_time.data
+        entry.lunch_start = form.lunch_start.data
+        entry.lunch_end = form.lunch_end.data
+        entry.notes = form.notes.data
+        db.session.commit()
+        flash('Schedule entry updated successfully!', 'success')
+        return redirect(url_for('schedules'))
+    return render_template('create_edit_schedule_entry.html', title='Edit Schedule Entry', form=form)
+
+@app.route("/schedule/<int:entry_id>/delete", methods=['POST'])
+@login_required
+def delete_schedule_entry(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Schedule entry deleted successfully!', 'success')
+    return redirect(url_for('schedules'))
+
+@app.route("/work_logs")
+@login_required
+def work_logs():
+    all_logs = WorkLog.query.all()
+    return render_template('work_logs.html', title='Work Logs', logs=all_logs)
+
+@app.route("/work_log/new", methods=['GET', 'POST'])
+@login_required
+def new_work_log():
+    form = WorkLogForm()
+    if form.validate_on_submit():
+        log = WorkLog(
+            team_member=form.team_member.data,
+            date=form.date.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            ro_number=form.ro_number.data,
+            line_item=form.line_item.data,
+            flat_rate_hours=form.flat_rate_hours.data,
+            notes=form.notes.data
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash('Work log created successfully!', 'success')
+        return redirect(url_for('work_logs'))
+    return render_template('create_edit_work_log.html', title='New Work Log', form=form)
+
+@app.route("/work_log/<int:log_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_work_log(log_id):
+    log = WorkLog.query.get_or_404(log_id)
+    form = WorkLogForm(obj=log)
+    if form.validate_on_submit():
+        log.team_member = form.team_member.data
+        log.date = form.date.data
+        log.start_time = form.start_time.data
+        log.end_time = form.end_time.data
+        log.ro_number = form.ro_number.data
+        log.line_item = form.line_item.data
+        log.flat_rate_hours = form.flat_rate_hours.data
+        log.notes = form.notes.data
+        db.session.commit()
+        flash('Work log updated successfully!', 'success')
+        return redirect(url_for('work_logs'))
+    return render_template('create_edit_work_log.html', title='Edit Work Log', form=form)
+
+@app.route("/work_log/<int:log_id>/delete", methods=['POST'])
+@login_required
+def delete_work_log(log_id):
+    log = WorkLog.query.get_or_404(log_id)
+    db.session.delete(log)
+    db.session.commit()
+    flash('Work log deleted successfully!', 'success')
+    return redirect(url_for('work_logs'))
+
+@app.route("/generate_schedule", methods=['GET', 'POST'])
+@login_required
+def generate_schedule():
+    form = RecurringScheduleForm()
+    if form.validate_on_submit():
+        start_date = form.start_date.data
+        end_date = form.end_date.data
+        days_of_week = [int(day) for day in form.days_of_week.data]
+        team_member = form.team_member.data
+        
+        team_members_to_schedule = []
+        if team_member:
+            team_members_to_schedule.append(team_member)
+        else:
+            team_members_to_schedule = TeamMember.query.all()
+        
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() in days_of_week:
+                for member in team_members_to_schedule:
+                    existing_entry = ScheduleEntry.query.filter_by(team_member_id=member.id, date=current_date).first()
+                    if not existing_entry:
+                        new_entry = ScheduleEntry(
+                            team_member=member,
+                            date=current_date,
+                            start_time=form.start_time.data,
+                            end_time=form.end_time.data,
+                            lunch_start=form.lunch_start.data,
+                            lunch_end=form.lunch_end.data,
+                            notes=form.notes.data
+                        )
+                        db.session.add(new_entry)
+            current_date += timedelta(days=1)
+        
+        db.session.commit()
+        flash('Schedule generated successfully!', 'success')
+        return redirect(url_for('schedules'))
+    return render_template('generate_schedule.html', title='Generate Schedule', form=form)
+
+@app.route("/team_schedules", methods=['GET', 'POST'])
+@login_required
+def team_schedules():
+    teams = Team.query.all()
+    team_members = TeamMember.query.all()
+    all_schedules = ScheduleEntry.query.all()
+
+    # Convert Teams to a JSON-friendly list of dictionaries
+    teams_json = [
+        {'id': team.id, 'name': team.name} for team in teams
+    ]
+
+    # Convert TeamMembers to a JSON-friendly list of dictionaries
+    team_members_json = [
+        {'id': member.id, 'name': member.name, 'team_id': member.team_id} for member in team_members
+    ]
+
+    schedules_json = [
+        {
+            'id': s.id,
+            'team_member_id': s.team_member_id,
+            'date': s.date.isoformat(),
+            'start_time': s.start_time.isoformat(),
+            'end_time': s.end_time.isoformat(),
+            'lunch_start': s.lunch_start.isoformat() if s.lunch_start else None,
+            'lunch_end': s.lunch_end.isoformat() if s.lunch_end else None
+        }
+        for s in all_schedules
+    ]
+
+    return render_template('team_schedules.html',
+                           title='Team Schedules',
+                           teams=teams_json,
+                           team_members=team_members_json,
+                           all_schedules=schedules_json)
+
+@app.route("/team_schedule/new", methods=['GET', 'POST'])
+@login_required
+def new_team_schedule():
+    form = TeamScheduleForm()
+    if form.validate_on_submit():
+        schedule = TeamSchedule(
+            team=form.team.data,
+            day_of_week=form.day_of_week.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            lunch_start=form.lunch_start.data,
+            lunch_end=form.lunch_end.data,
+            notes=form.notes.data
+        )
+        db.session.add(schedule)
+        db.session.commit()
+        flash('Recurring team schedule created successfully!', 'success')
+        return redirect(url_for('team_schedules'))
+    return render_template('create_edit_team_schedule.html', title='New Team Schedule', form=form)
+
+@app.route("/team_schedule/<int:schedule_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team_schedule(schedule_id):
+    schedule = TeamSchedule.query.get_or_404(schedule_id)
+    form = TeamScheduleForm(obj=schedule)
+    if form.validate_on_submit():
+        schedule.team = form.team.data
+        schedule.day_of_week = form.day_of_week.data
+        schedule.start_time = form.start_time.data
+        schedule.end_time = form.end_time.data
+        schedule.lunch_start = form.lunch_start.data
+        schedule.lunch_end = form.lunch_end.data
+        schedule.notes = form.notes.data
+        db.session.commit()
+        flash('Recurring team schedule updated successfully!', 'success')
+        return redirect(url_for('team_schedules'))
+    return render_template('create_edit_team_schedule.html', title='Edit Team Schedule', form=form)
+
+@app.route("/team_schedule/<int:schedule_id>/delete", methods=['POST'])
+@login_required
+def delete_team_schedule(schedule_id):
+    schedule = TeamSchedule.query.get_or_404(schedule_id)
+    db.session.delete(schedule)
+    db.session.commit()
+    flash('Recurring team schedule deleted successfully!', 'success')
+    return redirect(url_for('team_schedules'))
+
+if __name__ == '__main__':
+    from datetime import datetime
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)

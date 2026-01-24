@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>{{ title }}</title>
+    <style>
+        /* Shared Styles */
+        .grid-table th, .grid-table td {
+            text-align: center;
+            vertical-align: middle;
+            padding: 0.4rem;
+            border: 1px solid #dee2e6;
+            min-width: 55px; /* Adjust width slightly */
+        }
+        .grid-table thead th {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+        .grid-table .hours-col {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            text-align: right;
+            padding-right: 0.8rem;
+            min-width: 65px; /* Slightly wider first column */
+        }
+        .header-info {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .header-info span { display: inline-block; min-width: 150px; font-weight: bold; }
+
+        /* Screen Styles */
+        body { padding: 2rem; }
+        .print-button-container { margin-bottom: 2rem; }
+
+        /* Print Styles */
+        @media print {
+            body { padding: 0; margin: 1cm; font-size: 8pt; }
+            .print-button-container, nav, footer, .alert { display: none !important; }
+            .grid-table, .grid-table th, .grid-table td {
+                border: 1px solid #6c757d !important;
+                border-collapse: collapse;
+            }
+            .grid-table th, .grid-table td { padding: 0.2rem; white-space: nowrap;}
+            .grid-table { width: 100%; margin-top: 1rem; table-layout: fixed; }
+            tr { page-break-inside: avoid; }
+            h1 { font-size: 14pt; }
+            .header-info { font-size: 9pt; margin-bottom: 1rem; padding-bottom: 0.5rem;}
+            @page {
+              margin: 1.5cm;
+              size: landscape;
+            }
+             .container-fluid { width: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+
+        <h1 class="text-center">Labor Rate Grid Analysis</h1>
+        <div class="header-info">
+            <div><span>Date:</span> {{ print_time.strftime('%Y-%m-%d') }}</div>
+            <div><span>Prepared For:</span> _________________________</div>
+            <div><span>Grid:</span> {{ grid.name }} {% if grid.description %}({{ grid.description }}){% endif %}</div>
+        </div>
+
+        <div class="print-button-container">
+            <button class="btn btn-primary" onclick="window.print();">Print Grid</button>
+            <a href="{{ url_for('labor_matrix.list_grids') }}" class="btn btn-secondary">Back to Grids</a>
+        </div>
+
+        {% if calculated_grid %}
+            <table class="table table-bordered grid-table">
+                <thead>
+                    <tr>
+                        <th class="hours-col">Hours</th>
+                        {% for tenth_int in range(0, 10) %}
+                            <th>{{ ".%d"|format(tenth_int) }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in calculated_grid %}
+                    <tr>
+                        <td class="hours-col">{{ "%.1f"|format(row.whole_hour) }}</td>
+                        {% for charge in row.charges %}
+                            <td>${{ "%.2f"|format(charge) }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="alert alert-warning">Could not generate grid data. Ensure rates are defined for the active grid.</div>
+        {% endif %}
+    </div>
+</body>
+</html>

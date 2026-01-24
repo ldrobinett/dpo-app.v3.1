@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-4 mt-4">
+    <h2 class="mb-4">{{ title }}</h2>
+    <div class="row g-4">
+        <div class="col-12 col-lg-5">
+            <div class="card shadow-sm border-secondary h-100">
+                <div class="card-header bg-secondary text-white fw-bold">Calculator Inputs</div>
+                <div class="card-body">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="mb-3">
+                            {{ form.effective_labor_rate.label(class="form-label small fw-bold text-nowrap") }}
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                {{ form.effective_labor_rate(class="form-control form-control-sm", placeholder="0.00") }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.tenths_increase.label(class="form-label small fw-bold text-nowrap") }}
+                            <div class="input-group input-group-sm">
+                                {{ form.tenths_increase(class="form-control form-control-sm", placeholder="0.3") }}
+                                <span class="input-group-text">hrs</span>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.labor_gross_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.labor_gross_margin(class="form-control form-control-sm", placeholder="75.0") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.parts_to_labor_ratio.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.parts_to_labor_ratio(class="form-control form-control-sm", placeholder="0.80") }}
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.parts_gross_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.parts_gross_margin(class="form-control form-control-sm", placeholder="40.0") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.monthly_cp_ros.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.monthly_cp_ros(class="form-control form-control-sm") }}
+                            </div>
+                        </div>
+                        
+                        {{ form.submit(class="btn btn-primary w-100 shadow-sm") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-lg-7">
+            {% if results %}
+            <div class="card h-100 border-primary shadow-sm">
+                <div class="card-header bg-primary text-white fw-bold">Opportunity Analysis</div>
+                <div class="card-body d-flex flex-column justify-content-center">
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded border text-center">
+                                <div class="small text-muted fw-bold text-uppercase text-nowrap">Labor Sales / RO</div>
+                                <div class="fs-5 fw-bold text-dark">+${{ "{:,.2f}".format(results.add_labor_sales_ro) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded border text-center">
+                                <div class="small text-muted fw-bold text-uppercase text-nowrap">Parts Sales / RO</div>
+                                <div class="fs-5 fw-bold text-dark">+${{ "{:,.2f}".format(results.add_parts_sales_ro) }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-nowrap">Total Add'l Gross / RO:</span>
+                        <span class="fs-4 fw-bold text-nowrap">+${{ "{:,.2f}".format(results.total_add_gross_ro) }}</span>
+                    </div>
+
+                    <hr>
+
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h6 class="text-muted text-uppercase small fw-bold text-nowrap">Monthly Impact</h6>
+                            <h3 class="text-primary fw-bold text-nowrap">+${{ "{:,.0f}".format(results.monthly_impact) }}</h3>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted text-uppercase small fw-bold text-nowrap">Annual Impact</h6>
+                            <h2 class="text-success fw-bold text-nowrap">+${{ "{:,.0f}".format(results.yearly_impact) }}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card h-100 bg-light border-0 d-flex align-items-center justify-content-center">
+                <div class="text-center text-muted p-5">
+                    <i class="fas fa-calculator fa-3x mb-3"></i>
+                    <p class="lead">Enter your shop metrics to calculate the financial impact.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Service Advisors</h2>
+        <a href="{{ url_for('teams.create_asm') }}" class="btn btn-primary">+ Add ASM</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>ASM Number</th>
+                        <th>Team</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asm in asms %}
+                    <tr>
+                        <td class="fw-bold">{{ asm.name }}</td>
+                        <td><span class="badge bg-secondary">{{ asm.asm_number }}</span></td>
+                        <td>{{ asm.team.name }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('teams.edit_asm', asm_id=asm.id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                            <form action="{{ url_for('teams.delete_asm', asm_id=asm.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete {{ asm.name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-muted">No Service Advisors found. Add one to get started!</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

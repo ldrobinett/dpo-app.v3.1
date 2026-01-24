@@ -1,0 +1,391 @@
+from flask import Blueprint, render_template
+from flask_login import login_required, current_user
+# Make sure Team is imported
+from models import FinancialInputs, ScheduleEntry, TeamMember, Team, WorkLog
+from datetime import date, timedelta
+from collections import defaultdict
+from sqlalchemy.orm import joinedload
+from decimal import Decimal # Keep if needed for financial inputs
+import math # For team data calculations if needed
+
+# Create the Blueprint
+main_bp = Blueprint('main', __name__)
+
+# --- HELPER FUNCTIONS FOR HOME ROUTE ---
+
+def calculate_weekly_financial_total(user_id):
+    """Calculates the total financial forecast for the current week (Monday to Sunday)."""
+    user_inputs = FinancialInputs.query.filter_by(user_id=user_id).first()
+    if not user_inputs: return None
+
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    # Use float for consistency in calculations, handle None
+    elr = float(user_inputs.effective_labor_rate or 0)
+    parts_to_labor_ratio = float(user_inputs.parts_to_labor_ratio or 0)
+    labor_margin = float(user_inputs.labor_margin or 0) / 100.0
+    parts_margin = float(user_inputs.parts_margin or 0) / 100.0
+
+    weekly_schedules = ScheduleEntry.query.options(
+        joinedload(ScheduleEntry.team_member)
+    ).filter(
+        ScheduleEntry.date >= start_of_week,
+        ScheduleEntry.date <= end_of_week
+    ).all()
+
+    total_frh = 0.0
+    for s in weekly_schedules:
+        if s.team_member and s.team_member.daily_production_objective is not None:
+                # Ensure conversion to float for calculation
+                total_frh += float(s.team_member.daily_production_objective)
+
+    if total_frh == 0:
+        # Ensure ELR is float even if no FRH
+        return {'expected_frh': 0.0, 'elr': elr, 'labor_gross': 0.0, 'parts_gross': 0.0, 'total_gross': 0.0}
+
+    labor_gross = total_frh * elr * labor_margin
+    parts_gross = total_frh * elr * parts_to_labor_ratio * parts_margin
+    total_gross = labor_gross + parts_gross
+
+    return {
+        'expected_frh': total_frh, 'elr': elr,
+        'labor_gross': labor_gross, 'parts_gross': parts_gross,
+        'total_gross': total_gross
+    }
+
+
+def get_weekly_tech_schedules(user_id):
+    """Fetches and organizes team member schedules for the current week."""
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    weekly_schedules = ScheduleEntry.query.options(
+        joinedload(ScheduleEntry.team_member) # Eager load member
+    ).filter(
+        ScheduleEntry.date >= start_of_week,
+        ScheduleEntry.date <= end_of_week
+    ).order_by(ScheduleEntry.date, ScheduleEntry.start_time).all()
+
+    member_weekly_summary = defaultdict(lambda: defaultdict(list))
+    member_weekly_dpo = defaultdict(float)
+    day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+    # Query members once, include team info for efficiency
+    all_members = TeamMember.query.options(joinedload(TeamMember.team)).order_by(TeamMember.name).all()
+    # Build team dict from members if needed, though direct access via member.team is better
+    teams_dict = {m.team_id: m.team.name for m in all_members if m.team}
+
+
+    for s in weekly_schedules:
+        member = s.team_member # Use eager-loaded member
+        if not member: continue
+        member_name = member.name
+        # Use eager-loaded team name
+        team_name = member.team.name if member.team else 'Unassigned'
+        day_index = s.date.weekday()
+        schedule_time = f"{s.start_time.strftime('%I:%M%p')}-{s.end_time.strftime('%I:%M%p')}" if s.start_time and s.end_time else "Scheduled"
+        member_weekly_summary[team_name][member_name].append(f"{day_names[day_index]}: {schedule_time}")
+        if member.daily_production_objective:
+            # Ensure conversion to float
+            member_weekly_dpo[member_name] += float(member.daily_production_objective)
+
+    tech_schedules = defaultdict(list)
+    processed_member_ids = set() # Track members added
+
+    # Structure by teams first for consistent ordering
+    all_teams = Team.query.order_by(Team.name).all() # Get teams for structure
+
+    for team in all_teams:
+        team_name = team.name
+        # Find members belonging to this team from the initial all_members query
+        members_in_team = [m for m in all_members if m.team_id == team.id]
+        for member in sorted(members_in_team, key=lambda m: m.name): # Sort members within team
+             member_name = member.name
+             weekly_dpo = member_weekly_dpo.get(member_name, 0.0)
+             schedules = member_weekly_summary[team_name].get(member_name, [])
+             tech_schedules[team_name].append({
+                 'name': member_name,
+                 'schedule_list': schedules,
+                 'weekly_dpo': weekly_dpo
+             })
+             processed_member_ids.add(member.id)
+
+    # Handle Unassigned members
+    unassigned_members_list = []
+    # Find members with no team_id from the initial query
+    unassigned_member_objects = [m for m in all_members if m.team_id is None]
+    for member in sorted(unassigned_member_objects, key=lambda m: m.name):
+        member_name = member.name
+        weekly_dpo = member_weekly_dpo.get(member_name, 0.0)
+        schedules = member_weekly_summary['Unassigned'].get(member_name, [])
+        # Only add if they have a schedule or DPO calculated this week
+        if schedules or weekly_dpo > 0:
+            unassigned_members_list.append({
+                'name': member_name,
+                'schedule_list': schedules,
+                'weekly_dpo': weekly_dpo
+            })
+            processed_member_ids.add(member.id) # Ensure processed ID is added
+
+    if unassigned_members_list:
+        tech_schedules['Unassigned'] = unassigned_members_list
+
+
+    # Ensure consistent structure even if empty
+    return dict(tech_schedules)
+
+
+def get_weekly_team_data():
+    """Calculates weekly productivity (Actual vs Scheduled) and scheduling potential (Scheduled vs Max)."""
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week_saturday = start_of_week + timedelta(days=5)
+
+    team_data = defaultdict(lambda: {'scheduled_objective': 0.0, 'actual_frh': 0.0})
+    scheduled_days_by_team = defaultdict(set)
+    team_max_dpo = defaultdict(float)
+
+    # Eager load members when querying teams
+    all_teams_with_members = Team.query.options(joinedload(Team.members)).all()
+    for team in all_teams_with_members:
+        team_total_dpo = sum(
+            float(m.daily_production_objective or 0.0) # Handle None DPO
+            for m in team.members
+        )
+        team_max_dpo[team.name] = team_total_dpo
+
+    # Eager load necessary relationships for schedules
+    weekly_schedules = ScheduleEntry.query.options(
+        joinedload(ScheduleEntry.team_member).joinedload(TeamMember.team)
+    ).filter(
+        ScheduleEntry.date >= start_of_week,
+        ScheduleEntry.date <= end_of_week_saturday
+    ).all()
+    for s in weekly_schedules:
+        if s.team_member and s.team_member.daily_production_objective:
+            team_name = s.team_member.team.name if s.team_member.team else "Unassigned"
+            team_data[team_name]['scheduled_objective'] += float(s.team_member.daily_production_objective)
+            scheduled_days_by_team[team_name].add(s.date)
+
+    # Eager load necessary relationships for logs
+    weekly_logs = WorkLog.query.options(
+        joinedload(WorkLog.team_member).joinedload(TeamMember.team)
+    ).filter(
+        WorkLog.date >= start_of_week,
+        WorkLog.date <= end_of_week_saturday
+    ).all()
+    for log in weekly_logs:
+        if log.team_member and log.flat_rate_hours:
+            team_name = log.team_member.team.name if log.team_member.team else "Unassigned"
+            team_data[team_name]['actual_frh'] += float(log.flat_rate_hours)
+
+    final_data = []
+    # Use DB teams for consistent ordering
+    all_db_teams = Team.query.order_by(Team.name).all()
+    processed_teams = set()
+
+    for team in all_db_teams:
+        team_name = team.name
+        processed_teams.add(team_name)
+        max_dpo = team_max_dpo.get(team_name, 0.0)
+        data = team_data.get(team_name, {'scheduled_objective': 0.0, 'actual_frh': 0.0}) # Use .get for safety
+
+        actual_frh = data['actual_frh']
+        scheduled_objective_frh = data['scheduled_objective']
+        num_days_scheduled = len(scheduled_days_by_team.get(team_name, set())) # Use .get for safety
+        max_potential_frh = max_dpo * num_days_scheduled
+
+        productivity_percent = (actual_frh / scheduled_objective_frh) * 100 if scheduled_objective_frh > 0 else 0
+        scheduling_percent = (scheduled_objective_frh / max_potential_frh) * 100 if max_potential_frh > 0 else 0
+
+        # Only add if there is data or max potential exists
+        if scheduled_objective_frh > 0 or actual_frh > 0 or max_dpo > 0:
+            final_data.append({
+                'name': team_name, 'actual_frh': actual_frh,
+                'scheduled_objective_frh': scheduled_objective_frh,
+                'max_potential_frh': max_potential_frh,
+                'productivity_percent': productivity_percent, # Actual vs Scheduled
+                'scheduling_percent': scheduling_percent   # Scheduled vs Max Potential
+            })
+
+    # Handle Unassigned group separately if it has data
+    if "Unassigned" in team_data and (team_data["Unassigned"]['scheduled_objective'] > 0 or team_data["Unassigned"]['actual_frh'] > 0):
+        if "Unassigned" not in processed_teams:
+            data = team_data["Unassigned"]
+            actual_frh = data['actual_frh']
+            scheduled_objective_frh = data['scheduled_objective']
+            productivity_percent = (actual_frh / scheduled_objective_frh) * 100 if scheduled_objective_frh > 0 else 0
+            final_data.append({
+                'name': "Unassigned", 'actual_frh': actual_frh,
+                'scheduled_objective_frh': scheduled_objective_frh, 'max_potential_frh': 0,
+                'productivity_percent': productivity_percent, 'scheduling_percent': 0
+            })
+
+    return final_data
+
+
+def calculate_mtd_avg_hrs_per_ro():
+    """Calculates shop-wide and per-team MTD average hours per RO."""
+    today = date.today()
+    start_of_month = today.replace(day=1)
+
+    mtd_logs = WorkLog.query.options(
+        joinedload(WorkLog.team_member).joinedload(TeamMember.team)
+    ).filter(
+        WorkLog.date >= start_of_month,
+        WorkLog.date <= today
+    ).all()
+
+    shop_total_frh = 0.0
+    shop_ros = set()
+    team_frh = defaultdict(float)
+    team_ros = defaultdict(set)
+    team_name_map = {} # Store team names found in logs
+
+    for log in mtd_logs:
+        if log.flat_rate_hours and log.ro_number and log.ro_number.strip() and log.team_member:
+            frh = float(log.flat_rate_hours)
+            ro_num = log.ro_number.strip()
+            team_name = "Unassigned"
+            team_id = None
+
+            if log.team_member.team:
+                team = log.team_member.team
+                team_name = team.name
+                team_id = team.id
+                if team_id not in team_name_map:
+                    team_name_map[team_id] = team_name # Store mapping
+
+            shop_total_frh += frh
+            shop_ros.add(ro_num)
+            team_frh[team_name] += frh
+            team_ros[team_name].add(ro_num)
+
+    shop_avg = shop_total_frh / len(shop_ros) if shop_ros else 0.0
+
+    team_averages = []
+    # Ensure all teams from DB are considered for structure, sorted
+    all_teams = Team.query.order_by(Team.name).all()
+    processed_teams = set()
+
+    for team in all_teams:
+        team_name = team.name
+        processed_teams.add(team_name)
+        total_frh = team_frh.get(team_name, 0.0) # Use .get for safety
+        ros_count = len(team_ros.get(team_name, set())) # Use .get for safety
+        avg = total_frh / ros_count if ros_count > 0 else 0.0
+        # Only add team if it had activity during MTD
+        if total_frh > 0 or ros_count > 0:
+            team_averages.append({'name': team_name, 'avg': avg})
+
+    # Handle Unassigned group if it had activity
+    if "Unassigned" in team_frh or "Unassigned" in team_ros:
+         if "Unassigned" not in processed_teams:
+             total_frh = team_frh.get("Unassigned", 0.0)
+             ros_count = len(team_ros.get("Unassigned", set()))
+             avg = total_frh / ros_count if ros_count > 0 else 0.0
+             if total_frh > 0 or ros_count > 0:
+                team_averages.append({'name': 'Unassigned', 'avg': avg})
+
+    return {
+        'shop_avg': shop_avg,
+        'team_avgs': team_averages # List of dicts {'name': '...', 'avg': ...}
+    }
+
+
+def get_mtd_team_productivity():
+    """Calculates MTD Actual vs. Scheduled FRH for each team."""
+    today = date.today()
+    start_of_month = today.replace(day=1)
+
+    team_data = defaultdict(lambda: {'objective': 0.0, 'actual': 0.0})
+
+    # Calculate MTD Scheduled Objectives
+    mtd_schedules = ScheduleEntry.query.options(
+        joinedload(ScheduleEntry.team_member).joinedload(TeamMember.team)
+    ).filter(
+        ScheduleEntry.date >= start_of_month,
+        ScheduleEntry.date <= today
+    ).all()
+    for s in mtd_schedules:
+        if s.team_member and s.team_member.daily_production_objective:
+            team_name = s.team_member.team.name if s.team_member.team else "Unassigned"
+            team_data[team_name]['objective'] += float(s.team_member.daily_production_objective)
+
+    # Calculate MTD Actuals
+    mtd_logs = WorkLog.query.options(
+        joinedload(WorkLog.team_member).joinedload(TeamMember.team)
+    ).filter(
+        WorkLog.date >= start_of_month,
+        WorkLog.date <= today
+    ).all()
+    for log in mtd_logs:
+        if log.team_member and log.flat_rate_hours:
+            team_name = log.team_member.team.name if log.team_member.team else "Unassigned"
+            team_data[team_name]['actual'] += float(log.flat_rate_hours)
+
+    # Format Final List & Calculate Percentage
+    final_data = []
+    # Use DB teams for consistent ordering
+    all_teams = Team.query.order_by(Team.name).all()
+    processed_teams = set()
+    for team in all_teams:
+        team_name = team.name
+        processed_teams.add(team_name)
+        data = team_data.get(team_name, {'objective': 0.0, 'actual': 0.0}) # Use .get
+        objective = data['objective']
+        actual = data['actual']
+        percent = (actual / objective) * 100 if objective > 0 else 0
+        # Only add if there is data
+        if objective > 0 or actual > 0:
+            final_data.append({
+                'name': team_name, 'objective': objective,
+                'actual': actual, 'percent': percent
+            })
+
+    # Handle Unassigned separately if it has data
+    if "Unassigned" in team_data and (team_data["Unassigned"]['objective'] > 0 or team_data["Unassigned"]['actual'] > 0):
+        if "Unassigned" not in processed_teams:
+            data = team_data["Unassigned"]
+            objective = data['objective']
+            actual = data['actual']
+            percent = (actual / objective) * 100 if objective > 0 else 0
+            final_data.append({
+                'name': "Unassigned", 'objective': objective,
+                'actual': actual, 'percent': percent
+            })
+
+    return final_data
+
+
+# --- MAIN ROUTES ---
+@main_bp.route("/")
+@main_bp.route("/home")
+@login_required
+def home():
+    # --- Calculate Dates ---
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week_saturday = start_of_week + timedelta(days=5)
+
+    # --- Fetch Data ---
+    weekly_financial_total = calculate_weekly_financial_total(current_user.id)
+    tech_schedules = get_weekly_tech_schedules(current_user.id)
+    team_data_list = get_weekly_team_data() # Provides weekly productivity and scheduling %
+    team_data_map = {team['name']: team for team in team_data_list}
+    mtd_team_productivity = get_mtd_team_productivity() # Provides MTD productivity %
+    mtd_avg_hrs_data = calculate_mtd_avg_hrs_per_ro() # Provides MTD Avg Hrs/RO data
+    # Removed next_week_financial_total calculation
+
+    return render_template('home.html',
+                            title='Home',
+                            weekly_financial_total=weekly_financial_total, # Current week fin total
+                            tech_schedules=tech_schedules,
+                            end_of_week_saturday=end_of_week_saturday,
+                            team_productivity=team_data_list, # Used for "This Week's Perf" card
+                            team_productivity_map=team_data_map, # Used for Schedule card header
+                            mtd_team_productivity=mtd_team_productivity, # Used for MTD Prod card
+                            mtd_avg_hrs_data=mtd_avg_hrs_data) # Used for MTD Avg Hrs/RO card

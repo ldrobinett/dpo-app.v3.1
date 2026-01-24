@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Manage Team Members</h2>
+        <a href="{{ url_for('teams.new_team_member') }}" class="btn btn-primary">
+            + New Team Member
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Tech #</th> <th>Name</th>
+                        <th>Team</th>
+                        <th>Level</th>
+                        <th>DPO</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                    <tr>
+                        <td class="fw-bold text-secondary">
+                            {{ member.tech_number if member.tech_number else '--' }}
+                        </td>
+                        
+                        <td class="fw-bold">{{ member.name }}</td>
+                        
+                        <td>
+                            {% if member.team %}
+                                <span class="badge bg-primary">{{ member.team.name }}</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Unassigned</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td>{{ member.tech_level or '--' }}</td>
+                        
+                        <td>
+                            {% if member.dpo_calculation_mode == 'calculated' %}
+                                <span title="Calculated from History">{{ "%.1f"|format(member.calculated_dpo) }} (Calc)</span>
+                            {% else %}
+                                <span>{{ "%.1f"|format(member.daily_production_objective or 0.0) }} (Manual)</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="text-end">
+                            <a href="{{ url_for('teams.edit_team_member', member_id=member.id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                            
+                            <form action="{{ url_for('teams.delete_team_member', member_id=member.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This will remove them from all schedules and reports.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="fas fa-users fa-2x mb-3 d-block"></i>
+                            No team members found. Please add one!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

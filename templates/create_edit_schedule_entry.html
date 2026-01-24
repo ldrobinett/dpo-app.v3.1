@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1 class="mb-4">{{ title }}</h1>
+
+        <div class="card my-4 shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }} 
+                    
+                    <div class="mb-3">
+                        {{ form.team_member.label(class="form-label") }}
+                        {% if form.team_member.errors %}
+                            {{ form.team_member(class="form-select is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.team_member.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.team_member(class="form-select") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.date.label(class="form-label") }}
+                        {% if form.date.errors %}
+                            {{ form.date(class="form-control is-invalid", type="date") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.date.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.date(class="form-control", type="date") }}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.schedule_type.label(class="form-label") }}
+                        {% if form.schedule_type.errors %}
+                            {{ form.schedule_type(class="form-select is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.schedule_type.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.schedule_type(class="form-select") }}
+                        {% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.start_time.label(class="form-label") }}
+                            {% if form.start_time.errors %}
+                                {{ form.start_time(class="form-control is-invalid", type="time") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.start_time.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.start_time(class="form-control", type="time") }}
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.end_time.label(class="form-label") }}
+                            {% if form.end_time.errors %}
+                                {{ form.end_time(class="form-control is-invalid", type="time") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.end_time.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.end_time(class="form-control", type="time") }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.lunch_start.label(class="form-label") }}
+                            {% if form.lunch_start.errors %}
+                                {{ form.lunch_start(class="form-control is-invalid", type="time") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.lunch_start.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.lunch_start(class="form-control", type="time") }}
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.lunch_end.label(class="form-label") }}
+                            {% if form.lunch_end.errors %}
+                                {{ form.lunch_end(class="form-control is-invalid", type="time") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.lunch_end.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.lunch_end(class="form-control", type="time") }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows=3) }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('schedule.schedules') }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

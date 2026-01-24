@@ -1,0 +1,60 @@
+from flask import Blueprint, render_template, url_for, flash, redirect, request
+from flask_login import login_user, current_user, logout_user, login_required
+from extensions import db, bcrypt
+from models import User
+from forms import RegistrationForm, LoginForm # Use original forms
+import traceback 
+import sys 
+
+# Create the Blueprint
+auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.route("/register", methods=['GET', 'POST'])
+def register():
+    # [REVERTED] This is now a public registration route
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Your account has been created! You are now able to log in', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('register.html', title='Register', form=form)
+
+
+@auth_bp.route("/login", methods=['GET', 'POST'])
+def login():
+    try:
+        if current_user.is_authenticated:
+            return redirect(url_for('main.home'))
+        
+        form = LoginForm() # Uses username
+        
+        if form.validate_on_submit():
+            # [REVERTED] Filter by username
+            user = User.query.filter_by(username=form.username.data).first()
+            
+            if user and bcrypt.check_password_hash(user.password, form.password.data):
+                login_user(user, remember=form.remember.data)
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('main.home'))
+            else:
+                flash('Login Unsuccessful. Please check username and password', 'danger')
+        
+        return render_template('login.html', title='Login', form=form)
+
+    except Exception as e:
+        print(f"---! CRITICAL ERROR IN LOGIN ROUTE !---", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+        sys.stderr.flush()
+        return "An internal server error occurred. Check the server log.", 500
+
+
+@auth_bp.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('auth.login')) # Redirect to login page

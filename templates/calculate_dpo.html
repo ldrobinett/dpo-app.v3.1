@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <h2 class="mb-4">{{ title }}</h2>
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <fieldset>
+                        <legend class="fs-5 border-bottom mb-3">Weekly Schedule</legend>
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                {{ form.weekly_hours_at_work.label(class="form-label") }}
+                                {{ form.weekly_hours_at_work(class="form-control") }}
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                {{ form.days_worked_per_week.label(class="form-label") }}
+                                {{ form.days_worked_per_week(class="form-control") }}
+                            </div>
+                        </div>
+                    </fieldset>
+                    
+                    <fieldset>
+                        <legend class="fs-5 border-bottom mb-3">Non-Productive Time</legend>
+                         <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                {{ form.daily_break_minutes.label(class="form-label") }}
+                                {{ form.daily_break_minutes(class="form-control") }}
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                {{ form.daily_lunch_minutes.label(class="form-label") }}
+                                {{ form.daily_lunch_minutes(class="form-control") }}
+                            </div>
+                        </div>
+                         <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                {{ form.weekly_meeting_hours.label(class="form-label") }}
+                                {{ form.weekly_meeting_hours(class="form-control") }}
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                {{ form.weekly_training_hours.label(class="form-label") }}
+                                {{ form.weekly_training_hours(class="form-control") }}
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend class="fs-5 border-bottom mb-3">Target</legend>
+                         <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                {{ form.target_productivity.label(class="form-label") }}
+                                <div class="input-group">
+                                    {{ form.target_productivity(class="form-control") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if results %}
+    <div class="col-md-6">
+        <h2 class="mb-4">Calculation Results</h2>
+        <div class="card shadow-sm bg-light">
+            <div class="card-body p-4">
+                
+                <h3 class="text-center text-primary mb-4">
+                    Daily Production Objective: 
+                    <span class="fw-bold">{{ "%.2f"|format(results.daily_dpo) }}</span> FRH
+                </h3>
+                
+                <hr>
+
+                <ul class="list-group list-group-flush fs-5">
+                    <li class="list-group-item d-flex justify-content-between bg-light">
+                        <span>Total Weekly Hours:</span>
+                        <span>{{ "%.1f"|format(results.total_hours) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between bg-light text-danger">
+                        <span>Non-Productive Time:</span>
+                        <span>- {{ "%.2f"|format(results.total_deductions) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between bg-light fw-bold border-top">
+                        <span>Net Available Hours:</span>
+                        <span>{{ "%.2f"|format(results.net_available_hours) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between bg-light">
+                        <span>Target Productivity:</span>
+                        <span>{{ "%.0f"|format(results.target_productivity) }}%</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between bg-light fw-bold border-top">
+                        <span>Weekly FRH Objective:</span>
+                        <span>{{ "%.2f"|format(results.weekly_frh_objective) }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between bg-light">
+                        <span>Days Worked:</span>
+                        <span>{{ results.days_worked }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

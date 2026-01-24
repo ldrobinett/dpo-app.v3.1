@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-dark text-white text-center py-4">
+                    <h3><i class="fas fa-cogs me-2"></i>Store Setup & Configuration</h3>
+                    <p class="mb-0">Review and update your dealership's baseline settings.</p>
+                </div>
+                <div class="card-body p-5">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
+                        <h5 class="text-primary border-bottom pb-2 mb-3">1. Store Identity & Facility</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                {{ form.store_name.label(class="form-label fw-bold") }}
+                                {{ form.store_name(class="form-control") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.bays_with_lifts.label(class="form-label fw-bold") }}
+                                {{ form.bays_with_lifts(class="form-control") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.bays_without_lifts.label(class="form-label fw-bold") }}
+                                {{ form.bays_without_lifts(class="form-control") }}
+                            </div>
+                        </div>
+
+                        <h5 class="text-primary border-bottom pb-2 mb-3">2. Financial Baseline</h5>
+                        <p class="text-muted small">Enter your Year-to-Date or 3-Month Average metrics.</p>
+                        
+                        <div class="row g-0 mb-4 border rounded overflow-hidden">
+                            <div class="col-md-6 p-3 border-end bg-light">
+                                <h6 class="text-center text-dark fw-bold mb-3 text-uppercase">Overall (All Pay Types)</h6>
+                                <div class="mb-2">
+                                    {{ form.elr.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        {{ form.elr(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.parts_to_labor.label(class="form-label small fw-bold") }}
+                                    {{ form.parts_to_labor(class="form-control form-control-sm") }}
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.labor_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.labor_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.parts_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.parts_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 p-3 bg-white">
+                                <h6 class="text-center text-success fw-bold mb-3 text-uppercase">Customer Pay (CP) Only</h6>
+                                <div class="mb-2">
+                                    {{ form.cp_elr.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        {{ form.cp_elr(class="form-control border-success") }}
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.cp_parts_to_labor.label(class="form-label small fw-bold") }}
+                                    {{ form.cp_parts_to_labor(class="form-control form-control-sm border-success") }}
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.cp_labor_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.cp_labor_margin(class="form-control border-success") }}
+                                        <span class="input-group-text text-success fw-bold">%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.cp_parts_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.cp_parts_margin(class="form-control border-success") }}
+                                        <span class="input-group-text text-success fw-bold">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5 class="text-primary border-bottom pb-2 mb-3">3. Adjustments & Parts KPIs</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                {{ form.other_ro_gross.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.other_ro_gross(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.unapplied_time_cost.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.unapplied_time_cost(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.parts_retail_gross.label(class="form-label small fw-bold") }}
+                                {{ form.parts_retail_gross(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.wholesale_gross.label(class="form-label small fw-bold") }}
+                                {{ form.wholesale_gross(class="form-control form-control-sm") }}
+                            </div>
+                            
+                            <div class="col-md-3">
+                                {{ form.parts_inventory_adjust.label(class="form-label small fw-bold") }}
+                                {{ form.parts_inventory_adjust(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.parts_allowance.label(class="form-label small fw-bold") }}
+                                {{ form.parts_allowance(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.purchase_discounts.label(class="form-label small fw-bold") }}
+                                {{ form.purchase_discounts(class="form-control form-control-sm") }}
+                            </div>
+                            
+                            <div class="col-md-3 bg-light border rounded pt-2">
+                                <div class="mb-2">
+                                    {{ form.parts_fill_rate.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.parts_fill_rate(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    {{ form.parts_turn_rate.label(class="form-label small fw-bold") }}
+                                    {{ form.parts_turn_rate(class="form-control form-control-sm") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-5">
+                            {{ form.submit(class="btn btn-success btn-lg shadow-sm") }}
+                            <a href="{{ url_for('finance.dashboard') }}" class="btn btn-outline-secondary">Back to Dashboard</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

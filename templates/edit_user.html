@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2 class="mb-4">{{ title }} for {{ user.email }}</h2>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+
+                    <fieldset>
+                        <legend class="fs-5 border-bottom mb-3">User Details</legend>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.email.label(class="form-label") }}
+                                {% if form.email.errors %}
+                                    {{ form.email(class="form-control is-invalid") }}
+                                    <div class="invalid-feedback">{% for e in form.email.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                                {% else %}
+                                    {{ form.email(class="form-control") }}
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.access_level.label(class="form-label") }}
+                                {{ form.access_level(class="form-select") }}
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

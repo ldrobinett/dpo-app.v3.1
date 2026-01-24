@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1 class="mb-4">Add Member to {{ team.name }}</h1>
+
+        <div class="card my-4 shadow-sm">
+            <div class="card-header">
+                New Team Member Details
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('teams.add_member_to_team', team_id=team.id) }}">
+                    {{ form.hidden_tag() }} <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {% if form.name.errors %}
+                            {{ form.name(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.name.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.name(class="form-control") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="team_display" class="form-label">Team</label>
+                        <input type="text" class="form-control" value="{{ team.name }}" disabled>
+                        {{ form.team(class="d-none") }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.tech_level.label(class="form-label") }}
+                        {% if form.tech_level.errors %}
+                            {{ form.tech_level(class="form-select is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.tech_level.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.tech_level(class="form-select") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.daily_production_objective.label(class="form-label") }}
+                        {% if form.daily_production_objective.errors %}
+                            {{ form.daily_production_objective(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.daily_production_objective.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.daily_production_objective(class="form-control") }}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('teams.teams') }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

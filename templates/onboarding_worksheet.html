@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <h3>Welcome to ProdTracker</h3>
+                    <p class="mb-0">Let's set up your dealership's initial profile.</p>
+                </div>
+                <div class="card-body p-5">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
+                        <h5 class="text-primary mb-3 border-bottom pb-2">1. Account & Facility Details</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                {{ form.store_name.label(class="form-label fw-bold") }}
+                                {{ form.store_name(class="form-control", placeholder="e.g. Springfield Ford Service") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.bays_with_lifts.label(class="form-label fw-bold") }}
+                                {{ form.bays_with_lifts(class="form-control") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.bays_without_lifts.label(class="form-label fw-bold") }}
+                                {{ form.bays_without_lifts(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.username.label(class="form-label fw-bold") }}
+                                {{ form.username(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Manager Email</label>
+                                <input type="text" class="form-control" value="Linked to Invite" disabled>
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.password.label(class="form-label fw-bold") }}
+                                {{ form.password(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.confirm_password.label(class="form-label fw-bold") }}
+                                {{ form.confirm_password(class="form-control") }}
+                            </div>
+                        </div>
+
+                        <h5 class="text-primary mb-3 border-bottom pb-2">2. Financial Baseline</h5>
+                        <p class="text-muted small">These numbers power your profit calculators. You can update them later.</p>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6 border-end">
+                                <h6 class="text-center text-muted fw-bold mb-3">Overall (All Pay Types)</h6>
+                                <div class="mb-3">
+                                    {{ form.elr.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        {{ form.elr(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.parts_to_labor.label(class="form-label small fw-bold") }}
+                                    {{ form.parts_to_labor(class="form-control form-control-sm") }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.labor_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.labor_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.parts_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.parts_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6 class="text-center text-success fw-bold mb-3">Customer Pay (CP) Only</h6>
+                                <div class="mb-3">
+                                    {{ form.cp_elr.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        {{ form.cp_elr(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.cp_parts_to_labor.label(class="form-label small fw-bold") }}
+                                    {{ form.cp_parts_to_labor(class="form-control form-control-sm") }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.cp_labor_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.cp_labor_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.cp_parts_margin.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.cp_parts_margin(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5 class="text-primary mb-3 border-bottom pb-2">3. Gross Adjustments & Parts KPIs</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                {{ form.other_ro_gross.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.other_ro_gross(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.unapplied_time_cost.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.unapplied_time_cost(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.parts_retail_gross.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.parts_retail_gross(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.wholesale_gross.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.wholesale_gross(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.parts_inventory_adjust.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.parts_inventory_adjust(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.parts_allowance.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.parts_allowance(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.purchase_discounts.label(class="form-label small fw-bold") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.purchase_discounts(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3 border-start ps-3">
+                                <div class="mb-2">
+                                    {{ form.parts_fill_rate.label(class="form-label small fw-bold") }}
+                                    <div class="input-group input-group-sm">
+                                        {{ form.parts_fill_rate(class="form-control") }}
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    {{ form.parts_turn_rate.label(class="form-label small fw-bold") }}
+                                    {{ form.parts_turn_rate(class="form-control form-control-sm") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mt-5">
+                            {{ form.submit(class="btn btn-success btn-lg shadow") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

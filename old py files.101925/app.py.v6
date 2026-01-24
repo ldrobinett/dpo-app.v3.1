@@ -1,0 +1,839 @@
+from flask import Flask, render_template, url_for, flash, redirect, request
+from extensions import db, login_manager, bcrypt
+from models import (
+    User, Team, TeamMember, ScheduleEntry, WorkLog, TeamSchedule,
+    ProductionObjectiveMemo, FinancialForecast, FinancialInputs # Import FinancialInputs
+)
+from forms import (
+    RegistrationForm, LoginForm, TeamForm, TeamMemberForm, ScheduleEntryForm,
+    WorkLogForm, TeamScheduleForm, RecurringScheduleForm, ScheduleEntryFilterForm,
+    FinancialPerformanceForm
+)
+from flask_login import login_user, current_user, logout_user, login_required
+from datetime import date, time, timedelta, datetime
+import calendar
+from collections import defaultdict
+from flask_migrate import Migrate
+
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'a_very_secret_key'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+    
+    db.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = 'login'
+
+    # Initialize Flask-Migrate here
+    migrate = Migrate(app, db)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+    
+    return app
+
+app = create_app()
+
+# --- HELPER FUNCTIONS FOR HOME ROUTE ---
+
+def calculate_weekly_financial_total(user_id):
+    """Calculates the total financial forecast for the current week (Monday to Sunday)."""
+    user_inputs = FinancialInputs.query.filter_by(user_id=user_id).first()
+    
+    # If no inputs are saved, return None
+    if not user_inputs:
+        return None
+
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    # Convert percentage inputs to decimals
+    elr = user_inputs.effective_labor_rate
+    parts_to_labor_ratio = user_inputs.parts_to_labor_ratio
+    # Assuming margins are stored as whole numbers (e.g., 50 for 50%) and need conversion
+    labor_margin = user_inputs.labor_margin / 100
+    parts_margin = user_inputs.parts_margin / 100
+
+    # Get all scheduled entries for the current week
+    weekly_schedules = ScheduleEntry.query.filter(
+        ScheduleEntry.date >= start_of_week,
+        ScheduleEntry.date <= end_of_week
+    ).all()
+    
+    total_frh = 0.0
+    for s in weekly_schedules:
+        # Check if team_member and daily_production_objective exist
+        if s.team_member and s.team_member.daily_production_objective is not None:
+             total_frh += s.team_member.daily_production_objective
+    
+    if total_frh == 0:
+        return {'expected_frh': 0.0, 'elr': elr, 'labor_gross': 0.0, 'parts_gross': 0.0, 'total_gross': 0.0}
+
+    # Calculate gross based on total FRH and financial inputs
+    labor_gross = total_frh * elr * labor_margin
+    parts_gross = total_frh * elr * parts_to_labor_ratio * parts_margin
+    total_gross = labor_gross + parts_gross
+    
+    # Return the dictionary used by home.html
+    return {
+        'expected_frh': total_frh,
+        'elr': elr, # Pass ELR for KPI display
+        'labor_gross': labor_gross,
+        'parts_gross': parts_gross,
+        'total_gross': total_gross
+    }
+
+def get_weekly_tech_schedules(user_id):
+    """Fetches and organizes team member schedules for the current week."""
+    
+    # Calculate the start and end of the current week (Monday to Sunday)
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    # Fetch all schedules for this week
+    weekly_schedules = ScheduleEntry.query.filter(
+        ScheduleEntry.date >= start_of_week,
+        ScheduleEntry.date <= end_of_week
+    ).order_by(ScheduleEntry.date, ScheduleEntry.start_time).all()
+
+    # Dictionaries to process schedules
+    member_weekly_summary = defaultdict(lambda: defaultdict(list))
+    
+    # Populate the member_weekly_summary
+    day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    
+    # Get all members and teams to ensure everyone is listed
+    all_members = TeamMember.query.all()
+    teams_dict = {team.id: team.name for team in Team.query.all()}
+    
+    # Process schedules
+    for s in weekly_schedules:
+        member = s.team_member
+        if not member: continue
+        
+        member_name = member.name
+        team_name = teams_dict.get(member.team_id, 'Unassigned')
+        day_index = s.date.weekday()
+        
+        schedule_time = f"{s.start_time.strftime('%I:%M%p')}-{s.end_time.strftime('%I:%M%p')}"
+        member_weekly_summary[team_name][member_name].append(f"{day_names[day_index]}: {schedule_time}")
+
+    # Final structure for the template
+    tech_schedules = defaultdict(list)
+    
+    # Consolidate schedules for all members
+    for member in all_members:
+        team_name = teams_dict.get(member.team_id, 'Unassigned')
+        member_name = member.name
+        
+        if member_name in member_weekly_summary[team_name]:
+            # Member has a schedule this week
+            schedules = member_weekly_summary[team_name][member_name]
+            tech_schedules[team_name].append({
+                'name': member_name,
+                'schedule': " | ".join(schedules)
+            })
+        else:
+            # Member has no schedule this week
+            tech_schedules[team_name].append({
+                'name': member_name,
+                'schedule': 'No Schedule'
+            })
+
+    return dict(tech_schedules)
+
+
+# --- MAIN ROUTES ---
+
+@app.route("/")
+@app.route("/home")
+@login_required
+def home():
+    # Fetch data for KPI and Schedule display
+    weekly_financial_total = calculate_weekly_financial_total(current_user.id)
+    tech_schedules = get_weekly_tech_schedules(current_user.id)
+    
+    return render_template('home.html', 
+                           title='Home',
+                           weekly_financial_total=weekly_financial_total,
+                           tech_schedules=tech_schedules)
+
+@app.route("/dashboard", methods=['GET', 'POST'])
+@login_required
+def dashboard():
+    # Retrieve the user's saved inputs from the database
+    user_inputs = FinancialInputs.query.filter_by(user_id=current_user.id).first()
+    
+    if request.method == 'POST':
+        # Create a form instance from the request data
+        financial_form = FinancialPerformanceForm(request.form)
+        if financial_form.validate_on_submit():
+            # If a record exists, update it. Otherwise, create a new one.
+            if user_inputs:
+                user_inputs.effective_labor_rate = financial_form.elr.data
+                user_inputs.parts_to_labor_ratio = financial_form.parts_to_labor_ratio.data
+                user_inputs.labor_margin = financial_form.labor_margin.data
+                user_inputs.parts_margin = financial_form.parts_margin.data
+            else:
+                user_inputs = FinancialInputs(
+                    user_id=current_user.id,
+                    effective_labor_rate=financial_form.elr.data,
+                    parts_to_labor_ratio=financial_form.parts_to_labor_ratio.data,
+                    labor_margin=financial_form.labor_margin.data,
+                    parts_margin=financial_form.parts_margin.data
+                )
+                db.session.add(user_inputs)
+            
+            db.session.commit()
+            flash('Financial inputs updated successfully!', 'success')
+            # Redirect to GET request to see calculations
+            return redirect(url_for('dashboard')) 
+    
+    # On GET request or failed POST, retrieve the form data
+    if user_inputs:
+        # Populate the form with data from the database
+        financial_form = FinancialPerformanceForm(
+            elr=user_inputs.effective_labor_rate,
+            parts_to_labor_ratio=user_inputs.parts_to_labor_ratio,
+            labor_margin=user_inputs.labor_margin,
+            parts_margin=user_inputs.parts_margin
+        )
+    else:
+        financial_form = FinancialPerformanceForm()
+
+    # --- Financial and Performance Calculations ---
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    start_of_next_week = start_of_week + timedelta(days=7)
+    end_of_next_week = start_of_next_week + timedelta(days=6)
+    start_of_month = today.replace(day=1)
+
+    financial_data = None
+    weekly_financial_total = None
+    next_weekly_financial_total = None
+    full_month_financial_forecast = None
+    
+    all_members = TeamMember.query.all()
+    members_dict = {member.id: member for member in all_members}
+
+    # Only perform calculations if a user has saved inputs
+    if user_inputs:
+        elr = user_inputs.effective_labor_rate
+        parts_to_labor_ratio = user_inputs.parts_to_labor_ratio
+        labor_margin = user_inputs.labor_margin / 100
+        parts_margin = user_inputs.parts_margin / 100
+
+        all_schedules_in_range = ScheduleEntry.query.filter(
+            ScheduleEntry.date >= start_of_week,
+            ScheduleEntry.date <= end_of_next_week
+        ).all()
+        
+        financial_data = defaultdict(lambda: {'labor_gross': 0, 'parts_gross': 0, 'total_gross': 0, 'expected_frh': 0})
+        for s in all_schedules_in_range:
+            if s.team_member and s.team_member.daily_production_objective is not None:
+                expected_frh_day = s.team_member.daily_production_objective
+                labor_gross = expected_frh_day * elr * labor_margin
+                parts_gross = expected_frh_day * elr * parts_to_labor_ratio * parts_margin
+                total_gross = labor_gross + parts_gross
+                
+                financial_data[s.date]['labor_gross'] += labor_gross
+                financial_data[s.date]['parts_gross'] += parts_gross
+                financial_data[s.date]['total_gross'] += total_gross
+                financial_data[s.date]['expected_frh'] += expected_frh_day
+
+        weekly_financial_total = defaultdict(float)
+        next_weekly_financial_total = defaultdict(float)
+
+        for d, data in financial_data.items():
+            if start_of_week <= d <= end_of_week:
+                weekly_financial_total['labor_gross'] += data['labor_gross']
+                weekly_financial_total['parts_gross'] += data['parts_gross']
+                weekly_financial_total['total_gross'] += data['total_gross']
+                weekly_financial_total['expected_frh'] += data['expected_frh']
+                
+            if start_of_next_week <= d <= end_of_next_week:
+                next_weekly_financial_total['labor_gross'] += data['labor_gross']
+                next_weekly_financial_total['parts_gross'] += data['parts_gross']
+                next_weekly_financial_total['total_gross'] += data['total_gross']
+                next_weekly_financial_total['expected_frh'] += data['expected_frh']
+            
+        full_month_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.date >= start_of_month,
+            ScheduleEntry.date <= date.fromordinal(start_of_month.toordinal() + calendar.monthrange(today.year, today.month)[1] - 1)
+        ).all()
+        
+        total_month_frh = sum(s.team_member.daily_production_objective for s in full_month_schedules if s.team_member and s.team_member.daily_production_objective is not None)
+        
+        full_month_financial_forecast = {
+            'expected_frh': total_month_frh,
+            'labor_gross': total_month_frh * elr * labor_margin,
+            'parts_gross': total_month_frh * elr * parts_to_labor_ratio * parts_margin,
+        }
+        full_month_financial_forecast['total_gross'] = full_month_financial_forecast['labor_gross'] + full_month_financial_forecast['parts_gross']
+
+        # Save the forecast to the database
+        forecast_entry = FinancialForecast.query.filter_by(month=today.month, year=today.year).first()
+        if not forecast_entry:
+            forecast_entry = FinancialForecast(
+                month=today.month,
+                year=today.year,
+                labor_gross=full_month_financial_forecast['labor_gross'],
+                parts_gross=full_month_financial_forecast['parts_gross'],
+                total_gross=full_month_financial_forecast['total_gross'],
+                expected_frh=full_month_financial_forecast['expected_frh']
+            )
+            db.session.add(forecast_entry)
+            flash('Financials calculated and saved successfully!', 'success')
+        else:
+            forecast_entry.labor_gross = full_month_financial_forecast['labor_gross']
+            forecast_entry.parts_gross = full_month_financial_forecast['parts_gross']
+            forecast_entry.total_gross = full_month_financial_forecast['total_gross']
+            forecast_entry.expected_frh = full_month_financial_forecast['expected_frh']
+            forecast_entry.date_updated = date.today()
+            # flash('Financials calculated and updated successfully!', 'success') # Commenting out to avoid double flash on redirect
+        
+        db.session.commit()
+    
+    weekly_member_data = {}
+    mtd_member_data = {}
+    expected_frh_mtd = 0
+
+    for member in all_members:
+        weekly_scheduled_hours = 0
+        weekly_logged_hours = 0
+        weekly_actual_work_hours = 0
+        weekly_expected_production = 0
+        
+        # Weekly data
+        weekly_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.team_member_id == member.id,
+            ScheduleEntry.date >= start_of_week,
+            ScheduleEntry.date <= today
+        ).all()
+        
+        weekly_work_logs = WorkLog.query.filter(
+            WorkLog.team_member_id == member.id,
+            WorkLog.date >= start_of_week,
+            WorkLog.date <= today
+        ).all()
+        
+        for s in weekly_schedules:
+            if s.start_time and s.end_time:
+                scheduled_time = datetime.combine(s.date, s.end_time) - datetime.combine(s.date, s.start_time)
+                scheduled_hours_net = scheduled_time.total_seconds() / 3600
+                if s.lunch_start and s.lunch_end:
+                    lunch_time = datetime.combine(s.date, s.lunch_end) - datetime.combine(s.date, s.lunch_start)
+                    scheduled_hours_net -= lunch_time.total_seconds() / 3600
+                weekly_scheduled_hours += scheduled_hours_net
+                weekly_expected_production += member.daily_production_objective if member.daily_production_objective is not None else 0
+            
+        for log in weekly_work_logs:
+            if log.flat_rate_hours:
+                weekly_logged_hours += log.flat_rate_hours
+            if log.start_time and log.end_time:
+                actual_time = datetime.combine(log.date, log.end_time) - datetime.combine(log.date, log.start_time)
+                weekly_actual_work_hours += actual_time.total_seconds() / 3600
+
+        weekly_member_data[member.name] = {
+            'scheduled': weekly_scheduled_hours,
+            'actual_worked': weekly_actual_work_hours,
+            'logged_frh': weekly_logged_hours,
+            'production_objective': weekly_expected_production
+        }
+
+        # Month-to-Date (MTD) data
+        mtd_scheduled_hours = 0
+        mtd_logged_hours = 0
+        mtd_actual_work_hours = 0
+        mtd_expected_production = 0
+
+        mtd_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.team_member_id == member.id,
+            ScheduleEntry.date >= start_of_month,
+            ScheduleEntry.date <= today
+        ).all()
+        
+        mtd_work_logs = WorkLog.query.filter(
+            WorkLog.team_member_id == member.id,
+            WorkLog.date >= start_of_month,
+            WorkLog.date <= today
+        ).all()
+
+        for s in mtd_schedules:
+            if s.start_time and s.end_time:
+                scheduled_time = datetime.combine(s.date, s.end_time) - datetime.combine(s.date, s.start_time)
+                scheduled_hours_net = scheduled_time.total_seconds() / 3600
+                if s.lunch_start and s.lunch_end:
+                    lunch_time = datetime.combine(s.date, s.lunch_end) - datetime.combine(s.date, s.lunch_start)
+                    scheduled_hours_net -= lunch_time.total_seconds() / 3600
+                mtd_scheduled_hours += scheduled_hours_net
+                mtd_expected_production += member.daily_production_objective if member.daily_production_objective is not None else 0
+
+        for log in mtd_work_logs:
+            if log.flat_rate_hours:
+                mtd_logged_hours += log.flat_rate_hours
+            if log.start_time and log.end_time:
+                actual_time = datetime.combine(log.date, log.end_time) - datetime.combine(log.date, log.start_time)
+                mtd_actual_work_hours += actual_time.total_seconds() / 3600
+
+        mtd_member_data[member.name] = {
+            'scheduled': mtd_scheduled_hours,
+            'actual_worked': mtd_actual_work_hours,
+            'logged_frh': mtd_logged_hours,
+            'production_objective': mtd_expected_production
+        }
+    
+    expected_frh_mtd = sum(s.team_member.daily_production_objective for s in ScheduleEntry.query.filter(ScheduleEntry.date >= start_of_month, ScheduleEntry.date <= today).all() if s.team_member and s.team_member.daily_production_objective is not None)
+
+    return render_template('dashboard.html',
+                            title='Dashboard',
+                            weekly_member_data=weekly_member_data,
+                            mtd_member_data=mtd_member_data,
+                            financial_form=financial_form,
+                            expected_frh_mtd=expected_frh_mtd,
+                            financial_data=financial_data,
+                            weekly_financial_total=weekly_financial_total,
+                            next_weekly_financial_total=next_weekly_financial_total,
+                            full_month_financial_forecast=full_month_financial_forecast,
+                            current_week_dates=f"{start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')}",
+                            next_week_dates=f"{start_of_next_week.strftime('%b %d')} - {end_of_next_week.strftime('%b %d')}",
+                            team_members=members_dict)
+
+
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Your account has been created! You are now able to log in', 'success')
+        return redirect(url_for('login')) # Redirect to login page instead of home
+    return render_template('register.html', title='Register', form=form)
+
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user, remember=form.remember.data)
+            return redirect(url_for('home'))
+        else:
+            flash('Login Unsuccessful. Please check username and password', 'danger')
+    return render_template('login.html', title='Login', form=form)
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
+@app.route("/teams", methods=['GET', 'POST'])
+@login_required
+def teams():
+    form = TeamForm()
+    
+    if form.validate_on_submit():
+        team = Team(name=form.name.data)
+        db.session.add(team)
+        db.session.commit()
+        flash('Team created successfully!', 'success')
+        return redirect(url_for('teams'))
+
+    all_teams = Team.query.all()
+    
+    return render_template('teams.html', title='Teams', form=form, all_teams=all_teams)
+
+@app.route("/team/new", methods=['GET', 'POST'])
+@login_required
+def new_team():
+    form = TeamForm()
+    if form.validate_on_submit():
+        team = Team(name=form.name.data)
+        db.session.add(team)
+        db.session.commit()
+        flash('Team created successfully!', 'success')
+        return redirect(url_for('teams')) # Redirect to teams overview
+    return render_template('create_edit_team.html', title='New Team', form=form)
+
+@app.route("/team/<int:team_id>/add_member", methods=['GET', 'POST'])
+@login_required
+def add_member_to_team(team_id):
+    team = Team.query.get_or_404(team_id)
+    form = TeamMemberForm()
+    # Pre-select the team in the form
+    form.team.data = team
+
+    if form.validate_on_submit():
+        new_member = TeamMember(
+            name=form.name.data,
+            team_id=team.id,
+            tech_level=form.tech_level.data,
+            daily_production_objective=form.daily_production_objective.data
+        )
+        db.session.add(new_member)
+        db.session.commit()
+        flash(f'Team member {new_member.name} added to {team.name} successfully!', 'success')
+        return redirect(url_for('teams'))
+
+    return render_template('add_member_to_team.html', title=f'Add Member to {team.name}', form=form, team=team)
+
+@app.route("/team/<int:team_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team(team_id):
+    team = Team.query.get_or_404(team_id)
+    form = TeamForm(obj=team)
+    if form.validate_on_submit():
+        team.name = form.name.data
+        db.session.commit()
+        flash('Team updated successfully!', 'success')
+        return redirect(url_for('teams'))
+    return render_template('create_edit_team.html', title='Edit Team', form=form)
+
+@app.route("/team/<int:team_id>/delete", methods=['POST'])
+@login_required
+def delete_team(team_id):
+    team = Team.query.get_or_404(team_id)
+    db.session.delete(team)
+    db.session.commit()
+    flash('Team deleted successfully!', 'success')
+    return redirect(url_for('teams'))
+
+@app.route("/team_members", methods=['GET', 'POST'])
+@login_required
+def team_members():
+    form = TeamMemberForm()
+    
+    if form.validate_on_submit():
+        selected_team = form.team.data
+        
+        new_member = TeamMember(
+            name=form.name.data,
+            team_id=selected_team.id if selected_team else None,
+            tech_level=form.tech_level.data,
+            daily_production_objective=form.daily_production_objective.data
+        )
+        db.session.add(new_member)
+        db.session.commit()
+        flash('Team member added successfully!', 'success')
+        return redirect(url_for('team_members'))
+    
+    all_members = TeamMember.query.all()
+    
+    return render_template('team_members.html', form=form, team_members=all_members)
+
+@app.route("/team_member/<int:member_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team_member(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    form = TeamMemberForm(obj=member)
+    
+    if form.validate_on_submit():
+        # Check if objective has changed to create a memo
+        if form.daily_production_objective.data != member.daily_production_objective:
+            memo = ProductionObjectiveMemo(
+                team_member_id=member.id,
+                previous_objective=member.daily_production_objective
+            )
+            db.session.add(memo)
+
+        member.name = form.name.data
+        member.team = form.team.data
+        member.tech_level = form.tech_level.data
+        member.daily_production_objective = form.daily_production_objective.data
+        
+        db.session.commit()
+        flash('Team Member updated successfully!', 'success')
+        return redirect(url_for('team_members'))
+        
+    return render_template('create_edit_team_member.html', title='Edit Team Member', form=form)
+
+@app.route("/team_member/<int:member_id>/delete", methods=['POST'])
+@login_required
+def delete_team_member(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    db.session.delete(member)
+    db.session.commit()
+    flash('Team Member deleted successfully!', 'success')
+    return redirect(url_for('team_members')) # Redirect to team members overview
+
+@app.route("/schedules")
+@login_required
+def schedules():
+    form = ScheduleEntryFilterForm()
+    query = ScheduleEntry.query
+    
+    # Check if form was submitted with filters (though this is a GET route, it can still process data)
+    if form.validate_on_submit(): # This will likely not work well on a pure GET request
+        pass # Add filter logic here if needed
+
+    schedule_entries = query.order_by(ScheduleEntry.date.desc()).all()
+    return render_template('schedules.html', title='Schedules', entries=schedule_entries, form=form)
+
+@app.route("/schedule_calendar")
+@login_required
+def schedule_calendar():
+    all_schedules = ScheduleEntry.query.order_by(ScheduleEntry.date, ScheduleEntry.start_time).all()
+    
+    events = []
+    for schedule in all_schedules:
+        # Combine date and time to create datetime objects
+        start_datetime = datetime.combine(schedule.date, schedule.start_time) if schedule.start_time else datetime.combine(schedule.date, time(8, 0))
+        end_datetime = datetime.combine(schedule.date, schedule.end_time) if schedule.end_time else datetime.combine(schedule.date, time(17, 0))
+        
+        # Create a title for the event
+        title = f"{schedule.team_member.name} ({start_datetime.strftime('%I:%M %p')}-{end_datetime.strftime('%I:%M %p')})" if schedule.team_member else "Unassigned Schedule"
+        
+        events.append({
+            'title': title,
+            'start': start_datetime.isoformat(),
+            'end': end_datetime.isoformat(),
+            'notes': schedule.notes
+        })
+
+    return render_template('schedule_calendar.html', 
+                            title='Schedule Calendar', 
+                            events=events)
+
+@app.route("/schedule/new", methods=['GET', 'POST'])
+@login_required
+def new_schedule_entry():
+    form = ScheduleEntryForm()
+    if form.validate_on_submit():
+        entry = ScheduleEntry(
+            team_member=form.team_member.data,
+            date=form.date.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            lunch_start=form.lunch_start.data,
+            lunch_end=form.lunch_end.data,
+            notes=form.notes.data
+        )
+        db.session.add(entry)
+        db.session.commit()
+        flash('Schedule entry created successfully!', 'success')
+        return redirect(url_for('schedules'))
+    return render_template('create_edit_schedule_entry.html', title='New Schedule Entry', form=form)
+
+@app.route("/schedule/<int:entry_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_schedule_entry(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    form = ScheduleEntryForm(obj=entry)
+    if form.validate_on_submit():
+        entry.team_member = form.team_member.data
+        entry.date = form.date.data
+        entry.start_time = form.start_time.data
+        entry.end_time = form.end_time.data
+        entry.lunch_start = form.lunch_start.data
+        entry.lunch_end = form.lunch_end.data
+        entry.notes = form.notes.data
+        db.session.commit()
+        flash('Schedule entry updated successfully!', 'success')
+        return redirect(url_for('schedules'))
+    return render_template('create_edit_schedule_entry.html', title='Edit Schedule Entry', form=form)
+
+@app.route("/schedule/<int:entry_id>/delete", methods=['POST'])
+@login_required
+def delete_schedule_entry(entry_id):
+    entry = ScheduleEntry.query.get_or_404(entry_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Schedule entry deleted successfully!', 'success')
+    return redirect(url_for('schedules'))
+
+@app.route("/team_schedules")
+@login_required
+def team_schedules():
+    all_team_schedules = TeamSchedule.query.order_by(TeamSchedule.team_id, TeamSchedule.day_of_week).all()
+    
+    return render_template('team_schedules.html', 
+                            title='Team Schedules', 
+                            team_schedules=all_team_schedules)
+
+@app.route("/work_logs")
+@login_required
+def work_logs():
+    all_logs = WorkLog.query.all()
+    return render_template('work_logs.html', title='Work Logs', logs=all_logs)
+
+@app.route("/work_log/new", methods=['GET', 'POST'])
+@login_required
+def new_work_log():
+    form = WorkLogForm()
+    if form.validate_on_submit():
+        log = WorkLog(
+            team_member=form.team_member.data,
+            date=form.date.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            ro_number=form.ro_number.data,
+            line_item=form.line_item.data,
+            flat_rate_hours=form.flat_rate_hours.data,
+            notes=form.notes.data
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash('Work log created successfully!', 'success')
+        return redirect(url_for('work_logs'))
+    return render_template('create_edit_work_log.html', title='New Work Log', form=form)
+
+@app.route("/work_log/<int:log_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_work_log(log_id):
+    log = WorkLog.query.get_or_404(log_id)
+    form = WorkLogForm(obj=log)
+    if form.validate_on_submit():
+        log.team_member = form.team_member.data
+        log.date = form.date.data
+        log.start_time = form.start_time.data
+        log.end_time = form.end_time.data
+        log.ro_number = form.ro_number.data
+        log.line_item = form.line_item.data
+        log.flat_rate_hours = form.flat_rate_hours.data
+        log.notes = form.notes.data
+        db.session.commit()
+        flash('Work log updated successfully!', 'success')
+        return redirect(url_for('work_logs'))
+    return render_template('create_edit_work_log.html', title='Edit Work Log', form=form)
+
+@app.route("/work_log/<int:log_id>/delete", methods=['POST'])
+@login_required
+def delete_work_log(log_id):
+    log = WorkLog.query.get_or_404(log_id)
+    db.session.delete(log)
+    db.session.commit()
+    flash('Work log deleted successfully!', 'success')
+    return redirect(url_for('work_logs'))
+
+@app.route("/team_schedule/new", methods=['GET', 'POST'])
+@login_required
+def new_team_schedule():
+    form = TeamScheduleForm()
+    if form.validate_on_submit():
+        schedule = TeamSchedule(
+            team=form.team.data,
+            day_of_week=form.day_of_week.data,
+            start_time=form.start_time.data,
+            end_time=form.end_time.data,
+            lunch_start=form.lunch_start.data,
+            lunch_end=form.lunch_end.data,
+            notes=form.notes.data
+        )
+        db.session.add(schedule)
+        db.session.commit()
+        flash('Team schedule created successfully!', 'success')
+        return redirect(url_for('team_schedules'))
+    return render_template('create_edit_team_schedule.html', title='New Team Schedule', form=form)
+
+
+@app.route("/team_schedule/<int:schedule_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_team_schedule(schedule_id):
+    schedule = TeamSchedule.query.get_or_404(schedule_id)
+    form = TeamScheduleForm(obj=schedule)
+    if form.validate_on_submit():
+        schedule.team = form.team.data
+        schedule.day_of_week = form.day_of_week.data
+        schedule.start_time = form.start_time.data
+        schedule.end_time = form.end_time.data
+        schedule.lunch_start = form.lunch_start.data
+        schedule.lunch_end = form.lunch_end.data
+        schedule.notes = form.notes.data
+        db.session.commit()
+        flash('Team schedule updated successfully!', 'success')
+        return redirect(url_for('team_schedules'))
+    return render_template('create_edit_team_schedule.html', title='Edit Team Schedule', form=form)
+
+
+@app.route("/team_schedule/<int:schedule_id>/delete", methods=['POST'])
+@login_required
+def delete_team_schedule(schedule_id):
+    schedule = TeamSchedule.query.get_or_404(schedule_id)
+    db.session.delete(schedule)
+    db.session.commit()
+    flash('Team schedule deleted successfully!', 'success')
+    return redirect(url_for('team_schedules'))
+
+@app.route("/generate_schedule", methods=['GET', 'POST'])
+@login_required
+def generate_schedule():
+    form = RecurringScheduleForm()
+    created_schedules = None
+
+    if form.validate_on_submit():
+        start_date = form.start_date.data
+        end_date = form.end_date.data
+        days_of_week = form.days_of_week.data
+        
+        team_members_to_schedule = []
+        flash_message_target = ""
+
+        if form.team_member.data:
+            member = TeamMember.query.get(form.team_member.data.id)
+            if member:
+                team_members_to_schedule.append(member)
+                flash_message_target = member.name
+        elif form.team.data:
+            selected_team = Team.query.get(form.team.data.id)
+            if selected_team:
+                team_members_to_schedule = selected_team.members
+                flash_message_target = selected_team.name
+        else:
+            flash('You must select either a team or a team member.', 'danger')
+            return render_template('generate_schedules.html', title='Generate Schedule', form=form)
+
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() in days_of_week:
+                for member in team_members_to_schedule:
+                    existing_entry = ScheduleEntry.query.filter_by(team_member_id=member.id, date=current_date).first()
+                    if not existing_entry:
+                        new_entry = ScheduleEntry(
+                            team_member=member,
+                            date=current_date,
+                            start_time=form.start_time.data,
+                            end_time=form.end_time.data,
+                            lunch_start=form.lunch_start.data,
+                            lunch_end=form.lunch_end.data,
+                            notes=form.notes.data
+                        )
+                        db.session.add(new_entry)
+            current_date += timedelta(days=1)
+        
+        db.session.commit()
+        flash(f'Schedules for {flash_message_target} generated successfully!', 'success')
+        
+        created_schedules = ScheduleEntry.query.filter(
+            ScheduleEntry.team_member_id.in_([member.id for member in team_members_to_schedule]),
+            ScheduleEntry.date >= start_date,
+            ScheduleEntry.date <= end_date
+        ).order_by(ScheduleEntry.date).all()
+        
+    return render_template('generate_schedules.html', 
+                            title='Generate Schedule', 
+                            form=form, 
+                            created_schedules=created_schedules)
+
+@app.route("/monthly_forecast")
+@login_required
+def monthly_forecast():
+    all_forecasts = FinancialForecast.query.order_by(FinancialForecast.year.desc(), FinancialForecast.month.desc()).all()
+    
+    return render_template('monthly_forecast.html', 
+                            title='Monthly Forecast',
+                            all_forecasts=all_forecasts)
+
+
+if __name__ == '__main__':
+    # You might want to remove debug=True in a production environment
+    app.run(debug=True)

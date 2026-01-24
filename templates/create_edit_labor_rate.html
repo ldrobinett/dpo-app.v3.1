@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <h2 class="mb-4">{{ title }}</h2>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                 <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.min_hours.label(class="form-label") }}
+                        {% if form.min_hours.errors %}
+                            {{ form.min_hours(class="form-control is-invalid", step="0.1") }}
+                             <div class="invalid-feedback">{% for e in form.min_hours.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                        {% else %}
+                             {{ form.min_hours(class="form-control", step="0.1") }}
+                        {% endif %}
+                    </div>
+                     <div class="mb-3">
+                        {{ form.max_hours.label(class="form-label") }}
+                        {% if form.max_hours.errors %}
+                            {{ form.max_hours(class="form-control is-invalid", step="0.1") }}
+                             <div class="invalid-feedback">{% for e in form.max_hours.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                        {% else %}
+                             {{ form.max_hours(class="form-control", step="0.1") }}
+                        {% endif %}
+                    </div>
+                     <div class="mb-3">
+                        {{ form.effective_rate.label(class="form-label") }}
+                        {% if form.effective_rate.errors %}
+                            {{ form.effective_rate(class="form-control is-invalid", step="0.01") }}
+                             <div class="invalid-feedback">{% for e in form.effective_rate.errors %}<span>{{ e }}</span>{% endfor %}</div>
+                        {% else %}
+                             {{ form.effective_rate(class="form-control", step="0.01") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('labor_matrix.list_rates', grid_id=grid.id) }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

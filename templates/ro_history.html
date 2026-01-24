@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* 1. HEADER STYLING (Matching Route Sheet) */
+    .history-header-container {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+        background-color: #ffffff;
+        border-bottom: 3px solid #6c757d; /* Grey border for History to distinguish it */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 2. TABLE CONTAINER */
+    .table-container {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 100px;
+    }
+
+    /* 3. STATIC BADGE STYLE */
+    .badge-closed {
+        font-size: 0.85rem;
+        padding: 8px 12px;
+        width: 100%;
+        display: block;
+        background-color: #212529; /* Dark/Black for Closed */
+        color: white;
+        border-radius: 4px;
+    }
+</style>
+
+<div class="d-flex flex-column w-100">
+    
+    <div class="history-header-container py-3 mb-3">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                
+                <div style="min-width: 180px;">
+                    <a href="{{ url_for('routesheet.view_sheet') }}" class="btn btn-outline-primary fw-bold">
+                        &larr; Back to Active
+                    </a>
+                </div>
+                
+                <div class="text-center px-2">
+                    <h1 class="mb-0 fw-bold text-uppercase text-secondary" style="font-size: 2.5rem; letter-spacing: 2px;">
+                        Closed RO History
+                    </h1>
+                </div>
+                
+                <div class="text-end" style="min-width: 180px;">
+                    <span class="badge bg-secondary fs-6 shadow-sm p-2">
+                        {{ jobs|length }} Archived
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid px-0">
+        <div class="table-container">
+            <table class="table table-hover align-middle mb-0 table-sm">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th style="width: 120px;">Closed Date</th>
+                        <th style="width: 80px;">RO #</th>
+                        <th style="width: 80px;">ASM</th>
+                        <th class="text-start" style="width: 20%;">Customer / Vehicle</th>
+                        <th class="text-start" style="width: 25%;">Service / Repair</th>
+                        <th style="width: 120px;">Tech</th>
+                        <th style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td class="text-center">
+                            <div class="d-flex flex-column align-items-center">
+                                <span class="badge bg-secondary mb-1" style="width: 100px;">CLOSED</span>
+                                <small class="text-muted fw-bold">{{ job.created_at.strftime('%Y-%m-%d') }}</small>
+                            </div>
+                        </td>
+
+                        <td class="fw-bold text-center fs-5">{{ job.ro_number }}</td>
+
+                        <td class="text-center fw-bold text-secondary">
+                            {{ job.asm.asm_number if job.asm else '--' }}
+                        </td>
+
+                        <td>
+                            <div class="fw-bold text-truncate" style="max-width: 200px;">{{ job.customer_name }}</div>
+                            <div class="text-muted small text-truncate" style="max-width: 200px;">{{ job.vehicle_info }}</div>
+                        </td>
+
+                        <td>
+                            <div class="text-wrap small text-secondary" style="line-height: 1.2; max-height: 50px; overflow-y: auto;">
+                                {{ job.service_description or '' }}
+                            </div>
+                        </td>
+
+                        <td class="text-center">
+                            {% if job.team_member %}
+                                <span class="badge bg-light text-dark border">
+                                    {% if job.team_member.tech_number %}<span class="text-muted me-1">#{{ job.team_member.tech_number }}</span>{% endif %}
+                                    {{ job.team_member.name }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted small">--</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="text-center">
+                            <a href="{{ url_for('routesheet.update_status', ro_id=job.id, new_status='Dispatch') }}" 
+                               class="btn btn-sm btn-warning fw-bold w-100"
+                               onclick="return confirm('Re-open this RO? It will move back to the active Route Sheet.');">
+                                Re-open
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="fas fa-history fa-2x mb-3 d-block"></i>
+                            No history found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Performance Dashboard</h1>
+
+    <div style="overflow: hidden;">
+        <div style="width: 48%; float: left; padding: 1%;">
+            <h2>Financial Performance Forecast</h2>
+            <h3>Expected MTD Flat Rate Hours: {{ expected_frh_mtd|round(2) }}</h3>
+
+            <form method="POST" action="{{ url_for('dashboard') }}">
+                {{ financial_form.hidden_tag() }}
+                <div>
+                    {{ financial_form.elr.label }}
+                    {{ financial_form.elr }}
+                </div>
+                <div>
+                    {{ financial_form.parts_to_labor_ratio.label }}
+                    {{ financial_form.parts_to_labor_ratio }}
+                </div>
+                <div>
+                    {{ financial_form.labor_margin.label }}
+                    {{ financial_form.labor_margin }}%
+                </div>
+                <div>
+                    {{ financial_form.parts_margin.label }}
+                    {{ financial_form.parts_margin }}%
+                </div>
+                <div>
+                    {{ financial_form.submit_finance }}
+                </div>
+            </form>
+
+            {% if weekly_financial_total %}
+                <br>
+                <h2>Current Week Expected Gross Profit ({{ current_week_dates }})</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Expected FRH</th>
+                            <th>Labor Gross</th>
+                            <th>Parts Gross</th>
+                            <th>Total Gross</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ weekly_financial_total.expected_frh|round(2) }}</td>
+                            <td>${{ weekly_financial_total.labor_gross|round(2) }}</td>
+                            <td>${{ weekly_financial_total.parts_gross|round(2) }}</td>
+                            <td>${{ weekly_financial_total.total_gross|round(2) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <br>
+                <h2>Next Week Expected Gross Profit ({{ next_week_dates }})</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Expected FRH</th>
+                            <th>Labor Gross</th>
+                            <th>Parts Gross</th>
+                            <th>Total Gross</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ next_weekly_financial_total.expected_frh|round(2) }}</td>
+                            <td>${{ next_weekly_financial_total.labor_gross|round(2) }}</td>
+                            <td>${{ next_weekly_financial_total.parts_gross|round(2) }}</td>
+                            <td>${{ next_weekly_financial_total.total_gross|round(2) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {% if full_month_financial_forecast %}
+                    <br>
+                    <h2>Expected Full Month Gross Profit Forecast</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Expected FRH</th>
+                                <th>Labor Gross</th>
+                                <th>Parts Gross</th>
+                                <th>Total Gross</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ full_month_financial_forecast.expected_frh|round(2) }}</td>
+                                <td>${{ full_month_financial_forecast.labor_gross|round(2) }}</td>
+                                <td>${{ full_month_financial_forecast.parts_gross|round(2) }}</td>
+                                <td>${{ full_month_financial_forecast.total_gross|round(2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div style="width: 48%; float: left; padding: 1%;">
+            <h2>Weekly Snapshot by Team Member</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Team Member</th>
+                        <th>Scheduled WTD</th>
+                        <th>Actual Work WTD</th>
+                        <th>Logged FRH WTD</th>
+                        <th>Expected Production WTD</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, data in weekly_member_data.items() %}
+                    <tr>
+                        <td>{{ name }}</td>
+                        <td>{{ data.scheduled|round(2) }}</td>
+                        <td>{{ data.actual_worked|round(2) }}</td>
+                        <td>{{ data.logged_frh|round(2) }}</td>
+                        <td>{{ data.production_objective|round(2) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <br>
+            <h2>Month-to-Date Snapshot by Team Member</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Team Member</th>
+                        <th>Scheduled MTD</th>
+                        <th>Actual Work MTD</th>
+                        <th>Logged FRH MTD</th>
+                        <th>Expected Production MTD</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, data in mtd_member_data.items() %}
+                    <tr>
+                        <td>{{ name }}</td>
+                        <td>{{ data.scheduled|round(2) }}</td>
+                        <td>{{ data.actual_worked|round(2) }}</td>
+                        <td>{{ data.logged_frh|round(2) }}</td>
+                        <td>{{ data.production_objective|round(2) }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

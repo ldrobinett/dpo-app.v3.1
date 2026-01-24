@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4 mt-4">
+    <div class="row">
+        <div class="col-md-3 d-none d-md-block">
+            <div class="sticky-top" style="top: 80px; z-index: 1;">
+                <div class="list-group shadow-sm">
+                    <a class="list-group-item list-group-item-action fw-bold bg-light">Contents</a>
+                    <a href="#setup" class="list-group-item list-group-item-action">1. Techs & DPO Setup</a>
+                    <a href="#scheduling" class="list-group-item list-group-item-action">2. Scheduling</a>
+                    <a href="#routesheet" class="list-group-item list-group-item-action">3. Daily Route Sheet</a>
+                    <a href="#logging" class="list-group-item list-group-item-action">4. Logging Hours</a>
+                    <a href="#display" class="list-group-item list-group-item-action">5. Live Display</a>
+                    <a href="#financials" class="list-group-item list-group-item-action">6. Financial Tools</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="card shadow-sm mb-5">
+                <div class="card-header bg-dark text-white py-3">
+                    <h2 class="mb-0"><i class="fas fa-book me-2"></i>ProdTracker User Manual</h2>
+                    <small class="text-white-50">Version 2.0</small>
+                </div>
+                <div class="card-body p-5">
+
+                    <section id="setup" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">1. Setting Up Technicians & DPO</h3>
+                        <p class="text-muted">The foundation of the system is accurate Production Objectives.</p>
+                        
+                        <h5 class="fw-bold mt-4">Setting the Daily Production Objective (DPO)</h5>
+                        <p>Navigate to <strong>Manage > Team Members</strong> and click <strong>Edit</strong> on a technician. You have two ways to set their daily goal:</p>
+                        <ul>
+                            <li class="mb-2"><strong>Manual Mode (Best for New Hires):</strong> Select "Set DPO Manually" and enter a fixed number (e.g., 8.0 hours/day).</li>
+                            <li><strong>Calculated Mode (Best for Established Techs):</strong> Select "Calculate DPO (Historical)" and enter their last 10 weeks of data (Total FRH, Days Worked, Time Off). Enter a <strong>Lift %</strong> target (e.g., 115 for a 15% increase) to auto-calculate their goal.</li>
+                        </ul>
+                    </section>
+
+                    <section id="scheduling" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">2. Scheduling & Communication</h3>
+                        
+                        <h5 class="fw-bold mt-4">Generating the Month</h5>
+                        <p>Go to <strong>Manage > Generate Schedules</strong>. Select the Team, Date Range, and Working Days. The system automatically marks system holidays (Thanksgiving, Christmas, etc.) as non-productive.</p>
+
+                        <h5 class="fw-bold mt-4">The Printable Calendar 🖨️</h5>
+                        <p>Navigate to <strong>Manage > Standard Team Schedules</strong>. Press <code>Ctrl + P</code> to print a clean schedule for the shop bulletin board.</p>
+                    </section>
+
+                    <section id="routesheet" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">3. The Daily Route Sheet</h3>
+                        <p class="text-muted">The command center for Advisors and Techs.</p>
+
+                        <div class="row g-4 mt-2">
+                            <div class="col-md-6">
+                                <div class="card h-100 bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold"><i class="fas fa-tasks me-2"></i>Workflow</h6>
+                                        <p class="small">Use the <strong>"Add RO"</strong> row at the bottom for new jobs. Click the <strong>Status Button</strong> to move cars through the shop flow (Dispatch → Inspection → Approval → Parts → Service → Ready).</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 bg-light border-0">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold"><i class="fas fa-exclamation-circle me-2"></i>Alerts</h6>
+                                        <ul class="small mb-0 ps-3">
+                                            <li><strong>Red Time:</strong> Vehicle is past promised time.</li>
+                                            <li><strong>Yellow Time:</strong> Vehicle due within 2 hours.</li>
+                                            <li><strong>Yellow Note Icon:</strong> Unread internal note.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="logging" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">4. Logging Hours</h3>
+                        <p>Accurate logging drives the Financial Dashboard.</p>
+
+                        <div class="alert alert-success">
+                            <h5 class="alert-heading"><i class="fas fa-stopwatch me-2"></i>Method A: Quick Log</h5>
+                            <p class="mb-0"><strong>Best for "In the Flow".</strong> Click the green Stopwatch icon on the Route Sheet. A popup appears pre-filled with the RO info. Enter Sold/Actual hours and click Save.</p>
+                        </div>
+
+                        <div class="alert alert-secondary">
+                            <h5 class="alert-heading"><i class="fas fa-list-alt me-2"></i>Method B: Detailed Log</h5>
+                            <p class="mb-0"><strong>Best for End-of-Day.</strong> Navigate to "Work Logs" to enter detailed line items or review your daily efficiency. This view highlights high performers in Green.</p>
+                        </div>
+                    </section>
+
+                    <section id="display" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">5. Live Production Display 📺</h3>
+                        <p>Access this via <strong>Production Display</strong> in the menu. Display this on a shop monitor.</p>
+                        <ul>
+                            <li><strong>Real-Time Bars:</strong> Shows hours flagged vs. Daily Goal.</li>
+                            <li><strong>Color Coded:</strong> <span class="text-danger fw-bold">Red</span> (Behind), <span class="text-warning fw-bold">Yellow</span> (On Track), <span class="text-success fw-bold">Green</span> (Goal Met).</li>
+                        </ul>
+                    </section>
+
+                    <section id="financials" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">6. Financial Tools</h3>
+                        
+                        <h5 class="fw-bold mt-4">Forecasting</h5>
+                        <p>The <strong>Dashboard</strong> calculates projected Month-End Gross Profit based on scheduled productive days and current tech performance.</p>
+
+                        <h5 class="fw-bold mt-4">Reconciliation (Audit)</h5>
+                        <p>Go to <strong>Manage > Reconcile Work Logs</strong>. Upload your CDK Payroll CSV. The system compares ProdTracker logs vs. DMS payments to find missing tickets or over-reporting.</p>
+                        
+                        <h5 class="fw-bold mt-4">Opportunity Calculators</h5>
+                        <p>Use the <strong>Calculators</strong> menu to run "What-If" scenarios on MPI upsells, Shop Capacity, and Appointment Volume.</p>
+                    </section>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

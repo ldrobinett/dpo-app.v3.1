@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Welcome to the Daily Performance Tracker</h1>
+    <p>Use the links below to navigate the application:</p>
+
+    <h2>Teams</h2>
+    <ul>
+        <li><a href="{{ url_for('teams') }}">View and Create Teams</a></li>
+        <li><a href="{{ url_for('team_members') }}">View and Create Team Members</a></li>
+    </ul>
+
+    <h2>Schedules</h2>
+    <ul>
+        <li><a href="{{ url_for('new_schedule_entry') }}">Create or Edit a Schedule Entry</a></li>
+        <li><a href="{{ url_for('generate_schedule') }}">Generate a Schedule</a></li>
+        <li><a href="{{ url_for('team_schedules') }}">View Team Schedules</a></li>
+    </ul>
+
+    <h2>Work Logs</h2>
+    <ul>
+        <li><a href="{{ url_for('new_work_log') }}">Log Work Hours</a></li>
+    </ul>
+
+    <h2>Financials</h2>
+    <ul>
+        <li><a href="{{ url_for('dashboard') }}">Financial Dashboard</a></li>
+    </ul>
+
+{% endblock %}

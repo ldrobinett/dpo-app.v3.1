@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Financial Dashboard</h2>
+</div>
+
+<div class="card bg-light border-primary my-4">
+    <div class="card-header text-primary border-primary">
+        <strong>{{ current_month_name }} {{ current_year }} Service & Parts Forecast (Adjusted)</strong>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-4">
+                <h6 class="text-muted">Service Gross</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(full_month_financial_forecast.labor_gross + full_month_financial_forecast.other_gross) }}</h3>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-muted">Parts Gross</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(full_month_financial_forecast.parts_gross) }}</h3>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-muted">Total Gross</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(full_month_financial_forecast.total_gross) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+<ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="kpi-tab" data-bs-toggle="tab" data-bs-target="#kpi-content" type="button" role="tab" aria-controls="kpi-content" aria-selected="true">Financial KPIs</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="inputs-tab" data-bs-toggle="tab" data-bs-target="#inputs-content" type="button" role="tab" aria-controls="inputs-content" aria-selected="false">Financial Inputs</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="mtd-tab" data-bs-toggle="tab" data-bs-target="#mtd-content" type="button" role="tab" aria-controls="mtd-content" aria-selected="false">MTD Performance</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="dashboardTabContent">
+    
+    <div class="tab-pane fade show active" id="kpi-content" role="tabpanel" aria-labelledby="kpi-tab">
+        <div class="row g-4 mt-3">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        This Week ({{ current_week_dates }})
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between"><strong>Total Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.total_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Labor Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.labor_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Parts Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.parts_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Expected FRH:</strong> <span>{{ "%.2f"|format(weekly_financial_total.expected_frh) }}</span></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        Next Week ({{ next_week_dates }})
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between"><strong>Total Gross:</strong> <span>${{ "%.2f"|format(next_weekly_financial_total.total_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Labor Gross:</strong> <span>${{ "%.2f"|format(next_weekly_financial_total.labor_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Parts Gross:</strong> <span>${{ "%.2f"|format(next_weekly_financial_total.parts_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Expected FRH:</strong> <span>{{ "%.2f"|format(next_weekly_financial_total.expected_frh) }}</span></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 bg-light border-primary">
+                    <div class="card-header text-primary border-primary">
+                        <strong>Full Month Forecast (Adjusted)</strong>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between"><strong>Total Gross:</strong> <span>${{ "%.2f"|format(full_month_financial_forecast.total_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Service Gross:</strong> <span>${{ "%.2f"|format(full_month_financial_forecast.labor_gross + full_month_financial_forecast.other_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Parts Gross:</strong> <span>${{ "%.2f"|format(full_month_financial_forecast.parts_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Expected FRH:</strong> <span>{{ "%.2f"|format(full_month_financial_forecast.expected_frh) }}</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="inputs-content" role="tabpanel" aria-labelledby="inputs-tab">
+        <div class="card mt-3">
+            <div class="card-header">
+                Update Financial Inputs & Adjustments
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted">
+                    Update your core rates and margins to calculate forecasts. 
+                    Use positive or negative numbers for adjustments (e.g., -1500 for a cost, 500 for added revenue).
+                    <strong>Exception:</strong> Unapplied Time will always be treated as a cost.
+                </p>
+
+                <fieldset class="row g-3 mb-4">
+                    <legend class="fs-5 border-bottom pb-2">Total Forecasted FRH (Month)</legend>
+                    <div class="col-md-6">
+                        <label for="month_expected_frh" class="form-label">Total Forecasted FRH for {{ current_month_name }}</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="month_expected_frh" 
+                                    value="{{ "%.2f"|format(full_month_expected_frh) }} hrs" readonly disabled>
+                        </div>
+                        <div class="form-text">This is the sum of all DPOs for all scheduled days this month.</div>
+                    </div>
+                </fieldset>
+                <form method="POST" action="{{ url_for('finance.dashboard') }}">
+                    {{ financial_form.hidden_tag() }}
+                    
+                    <fieldset class="row g-3 mb-4">
+                        <legend class="fs-5 border-bottom pb-2">Core Rates & Margins</legend>
+                        <div class="col-md-3">
+                            {{ financial_form.elr.label(class="form-label") }}
+                            {{ financial_form.elr(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.parts_to_labor_ratio.label(class="form-label") }}
+                            {{ financial_form.parts_to_labor_ratio(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.labor_margin.label(class="form-label") }}
+                            {{ financial_form.labor_margin(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.parts_margin.label(class="form-label") }}
+                            {{ financial_form.parts_margin(class="form-control") }}
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="row g-3">
+                        <legend class="fs-5 border-bottom pb-2">Monthly Adjustments (Forecast)</legend>
+                        <div class="col-md-4">
+                            {{ financial_form.unapplied_time_cost.label(class="form-label") }}
+                            {{ financial_form.unapplied_time_cost(class="form-control") }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ financial_form.other_ro_gross.label(class="form-label") }}
+                            {{ financial_form.other_ro_gross(class="form-control") }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ financial_form.wholesale_gross.label(class="form-label") }}
+                            {{ financial_form.wholesale_gross(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.parts_retail_gross.label(class="form-label") }}
+                            {{ financial_form.parts_retail_gross(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.parts_inventory_adjust.label(class="form-label") }}
+                            {{ financial_form.parts_inventory_adjust(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.parts_allowance.label(class="form-label") }}
+                            {{ financial_form.parts_allowance(class="form-control") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ financial_form.purchase_discounts.label(class="form-label") }}
+                            {{ financial_form.purchase_discounts(class="form-control") }}
+                        </div>
+                    </fieldset>
+
+                    <div class="form-group mt-4">
+                        <button type="submit" class="btn btn-primary">Save Financial Inputs</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="mtd-content" role="tabpanel" aria-labelledby="mtd-tab">
+        <div class="card mt-3">
+            <div class="card-header">
+                Month-to-Date Performance
+            </div>
+            <div class="card-body">
+                
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <h6 class="text-muted">Total MTD Expected FRH</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(expected_frh_mtd) }}</h3>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-muted">Total MTD Actual FRH</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(total_mtd_actual_frh) }}</h3>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="text-muted">Shop Avg Hrs / RO</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(shop_avg_hrs_per_ro) }}</h3>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                {% if mtd_member_data %}
+                    <table class="table table-striped mt-4">
+                        <thead>
+                            <tr>
+                                <th>Team Member</th>
+                                <th>DPO</th>
+                                <th>MTD Expected FRH</th>
+                                <th>MTD Actual FRH</th>
+                                <th>Variance</th>
+                                <th>Avg Hrs / RO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for member_id, data in mtd_member_data.items() %}
+                                {% if data['dpo'] > 0 or data['expected'] > 0 or data['actual'] > 0 %}
+                                <tr>
+                                    <td><strong>{{ team_members.get(member_id).name or 'Unknown Member' }}</strong></td>
+                                    <td>{{ "%.1f"|format(data['dpo']) }} hrs</td>
+                                    <td>{{ "%.2f"|format(data['expected']) }}</td>
+                                    <td>{{ "%.2f"|format(data['actual']) }}</td>
+                                    {% set variance = data['actual'] - data['expected'] %}
+                                    <td class="{% if variance >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                        {{ "%+.2f"|format(variance) }}
+                                    </td>
+                                    <td>{{ "%.2f"|format(data['avg_hrs_per_ro']) }}</td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted mt-3">No Month-to-Date data to display.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div> {% endblock %}

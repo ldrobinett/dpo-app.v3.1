@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>{{ title }}</h2>
+    <a href="{{ url_for('labor_matrix.list_grids') }}" class="btn btn-outline-secondary">
+        &laquo; Back to Grids
+    </a>
+</div>
+
+<p class="text-muted">These rates are automatically calculated based on the grid's parameters (Starting Rate, Peak Hours, Escalator, etc.). Edit the grid definition itself on the <a href="{{ url_for('labor_matrix.edit_grid', grid_id=grid.id) }}">Edit Grid page</a> to change these values.</p>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-striped table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Hours</th>
+                    <th>Calculated Effective Rate ($/hr)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rate in rates %}
+                <tr>
+                    <td>{{ "%.1f"|format(rate.hours) }}</td>
+                    <td>${{ "%.2f"|format(rate.effective_rate) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2" class="text-center text-muted p-4">No rates have been calculated for this grid yet. Edit the grid definition to generate them.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="sticky-top bg-white border-bottom shadow-sm py-3 mb-4" style="z-index: 950;">
+    <div class="container-fluid text-center">
+        <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
+            {{ title }}
+        </h1>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        
+        <div class="card mb-4 shadow-sm border-0 bg-light">
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-2">
+                        {{ form.days_in_month.label(class="form-label fw-bold small text-nowrap") }}
+                        {{ form.days_in_month(class="form-control") }}
+                    </div>
+                    <div class="col-md-2">
+                        {{ form.hours_per_day.label(class="form-label fw-bold small text-nowrap") }}
+                        {{ form.hours_per_day(class="form-control") }}
+                    </div>
+                    <div class="col-md-8 text-end">
+                        {{ form.submit(class="btn btn-primary btn-lg px-5 shadow-sm") }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-4">
+                <div class="card h-100 border-secondary shadow-sm">
+                    <div class="card-header bg-secondary text-white text-center fw-bold">Current Capacity</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                {{ form.curr_tech_count.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.curr_tech_count(class="form-control form-control-sm", readonly=True, id="c_techs") }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_proficiency.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_proficiency(class="form-control", readonly=True, id="c_prof") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                {{ form.curr_elr.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.curr_elr(class="form-control", readonly=True, id="c_elr") }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_labor_margin(class="form-control", readonly=True, id="c_lm") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_unapplied.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.curr_unapplied(class="form-control", readonly=True, id="c_un") }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.curr_parts_ratio(class="form-control form-control-sm", readonly=True, id="c_pr") }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_parts_margin(class="form-control", readonly=True, id="c_pm") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if results %}
+                    <div class="card-footer bg-light border-top">
+                        <div class="d-flex justify-content-between small mb-1"><span>Labor GP:</span> <strong>${{ "{:,.0f}".format(results.current.labor) }}</strong></div>
+                        <div class="d-flex justify-content-between small mb-1"><span>Parts GP:</span> <strong>${{ "{:,.0f}".format(results.current.parts) }}</strong></div>
+                        <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2 h5"><span>Total:</span> <span>${{ "{:,.0f}".format(results.current.total) }}</span></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="card h-100 border-success shadow-sm">
+                    <div class="card-header bg-success text-white text-center fw-bold">Target Capacity</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                {{ form.opp_tech_count.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.opp_tech_count(class="form-control form-control-sm override-check", **{'data-compare': 'c_techs'}) }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_proficiency.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_proficiency(class="form-control override-check", **{'data-compare': 'c_prof'}) }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                {{ form.opp_elr.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.opp_elr(class="form-control override-check", **{'data-compare': 'c_elr'}) }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_labor_margin(class="form-control override-check", **{'data-compare': 'c_lm'}) }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_unapplied.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.opp_unapplied(class="form-control override-check", **{'data-compare': 'c_un'}) }}
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.opp_parts_ratio(class="form-control form-control-sm override-check", **{'data-compare': 'c_pr'}) }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_parts_margin(class="form-control override-check", **{'data-compare': 'c_pm'}) }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if results %}
+                    <div class="card-footer bg-light border-top">
+                        <div class="d-flex justify-content-between small mb-1"><span>Labor GP:</span> <strong>${{ "{:,.0f}".format(results.opportunity.labor) }}</strong></div>
+                        <div class="d-flex justify-content-between small mb-1"><span>Parts GP:</span> <strong>${{ "{:,.0f}".format(results.opportunity.parts) }}</strong></div>
+                        <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2 h5 text-success"><span>Total:</span> <span>${{ "{:,.0f}".format(results.opportunity.total) }}</span></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="card h-100 border-primary shadow-lg">
+                    <div class="card-header bg-primary text-white text-center fw-bold">Total Opportunity</div>
+                    <div class="card-body d-flex flex-column justify-content-center text-center">
+                        {% if results %}
+                            <div class="mb-5">
+                                <h6 class="text-muted text-uppercase fw-bold text-nowrap">Monthly Variance</h6>
+                                <h2 class="fw-bold text-primary">+${{ "{:,.0f}".format(results.variance) }}</h2>
+                            </div>
+                            
+                            <div class="bg-warning p-4 rounded shadow-sm">
+                                <h6 class="text-dark text-uppercase fw-bold opacity-75 text-nowrap">Annualized Opportunity</h6>
+                                <h1 class="display-4 fw-bold text-dark mb-0">+${{ "{:,.0f}".format(results.annualized) }}</h1>
+                            </div>
+                        {% else %}
+                            <div class="text-muted">
+                                <i class="fas fa-balance-scale fa-3x mb-3"></i>
+                                <p>Fill out the Current and Target metrics to see the full financial impact of capacity adjustments.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const inputs = document.querySelectorAll('.override-check');
+    function checkOverride(input) {
+        const compareId = input.dataset.compare;
+        const compareEl = document.getElementById(compareId);
+        if (!compareEl) return;
+        if (parseFloat(input.value) != parseFloat(compareEl.value)) {
+            input.classList.add('bg-warning', 'bg-opacity-25', 'border-warning');
+        } else {
+            input.classList.remove('bg-warning', 'bg-opacity-25', 'border-warning');
+        }
+    }
+    inputs.forEach(input => {
+        checkOverride(input);
+        input.addEventListener('input', () => checkOverride(input));
+    });
+});
+</script>
+{% endblock %}

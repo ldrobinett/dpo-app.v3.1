@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <h2 class="mb-4">{{ title }}</h2>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                        {% for error in form.name.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.asm_number.label(class="form-label") }}
+                        {{ form.asm_number(class="form-control") }}
+                        {% for error in form.asm_number.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.team.label(class="form-label") }}
+                        {{ form.team(class="form-select") }}
+                        {% for error in form.team.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('teams.view_asms') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

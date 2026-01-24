@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="sticky-top bg-white border-bottom shadow-sm py-3 mb-4" style="z-index: 950;">
+    <div class="container-fluid text-center">
+        <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
+            {{ title }}
+        </h1>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        
+        <div class="row g-4">
+            <div class="col-12 col-lg-4">
+                <div class="card border-secondary h-100 shadow-sm">
+                    <div class="card-header bg-secondary text-white text-center fw-bold">Current State</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.curr_elr.label(class="form-label small fw-bold text-nowrap") }}
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                {{ form.curr_elr(class="form-control", readonly=True, id="curr_elr") }}
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.curr_hours_per_ro.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_hours_per_ro(class="form-control form-control-sm", id="curr_hrs") }}
+                                    <span class="input-group-text">hrs</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_labor_margin(class="form-control", readonly=True, id="curr_lm") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.curr_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.curr_parts_ratio(class="form-control form-control-sm", readonly=True, id="curr_pr") }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.curr_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.curr_parts_margin(class="form-control", readonly=True, id="curr_pm") }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.curr_ro_count.label(class="form-label small fw-bold text-nowrap") }}
+                            {{ form.curr_ro_count(class="form-control form-control-sm", id="curr_ro") }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="card border-success h-100 shadow-sm">
+                    <div class="card-header bg-success text-white text-center fw-bold">Target Opportunity</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.opp_elr.label(class="form-label small fw-bold text-nowrap") }}
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                {{ form.opp_elr(class="form-control override-check", **{'data-compare': 'curr_elr'}) }}
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.opp_hours_per_ro.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_hours_per_ro(class="form-control form-control-sm override-check", **{'data-compare': 'curr_hrs'}) }}
+                                    <span class="input-group-text">hrs</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_labor_margin(class="form-control override-check", **{'data-compare': 'curr_lm'}) }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                {{ form.opp_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
+                                {{ form.opp_parts_ratio(class="form-control form-control-sm override-check", **{'data-compare': 'curr_pr'}) }}
+                            </div>
+                            <div class="col-6">
+                                {{ form.opp_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
+                                <div class="input-group input-group-sm">
+                                    {{ form.opp_parts_margin(class="form-control override-check", **{'data-compare': 'curr_pm'}) }}
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.opp_ro_count.label(class="form-label small fw-bold text-nowrap") }}
+                            {{ form.opp_ro_count(class="form-control form-control-sm override-check", **{'data-compare': 'curr_ro'}) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="card border-primary h-100 shadow-lg">
+                    <div class="card-header bg-primary text-white text-center fw-bold">Financial Impact</div>
+                    <div class="card-body d-flex flex-column justify-content-between">
+                        {% if results %}
+                        <div>
+                            <h6 class="text-muted text-center mb-3 text-uppercase fw-bold text-nowrap" style="letter-spacing: 1px;">Gross Profit Per RO</h6>
+                            <div class="d-flex justify-content-between mb-2 border-bottom pb-1">
+                                <span>Current:</span>
+                                <span>${{ "{:,.2f}".format(results.current_gp_ro) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Target:</span>
+                                <span class="fw-bold text-success">${{ "{:,.2f}".format(results.opportunity_gp_ro) }}</span>
+                            </div>
+                            <div class="alert alert-success text-center py-2 mb-4">
+                                <strong>+${{ "{:,.2f}".format(results.variance_ro) }}</strong> <small>/ RO</small>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h6 class="text-muted text-center mb-3 text-uppercase fw-bold text-nowrap" style="letter-spacing: 1px;">Total Monthly GP</h6>
+                            <div class="d-flex justify-content-between mb-2 border-bottom pb-1">
+                                <span>Current:</span>
+                                <span>${{ "{:,.0f}".format(results.current_monthly_gp) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Target:</span>
+                                <span class="fw-bold text-success">${{ "{:,.0f}".format(results.opportunity_monthly_gp) }}</span>
+                            </div>
+                            
+                            <div class="text-center bg-primary text-white rounded p-3 mb-2 shadow-sm">
+                                <div class="small text-uppercase opacity-75 text-nowrap">Monthly Increase</div>
+                                <div class="h3 mb-0 fw-bold text-nowrap">+${{ "{:,.0f}".format(results.monthly_variance) }}</div>
+                            </div>
+                            
+                            <div class="text-center bg-warning text-dark rounded p-3 shadow-sm">
+                                <div class="small text-uppercase opacity-75 text-nowrap">Annualized Opportunity</div>
+                                <div class="h2 mb-0 fw-bold text-nowrap">+${{ "{:,.0f}".format(results.yearly_variance) }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted my-auto">
+                            <i class="fas fa-chart-line fa-3x mb-3"></i>
+                            <p>Compare your current metrics against a target scenario.</p>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-4">
+                            {{ form.submit(class="btn btn-dark w-100 btn-lg") }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const inputs = document.querySelectorAll('.override-check');
+    function checkOverride(input) {
+        const compareId = input.dataset.compare;
+        const compareEl = document.getElementById(compareId);
+        if (!compareEl) return;
+        if (parseFloat(input.value) != parseFloat(compareEl.value)) {
+            input.classList.add('bg-warning', 'bg-opacity-25', 'border-warning');
+        } else {
+            input.classList.remove('bg-warning', 'bg-opacity-25', 'border-warning');
+        }
+    }
+    inputs.forEach(input => {
+        checkOverride(input);
+        input.addEventListener('input', () => checkOverride(input));
+    });
+});
+</script>
+{% endblock %}

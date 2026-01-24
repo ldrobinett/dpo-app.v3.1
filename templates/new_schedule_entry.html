@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1 class="mb-4">{{ title }}</h1>
+
+        <div class="card my-4 shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }} <div class="mb-3">
+                        {{ form.team_member.label(class="form-label") }}
+                        {% if form.team_member.errors %}
+                            {{ form.team_member(class="form-select is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.team_member.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.team_member(class="form-select") }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.date.label(class="form-label") }}
+                        {% if form.date.errors %}
+                            {{ form.date(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.date.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.date(class="form-control") }}
+                        {% endif %}
+                    </div>
+                    
+                    {% if form.is_working %}
+                    <div class="mb-3">
+                        {{ form.is_working.label(class="form-label") }}
+                        {% if form.is_working.errors %}
+                            {{ form.is_working(class="form-select is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.is_working.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.is_working(class="form-select") }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('schedule.schedules') }}" class="btn btn-outline-secondary ms-2">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
