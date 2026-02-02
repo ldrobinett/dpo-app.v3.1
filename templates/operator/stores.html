@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <title>{{ title }}</title>
+  <style>
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 8px; }
+    .pw { font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h2>Store Index</h2>
+
+  <form method="post" action="{{ url_for('operator.logout') }}">
+    <button type="submit">Log out</button>
+  </form>
+
+  <p><a href="{{ url_for('operator.store_new') }}">+ Add Store</a></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Store</th>
+        <th>Env</th>
+        <th>Status</th>
+        <th>URL</th>
+        <th>Admin User</th>
+        <th>Admin PW</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in stores %}
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>{{ s.environment }}</td>
+        <td>{{ s.status }}</td>
+        <td><a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">Open</a></td>
+        <td class="pw">{{ s.admin_username }}</td>
+        <td class="pw">
+          <span id="pw-{{ s.id }}">••••••••</span>
+          <button type="button" onclick="reveal({{ s.id }})">Reveal</button>
+        </td>
+        <td>
+          <a href="{{ url_for('operator.store_edit', store_id=s.id) }}">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    async function reveal(storeId) {
+      const opPw = prompt("Confirm operator password to reveal:");
+      if (!opPw) return;
+
+      const form = new FormData();
+      form.append("operator_password", opPw);
+
+      const res = await fetch(`/operator/stores/${storeId}/reveal`, { method: "POST", body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Reveal failed");
+        return;
+      }
+
+      const el = document.getElementById(`pw-${storeId}`);
+      el.textContent = data.password;
+
+      // auto-hide after 20 seconds
+      setTimeout(() => { el.textContent = "••••••••"; }, 20000);
+    }
+  </script>
+</body>
+</html>

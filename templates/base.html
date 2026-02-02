@@ -14,6 +14,12 @@
     {% endif %}
 </head>
 <body>
+    {% if current_user.is_authenticated and current_user.is_operator %}
+        <a href="{{ url_for('operator.store_index') }}">
+            Operator Stores
+        </a>
+    {% endif %}
+
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top" style="z-index: 1040;">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{{ url_for('main.home') }}">ProdTracker&copy;</a>

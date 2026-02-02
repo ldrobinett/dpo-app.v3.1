@@ -8,6 +8,7 @@ from alembic import context
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+print("ALEMBIC SQLALCHEMY URL:", config.get_main_option("sqlalchemy.url"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -94,7 +95,8 @@ def run_migrations_online():
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
 
-    connectable = get_engine()
+    connectable = current_app.extensions["migrate"].db.engine
+
 
     with connectable.connect() as connection:
         context.configure(

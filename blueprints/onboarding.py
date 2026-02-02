@@ -197,13 +197,14 @@ def team_upload():
     
     if form.validate_on_submit():
         f = form.csv_file.data
-        stream = io.StringIO(f.stream.read().decode("UTF8"), newline=None)
+        stream = io.TextIOWrapper(f.stream, encoding="UTF-8", newline=None)
         csv_input = csv.reader(stream)
         
         # Skip header
         next(csv_input, None)
         
         count_created = 0
+        errors = []
         
         today = date.today()
         start_date = date(today.year, today.month, 1)
@@ -228,8 +229,9 @@ def team_upload():
                     target_ints.append(day_int)
             return target_ints
 
-        for row in csv_input:
-            if not row: continue
+        for row_index, row in enumerate(csv_input, start=2):
+            if not row:
+                continue
             
             try:
                 row_type = row[0].strip().upper()
@@ -237,7 +239,12 @@ def team_upload():
                 number = row[2].strip()
                 team_name = row[3].strip()
             except IndexError:
-                continue 
+                errors.append(f"Row {row_index}: missing required columns.")
+                continue
+
+            if not row_type or not name or not team_name:
+                errors.append(f"Row {row_index}: missing type, name, or team.")
+                continue
 
             team = Team.query.filter_by(name=team_name, store_id=current_user.store_id).first()
             if not team:
@@ -260,8 +267,12 @@ def team_upload():
                 
             elif 'TECH' in row_type:
                 level = row[4].strip() if len(row) > 4 else ''
-                raw_frh = float(row[5]) if len(row) > 5 and row[5] else 0.0
-                days_off = int(row[6]) if len(row) > 6 and row[6] else 0
+                try:
+                    raw_frh = float(row[5]) if len(row) > 5 and row[5] else 0.0
+                    days_off = int(row[6]) if len(row) > 6 and row[6] else 0
+                except ValueError:
+                    errors.append(f"Row {row_index}: invalid FRH or days off value.")
+                    continue
                 
                 total_work_days = 50 - days_off
                 calc_dpo = 0.0
@@ -315,6 +326,9 @@ def team_upload():
             count_created += 1
             
         db.session.commit()
+        if errors:
+            for message in errors:
+                flash(message, 'warning')
         flash(f'Successfully imported {count_created} rows and generated schedules!', 'success')
         return redirect(url_for('teams.teams')) 
         

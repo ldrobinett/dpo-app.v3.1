@@ -4,6 +4,10 @@ from datetime import datetime, date, time
 from extensions import db 
 from sqlalchemy.orm import relationship
 import secrets
+from cryptography.fernet import Fernet, InvalidToken
+import base64
+import hashlib
+
 
 # ===================================================================
 # ONBOARDING & AUTH MODELS
@@ -31,6 +35,76 @@ class User(db.Model, UserMixin):
 
     def __repr__(self):
         return f"User('{self.username}')"
+
+class OperatorUser(db.Model, UserMixin):
+    __tablename__ = "operator_user"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(128), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Important: make Flask-Login ids unambiguous (Operator vs Store User)
+    def get_id(self):
+        return f"op:{self.id}"
+
+    def check_password(self, bcrypt, candidate: str) -> bool:
+        return bcrypt.check_password_hash(self.password_hash, candidate)
+
+    @property
+    def is_operator(self) -> bool:
+        return True
+
+
+class ManagedStore(db.Model):
+    __tablename__ = "managed_store"
+    id = db.Column(db.Integer, primary_key=True)
+
+    name = db.Column(db.String(120), nullable=False)
+    environment = db.Column(db.String(20), default="prod", nullable=False)  # prod/staging/dev
+    status = db.Column(db.String(20), default="active", nullable=False)     # active/testing/paused
+
+    url = db.Column(db.String(255), nullable=False)
+    admin_username = db.Column(db.String(120), nullable=False)
+
+    # encrypted bytes
+    admin_password_encrypted = db.Column(db.LargeBinary, nullable=False)
+
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def set_admin_password(self, plaintext: str):
+        f = get_fernet()
+        self.admin_password_encrypted = f.encrypt(plaintext.encode("utf-8"))
+
+    def get_admin_password(self) -> str:
+        f = get_fernet()
+        return f.decrypt(self.admin_password_encrypted).decode("utf-8")
+
+class Store(db.Model):
+    __tablename__ = "stores"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Human-facing
+    name = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(80), unique=True, nullable=False)
+
+    # Deployment / routing
+    base_url = db.Column(db.String(255), nullable=False)
+
+    # Store admin credentials (per deployment)
+    admin_username = db.Column(db.String(80), nullable=False)
+    admin_password_hash = db.Column(db.String(255), nullable=False)
+
+    # Lifecycle
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Store {self.slug}>"
+
 
 # ===================================================================
 # FINANCIAL MODELS

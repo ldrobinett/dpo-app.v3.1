@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Operator – Store Index</h1>
+
+{% if stores %}
+<table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+        <tr>
+            <th>Store</th>
+            <th>Slug</th>
+            <th>Base URL</th>
+            <th>Admin Username</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for store in stores %}
+        <tr>
+            <td>{{ store.name }}</td>
+            <td>{{ store.slug }}</td>
+            <td>
+                <a href="{{ store.base_url }}" target="_blank">
+                    {{ store.base_url }}
+                </a>
+            </td>
+            <td>{{ store.admin_username }}</td>
+            <td>
+                {% if store.is_active %}
+                    ✅ Active
+                {% else %}
+                    ❌ Disabled
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No stores created yet.</p>
+{% endif %}
+
+{% endblock %}

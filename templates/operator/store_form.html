@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head><title>{{ title }}</title></head>
+<body>
+  <h2>{{ title }}</h2>
+  <p><a href="{{ url_for('operator.store_index') }}">← Back</a></p>
+
+  <form method="post">
+    <label>Store Name</label><br>
+    <input name="name" value="{{ store.name if store else '' }}" required><br><br>
+
+    <label>Environment</label><br>
+    <select name="environment">
+      {% set env = store.environment if store else 'prod' %}
+      <option value="prod" {{ 'selected' if env=='prod' else '' }}>prod</option>
+      <option value="staging" {{ 'selected' if env=='staging' else '' }}>staging</option>
+      <option value="dev" {{ 'selected' if env=='dev' else '' }}>dev</option>
+    </select><br><br>
+
+    <label>Status</label><br>
+    {% set st = store.status if store else 'active' %}
+    <select name="status">
+      <option value="active" {{ 'selected' if st=='active' else '' }}>active</option>
+      <option value="testing" {{ 'selected' if st=='testing' else '' }}>testing</option>
+      <option value="paused" {{ 'selected' if st=='paused' else '' }}>paused</option>
+    </select><br><br>
+
+    <label>Store URL</label><br>
+    <input name="url" value="{{ store.url if store else '' }}" placeholder="https://store.example.com" required><br><br>
+
+    <label>Admin Username</label><br>
+    <input name="admin_username" value="{{ store.admin_username if store else '' }}" required><br><br>
+
+    <label>Admin Password {% if store %}(leave blank to keep current){% endif %}</label><br>
+    <input name="admin_password" type="password" autocomplete="new-password" {% if not store %}required{% endif %}><br><br>
+
+    <label>Notes</label><br>
+    <textarea name="notes" rows="4" cols="50">{{ store.notes if store and store.notes else '' }}</textarea><br><br>
+
+    <button type="submit">Save</button>
+  </form>
+</body>
+</html>

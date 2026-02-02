@@ -5,6 +5,7 @@ from models import User
 from forms import RegistrationForm, LoginForm # Use original forms
 import traceback 
 import sys 
+from urllib.parse import urlparse
 
 # Create the Blueprint
 auth_bp = Blueprint('auth', __name__)
@@ -40,7 +41,7 @@ def login():
             if user and bcrypt.check_password_hash(user.password, form.password.data):
                 login_user(user, remember=form.remember.data)
                 next_page = request.args.get('next')
-                return redirect(next_page or url_for('main.home'))
+                return redirect(_safe_next_url(next_page) or url_for('main.home'))
             else:
                 flash('Login Unsuccessful. Please check username and password', 'danger')
         
@@ -58,3 +59,12 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('auth.login')) # Redirect to login page
+
+
+def _safe_next_url(next_url):
+    if not next_url:
+        return None
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return next_url
