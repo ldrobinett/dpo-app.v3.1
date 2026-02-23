@@ -8,7 +8,7 @@
     .route-header-container {
         position: sticky;
         top: 0;
-        z-index: 950; 
+        z-index: 950;
         background-color: #ffffff;
         border-bottom: 3px solid #0d6efd;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -18,14 +18,14 @@
     .table-container {
         width: 100%;
         overflow-x: auto;
-        padding-bottom: 150px; 
+        padding-bottom: 150px;
     }
 
     /* 3. TABLE HEADER STYLING */
     thead th {
         background-color: #212529;
         color: white;
-        white-space: nowrap; 
+        white-space: nowrap;
         vertical-align: middle;
     }
 
@@ -36,19 +36,19 @@
         padding: 10px 5px !important;
         border-top: 3px solid #0d6efd;
     }
-    
-    .input-row .form-control, 
+
+    .input-row .form-control,
     .input-row .form-select {
         font-size: 0.9rem;
         border: 1px solid #adb5bd;
     }
 
     .btn-status { font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    
+
     .action-btn { margin: 0 2px; }
-    
+
     /* --- SMART NOTES BUTTON STYLES (The specific one you liked) --- */
-    
+
     /* 1. UNREAD (Yellow with Red Dot) */
     .btn-notes-unread {
         background-color: #ffc107;
@@ -105,36 +105,49 @@
 </form>
 
 <div class="d-flex flex-column w-100">
-    
+
     <div class="route-header-container py-3 mb-0">
         <div class="container-fluid px-1">
             <div class="row align-items-center">
-                
+
                 <div class="col-md-3">
                     <div class="input-group">
                         <span class="input-group-text bg-light"><i class="fas fa-search"></i></span>
                         <input type="text" id="roSearchInput" class="form-control" placeholder="Filter by RO# or Tech..." onkeyup="filterTable()">
                     </div>
                 </div>
-                
+
                 <div class="col-md-5 text-center">
                     <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
                         Daily Route Sheet
                     </h1>
                     <small class="text-muted fw-bold">{{ today_date }}</small>
                 </div>
-                
-                <div class="col-md-4 text-end">
+
+
                     <div class="d-inline-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-success btn-sm fw-bold" 
+                        <button type="button" class="btn btn-success btn-sm fw-bold"
                                 data-bs-toggle="modal" data-bs-target="#headerLogModal">
                             <i class="fas fa-stopwatch me-1"></i> Log Work
                         </button>
 
+                        <div class="d-inline-flex align-items-center gap-2">
+
+                        <a href="{{ url_for('routesheet.cdk_audit_upload') }}"
+                           class="btn btn-outline-warning btn-sm fw-bold">
+                            <i class="fas fa-file-upload me-1"></i> CDK Audit
+                        </a>
+
+                        <a href="{{ url_for('routesheet.view_history') }}"
+                           class="btn btn-outline-secondary btn-sm fw-bold">
+                            <i class="fas fa-history"></i> History
+                        </a>
+
+
                         <a href="{{ url_for('routesheet.view_history') }}" class="btn btn-outline-secondary btn-sm fw-bold">
                             <i class="fas fa-history"></i> History
                         </a>
-                        
+
                         <span class="badge bg-dark fs-6 shadow-sm p-2">
                             <span id="activeCount">{{ jobs|length }}</span> Active
                         </span>
@@ -161,7 +174,7 @@
                 </thead>
                 <tbody>
                     {% for job in jobs %}
-                    <tr class="job-row">
+                    <tr class="job-row {% if job.audited %}table-warning{% endif %}">
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm w-100 dropdown-toggle shadow-sm btn-status
@@ -169,7 +182,7 @@
                                     {% elif job.status == 'Parts' %}btn-warning text-dark
                                     {% elif job.status == 'Warranty' %}btn-info text-white
                                     {% elif job.status == 'Dispatch' %}btn-secondary text-white
-                                    {% else %}btn-outline-primary{% endif %}" 
+                                    {% else %}btn-outline-primary{% endif %}"
                                     type="button" data-bs-toggle="dropdown">
                                     {{ job.status }}
                                 </button>
@@ -188,7 +201,13 @@
                             </div>
                         </td>
 
-                        <td class="fw-bold text-center fs-5 ro-cell">{{ job.ro_number }}</td>
+                        <td class="fw-bold text-center fs-5 ro-cell">
+                            {{ job.ro_number }}
+                            {% if job.audit_source == 'CDK' %}
+                                <span class="badge bg-warning text-dark ms-1">AUDIT</span>
+                            {% endif %}
+                        </td>
+
 
                         <td class="text-center fw-bold text-secondary">
                             {{ job.asm.asm_number if job.asm else '--' }}
@@ -220,7 +239,7 @@
 
                         <td class="text-center">
                             {% if job.promised_time %}
-                                <span class="small lh-1 d-block p-1 rounded 
+                                <span class="small lh-1 d-block p-1 rounded
                                     {% if now and job.promised_time < now %}bg-danger bg-opacity-10 text-danger fw-bold border border-danger
                                     {% elif now and job.promised_time > now and job.promised_time <= now + timedelta(hours=2) %}bg-warning text-dark fw-bold border border-warning
                                     {% else %}text-dark{% endif %}">
@@ -231,38 +250,38 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        
+
                         <td class="text-center" style="white-space: nowrap;">
-                            
-                            <button type="button" 
+
+                            <button type="button"
                                     id="notesBtn-{{ job.id }}"
-                                    class="btn btn-sm action-btn 
+                                    class="btn btn-sm action-btn
                                     {% if not job.notes %}
                                         btn-notes-empty
                                     {% elif job.notes and not job.notes_read %}
                                         btn-notes-unread
                                     {% else %}
                                         btn-notes-read
-                                    {% endif %}" 
-                                    data-bs-toggle="modal" 
-                                    data-bs-target="#notesModal{{ job.id }}" 
+                                    {% endif %}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#notesModal{{ job.id }}"
                                     onclick="markRead({{ job.id }})"
                                     title="View Notes">
                                 <i class="fas fa-sticky-note"></i>
                             </button>
 
-                            <button type="button" class="btn btn-sm btn-outline-primary action-btn" 
-                                    data-bs-toggle="modal" data-bs-target="#editModal{{ job.id }}" 
+                            <button type="button" class="btn btn-sm btn-outline-primary action-btn"
+                                    data-bs-toggle="modal" data-bs-target="#editModal{{ job.id }}"
                                     title="Edit Details">
                                 <i class="fas fa-pencil-alt"></i>
                             </button>
-                            
-                            <button type="button" class="btn btn-sm btn-outline-success action-btn" 
-                                    data-bs-toggle="modal" data-bs-target="#logWorkModal{{ job.id }}" 
+
+                            <button type="button" class="btn btn-sm btn-outline-success action-btn"
+                                    data-bs-toggle="modal" data-bs-target="#logWorkModal{{ job.id }}"
                                     title="Log Hours">
                                 <i class="fas fa-stopwatch"></i>
                             </button>
-                            
+
                             <form action="{{ url_for('routesheet.delete_ro', ro_id=job.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this RO?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger action-btn">
                                     <i class="fas fa-times"></i>
@@ -321,7 +340,7 @@
                                                     </div>
                                                     <div class="col-md-3">
                                                         <label class="form-label fw-bold">Promised</label>
-                                                        <input type="datetime-local" name="promised_time" class="form-control" 
+                                                        <input type="datetime-local" name="promised_time" class="form-control"
                                                                value="{{ job.promised_time.strftime('%Y-%m-%dT%H:%M') if job.promised_time else '' }}">
                                                     </div>
                                                     <div class="col-md-6">
@@ -362,12 +381,12 @@
                                             <div class="modal-body">
                                                 {{ log_form.hidden_tag() }}
                                                 <div class="alert alert-light border">
-                                                    <strong>Tech:</strong> {{ job.team_member.name if job.team_member else "Unassigned" }} 
+                                                    <strong>Tech:</strong> {{ job.team_member.name if job.team_member else "Unassigned" }}
                                                     {% if job.team_member and job.team_member.tech_number %}
                                                         (#{{ job.team_member.tech_number }})
                                                     {% endif %}
                                                 </div>
-                                                
+
                                                 <div class="row g-2 mb-3">
                                                     <div class="col-6">
                                                         {{ log_form.flat_rate_hours.label(class="form-label fw-bold") }}
@@ -408,7 +427,7 @@
                         <td class="p-2">{{ form.service_description(class="form-control bg-white p-1", rows="2", placeholder="Service needs...", form="new_ro_form") }}</td>
                         <td class="p-2">{{ form.team_member(class="form-select bg-white p-1", form="new_ro_form") }}</td>
                         <td class="p-2">{{ form.promised_time(class="form-control bg-white p-1", type="datetime-local", form="new_ro_form") }}</td>
-                        
+
                         <td class="text-center align-middle text-muted p-2">
                             <small class="text-uppercase fw-bold text-muted" style="letter-spacing: 1px;">New Entry</small>
                         </td>
@@ -435,7 +454,7 @@
                             <option value="">-- Choose RO --</option>
                             {% for job in jobs %}
                                 <option value="{{ job.id }}">
-                                    RO# {{ job.ro_number }} - {{ job.customer_name }} 
+                                    RO# {{ job.ro_number }} - {{ job.customer_name }}
                                     {% if job.team_member %}({{ job.team_member.name }}){% endif %}
                                 </option>
                             {% endfor %}
@@ -489,11 +508,11 @@ function filterTable() {
         // RO is 2nd col (index 1), Tech is 6th col (index 5)
         var tdRO = tr[i].getElementsByClassName("ro-cell")[0];
         var tdTech = tr[i].getElementsByClassName("tech-cell")[0];
-        
+
         if (tdRO || tdTech) {
             var txtRO = tdRO ? tdRO.textContent || tdRO.innerText : "";
             var txtTech = tdTech ? tdTech.textContent || tdTech.innerText : "";
-            
+
             if (txtRO.toUpperCase().indexOf(filter) > -1 || txtTech.toUpperCase().indexOf(filter) > -1) {
                 tr[i].style.display = "";
             } else {
@@ -509,7 +528,7 @@ function filterTable() {
 document.addEventListener("DOMContentLoaded", function() {
     const roSelect = document.getElementById('headerROSelect');
     const logForm = document.getElementById('headerLogForm');
-    
+
     if(roSelect && logForm) {
         roSelect.addEventListener('change', function() {
             const roId = this.value;

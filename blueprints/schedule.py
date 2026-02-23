@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, url_for, flash, redirect, request
 from flask_login import login_required, current_user
 from extensions import db
-from models import ScheduleEntry, Team, TeamMember, TeamSchedule, Holiday 
+from models import ScheduleEntry, Team, TeamMember, TeamSchedule, Holiday
 from forms import (
-    ScheduleEntryForm, TeamScheduleForm, RecurringScheduleForm, 
+    ScheduleEntryForm, TeamScheduleForm, RecurringScheduleForm,
     ScheduleEntryFilterForm
 )
 from datetime import date, time, timedelta, datetime
@@ -22,8 +22,8 @@ def get_holiday_dates(year, start_month, end_month):
     Retrieves and calculates all fixed and dynamic holiday dates within a year/month range.
     """
     holiday_dates = set()
-    
-    # Static Holidays 
+
+    # Static Holidays
     static_holidays = {
         (1, 1): "New Years Day",
         (7, 4): "Fourth of July",
@@ -32,7 +32,7 @@ def get_holiday_dates(year, start_month, end_month):
 
     # Iterate through all months in the required range
     for month in range(start_month, end_month + 1):
-        
+
         # 1. Static Holidays
         static_day_tuple = (month, 1) # Simplified check for 1st of month (New Years)
         if static_day_tuple in static_holidays and month == 1:
@@ -40,7 +40,7 @@ def get_holiday_dates(year, start_month, end_month):
                 holiday_dates.add(date(year, month, 1))
             except ValueError:
                 pass
-        
+
         static_day_tuple = (month, 4) # Simplified check for 4th of month (July 4th)
         if static_day_tuple in static_holidays and month == 7:
             try:
@@ -60,15 +60,15 @@ def get_holiday_dates(year, start_month, end_month):
         if month == 11:
             # We are looking for the 4th Thursday. Thursday is calendar.THURSDAY (3)
             c = calendar.Calendar(calendar.MONDAY) # Start week on Monday (0)
-            
+
             # Use the CORRECT method: monthdayscalendar()
-            occurrence_count = 0 
-            
+            occurrence_count = 0
+
             for week in c.monthdayscalendar(year, 11): # <-- FIX: Changed to monthdayscalendar()
                 # The index for Thursday is 3 (Mon=0, Tue=1, Wed=2, Thu=3)
-                day_of_week_index = 3 
+                day_of_week_index = 3
                 day = week[day_of_week_index]
-                
+
                 # If day is > 0, it's a date in November
                 if day > 0:
                     occurrence_count += 1
@@ -89,37 +89,37 @@ def get_team_member_choices(store_id):
 @login_required
 def schedules():
     filter_form = ScheduleEntryFilterForm(request.args)
-    
+
     today = date.today()
     target_year = today.year
     target_month = today.month
-    
+
     if filter_form.month_filter.data:
         try:
             year_str, month_str = filter_form.month_filter.data.split('-')
             target_year = int(year_str)
             target_month = int(month_str)
         except ValueError:
-            pass 
+            pass
 
     filter_form.month_filter.data = f"{target_year:04d}-{target_month:02d}"
 
     start_date = date(target_year, target_month, 1)
     end_date = start_date + relativedelta(months=1) - timedelta(days=1)
-    
+
     query = ScheduleEntry.query.options(
         joinedload(ScheduleEntry.team_member).joinedload(TeamMember.team)
     )
-    
+
     query = query.filter(
         ScheduleEntry.date >= start_date,
         ScheduleEntry.date <= end_date
     )
-    
+
     if filter_form.team.data and filter_form.team.data.id:
         team_id_to_filter = filter_form.team.data.id
         query = query.join(TeamMember).filter(TeamMember.team_id == team_id_to_filter)
-    
+
     if filter_form.team_member.data and filter_form.team_member.data.id:
         member_id = filter_form.team_member.data.id
         query = query.filter(ScheduleEntry.team_member_id == member_id)
@@ -129,25 +129,25 @@ def schedules():
         ScheduleEntry.date,
         TeamMember.name
     ).all()
-    
+
     team_schedule = defaultdict(lambda: defaultdict(list))
-    
+
     for entry in all_entries:
         if entry.team_member and entry.team_member.team:
             team_name = entry.team_member.team.name
             date_str = entry.date.strftime('%Y-%m-%d')
             team_schedule[team_name][date_str].append(entry)
-        
-    return render_template('schedules.html', 
+
+    return render_template('schedules.html',
                              title=f'Team Schedules for {start_date.strftime("%B %Y")}',
-                             team_schedule=team_schedule, 
+                             team_schedule=team_schedule,
                              filter_form=filter_form)
 
 @schedule_bp.route("/schedule_calendar")
 @login_required
 def schedule_calendar():
     selected_team_id = request.args.get('team_id', default=None, type=int)
-    
+
     all_teams = Team.query.order_by(Team.name).all()
     team_name_map = {team.id: team.name for team in all_teams}
 
@@ -156,7 +156,7 @@ def schedule_calendar():
     )
 
     all_schedules = query.order_by(ScheduleEntry.date, ScheduleEntry.start_time).all()
-    
+
     events = []
 
     def format_time(dt):
@@ -182,14 +182,14 @@ def schedule_calendar():
                 else:
                     event_class = ''
                     title_suffix = ""
-                
+
                 start_datetime = datetime.combine(schedule.date, schedule.start_time) if schedule.start_time else datetime.combine(schedule.date, time(8, 0))
-                end_datetime = datetime.combine(schedule.date, schedule.end_time) if schedule.end_time else start_datetime + timedelta(hours=1) 
+                end_datetime = datetime.combine(schedule.date, schedule.end_time) if schedule.end_time else start_datetime + timedelta(hours=1)
                 start_str = format_time(start_datetime)
                 end_str = format_time(end_datetime)
-                
+
                 title = f"{schedule.team_member.name} ({start_str} - {end_str}){title_suffix}"
-                
+
                 events.append({
                     'title': title,
                     'start': start_datetime.isoformat(),
@@ -203,7 +203,7 @@ def schedule_calendar():
         for s in all_schedules:
             if s.team_member and s.team_member.team_id:
                 grouped_schedules[s.date][s.team_member.team_id].append(s)
-        
+
         for date_val, teams_on_date in grouped_schedules.items():
             for team_id, schedules_for_team in teams_on_date.items():
                 if not schedules_for_team: continue
@@ -222,8 +222,8 @@ def schedule_calendar():
                     'end': end_datetime.isoformat(),
                 })
 
-    return render_template('schedule_calendar.html', 
-                             title='Schedule Calendar', 
+    return render_template('schedule_calendar.html',
+                             title='Schedule Calendar',
                              events=events,
                              all_teams=all_teams,
                              selected_team_id=selected_team_id)
@@ -234,7 +234,7 @@ def schedule_calendar():
 @login_required
 def create_edit_schedule_entry_combined(entry_id):
     store_id = current_user.store_id
-    
+
     if entry_id:
         entry = ScheduleEntry.query.get_or_404(entry_id)
         form = ScheduleEntryForm(obj=entry)
@@ -242,10 +242,10 @@ def create_edit_schedule_entry_combined(entry_id):
     else:
         entry = ScheduleEntry()
         form = ScheduleEntryForm()
-        
+
     # Populate choices for QuerySelectField
     form.team_member.choices = get_team_member_choices(store_id)
-    
+
     if form.validate_on_submit():
         # QuerySelectField returns the model object, so we access its id
         entry.team_member_id = form.team_member.data.id if form.team_member.data else None
@@ -255,7 +255,7 @@ def create_edit_schedule_entry_combined(entry_id):
         entry.lunch_start = form.lunch_start.data
         entry.lunch_end = form.lunch_end.data
         entry.notes = form.notes.data
-        
+
         # --- NEW LOGIC: Save the Schedule Type ---
         entry.schedule_type = form.schedule_type.data
         # ----------------------------------------
@@ -263,7 +263,7 @@ def create_edit_schedule_entry_combined(entry_id):
         db.session.add(entry)
         db.session.commit()
         flash('Schedule entry saved successfully.', 'success')
-        return redirect(url_for('schedule.schedule_calendar')) 
+        return redirect(url_for('schedule.schedule_calendar'))
 
     return render_template('create_edit_schedule_entry.html', form=form, title='Schedule Entry', is_edit=entry_id is not None)
 
@@ -280,7 +280,7 @@ def new_schedule_entry():
         entry = ScheduleEntry()
         # QuerySelectField returns model object, manually set ID
         entry.team_member_id = form.team_member.data.id if form.team_member.data else None
-        
+
         # Populate matching fields
         entry.date = form.date.data
         entry.start_time = form.start_time.data
@@ -288,16 +288,16 @@ def new_schedule_entry():
         entry.lunch_start = form.lunch_start.data
         entry.lunch_end = form.lunch_end.data
         entry.notes = form.notes.data
-        
+
         # --- NEW LOGIC: Save the Schedule Type ---
         entry.schedule_type = form.schedule_type.data
         # ----------------------------------------
-        
+
         db.session.add(entry)
         db.session.commit()
         flash('Schedule entry created successfully!', 'success')
         return redirect(url_for('schedule.schedules'))
-    
+
     return render_template('create_edit_schedule_entry.html', title='New Schedule Entry', form=form)
 
 @schedule_bp.route("/schedule/<int:entry_id>/edit", methods=['GET', 'POST'])
@@ -312,7 +312,7 @@ def edit_schedule_entry(entry_id):
     if form.validate_on_submit():
         # QuerySelectField returns model object, manually set ID
         entry.team_member_id = form.team_member.data.id if form.team_member.data else None
-        
+
         # Populate matching fields
         entry.date = form.date.data
         entry.start_time = form.start_time.data
@@ -320,15 +320,15 @@ def edit_schedule_entry(entry_id):
         entry.lunch_start = form.lunch_start.data
         entry.lunch_end = form.lunch_end.data
         entry.notes = form.notes.data
-        
+
         # --- NEW LOGIC: Save the Schedule Type ---
         entry.schedule_type = form.schedule_type.data
         # ----------------------------------------
-        
+
         db.session.commit()
         flash('Schedule entry updated successfully!', 'success')
         return redirect(url_for('schedule.schedules'))
-        
+
     return render_template('create_edit_schedule_entry.html', title='Edit Schedule Entry', form=form)
 
 @schedule_bp.route("/schedule/<int:entry_id>/delete", methods=['POST'])
@@ -346,8 +346,8 @@ def team_schedules():
     all_team_schedules = TeamSchedule.query.options(
         joinedload(TeamSchedule.team)
     ).order_by(TeamSchedule.team_id, TeamSchedule.day_of_week).all()
-    return render_template('team_schedules.html', 
-                             title='Team Schedules', 
+    return render_template('team_schedules.html',
+                             title='Team Schedules',
                              team_schedules=all_team_schedules)
 
 @schedule_bp.route("/team_schedule/new", methods=['GET', 'POST'])
@@ -395,19 +395,19 @@ def generate_schedule():
     if form.validate_on_submit():
         start_date = form.start_date.data
         end_date = form.end_date.data
-        days_of_week = form.days_of_week.data 
-        
+        days_of_week = form.days_of_week.data
+
         # Determine the year range for holiday calculation
         start_year = start_date.year
         end_year = end_date.year
-        
+
         # Calculate holiday dates for the period
         holidays_in_period = set()
         for year in range(start_year, end_year + 1):
             # We only need to check the months covered by the start/end date
             start_month = start_date.month if year == start_year else 1
             end_month = end_date.month if year == end_year else 12
-            
+
             for month in range(start_month, end_month + 1):
                  # Pass the month range to the helper
                 holidays_in_period.update(get_holiday_dates(year, month, month))
@@ -436,29 +436,29 @@ def generate_schedule():
             ScheduleEntry.date >= start_date,
             ScheduleEntry.date <= end_date
         ).all()
-        
+
         existing_set = {(entry.team_member_id, entry.date) for entry in existing_schedules}
-        
+
         new_entries_to_add = []
         current_date = start_date
 
         while current_date <= end_date:
             current_weekday_int = current_date.weekday()
-            day_is_selected = current_weekday_int in days_of_week 
+            day_is_selected = current_weekday_int in days_of_week
             is_holiday = current_date in holidays_in_period # Check against calculated holidays
 
             if day_is_selected:
                 for member in team_members_to_schedule:
                     if (member.id, current_date) not in existing_set:
-                        
+
                         # Set default schedule type based on holiday status
                         schedule_type_val = 'HOLIDAY' if is_holiday else 'WORK'
-                        
+
                         new_entry = ScheduleEntry(
-                            team_member_id=member.id, 
+                            team_member_id=member.id,
                             date=current_date,
                             # Clear times if it's a holiday
-                            start_time=form.start_time.data if not is_holiday else None, 
+                            start_time=form.start_time.data if not is_holiday else None,
                             end_time=form.end_time.data if not is_holiday else None,
                             lunch_start=form.lunch_start.data if not is_holiday else None,
                             lunch_end=form.lunch_end.data if not is_holiday else None,
@@ -466,7 +466,7 @@ def generate_schedule():
                             schedule_type=schedule_type_val # Set HOLIDAY or WORK
                         )
                         new_entries_to_add.append(new_entry)
-            
+
             current_date += timedelta(days=1)
 
         if new_entries_to_add:
@@ -483,8 +483,8 @@ def generate_schedule():
             ScheduleEntry.date >= start_date,
             ScheduleEntry.date <= end_date
         ).order_by(ScheduleEntry.date, ScheduleEntry.team_member_id).all()
-        
-    return render_template('generate_schedules.html', 
-                             title='Generate Schedule', 
-                             form=form, 
+
+    return render_template('generate_schedules.html',
+                             title='Generate Schedule',
+                             form=form,
                              created_schedules=created_schedules)

@@ -6,7 +6,7 @@ import calendar
 from flask import Blueprint, render_template, url_for, flash, redirect, request, make_response
 from flask_login import login_required, current_user
 from extensions import db, bcrypt
-from models import OnboardingTicket, User, FinancialInputs, Team, TeamMember, ASM, ScheduleEntry
+from models import OnboardingTicket, User, FinancialInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability
 from forms import OnboardingForm, StoreSettingsForm, BulkTeamUploadForm
 
 onboarding_bp = Blueprint('onboarding', __name__)
@@ -21,41 +21,95 @@ def generate_invite():
     email = request.args.get('email')
     if not email:
         return "Please provide an email param", 400
-        
+
     ticket = OnboardingTicket(email=email)
     db.session.add(ticket)
     db.session.commit()
-    
+
     link = url_for('onboarding.setup_store', token=ticket.token, _external=True)
     return f"Send this link to the manager: <br> <a href='{link}'>{link}</a>"
+
+#helper route attach capabilities to role
+def attach_caps(role, keys):
+    for key in keys:
+        cap = Capability.query.filter_by(key=key).first()
+        if cap:
+            role.capabilities.append(cap)
+        else:
+            # Optional: surface missing capability keys during setup
+            flash(f"Missing capability in DB: {key}", "warning")
 
 @onboarding_bp.route("/setup/<token>", methods=['GET', 'POST'])
 def setup_store(token):
     ticket = OnboardingTicket.query.filter_by(token=token).first_or_404()
-    
+
     if ticket.is_used:
         flash('This setup link has already been used.', 'warning')
         return redirect(url_for('auth.login'))
-        
+
     form = OnboardingForm()
-    
+
     if form.validate_on_submit():
         # 1. Create User
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        new_store_id = int(time.time()) 
-        
+        new_store_id = int(time.time())
+
         user = User(
             username=form.username.data,
             password=hashed_password,
             store_id=new_store_id
         )
         db.session.add(user)
-        db.session.flush() 
-        
+        db.session.flush()
+
         # 2. Create Main Team
         main_team = Team(name=form.store_name.data, store_id=new_store_id)
         db.session.add(main_team)
-        
+
+        #2A. Create default roles for this store
+        admin_role = Role(name="Admin", store_id=new_store_id)
+        manager_role = Role(name="Manager", store_id=new_store_id)
+        advisor_role = Role(name="Advisor", store_id=new_store_id)
+        tech_role = Role(name="Technician", store_id=new_store_id)
+
+        db.session.add_all([admin_role, manager_role, advisor_role, tech_role])
+        db.session.flush()
+
+        # 2B. Attach capabilities to roles (must already exist in capability table)
+        attach_caps(admin_role, [
+            "manage.view",
+            "users.manage",
+            "teams.manage",
+            "schedule.manage",
+            "finance.view",
+            "routesheet.view",
+            "routesheet.edit",
+            "worklog.manage",
+            "onboarding.manage",  # ← keep this here
+        ])
+
+
+        attach_caps(manager_role, [
+            "finance.view",
+            "routesheet.view",
+            "routesheet.edit",
+            "teams.manage",
+            "worklog.manage",
+            "schedule.manage",
+        ])
+
+        attach_caps(advisor_role, [
+            "routesheet.view",
+            "routesheet.edit",
+        ])
+
+        attach_caps(tech_role, [
+            "routesheet.view",
+        ])
+
+        # 2C. Make the onboarding manager an Admin
+        user.roles.append(admin_role)
+
         # 3. Create Financial Inputs
         fin_inputs = FinancialInputs(
             user_id=user.id,
@@ -80,30 +134,37 @@ def setup_store(token):
             parts_turn_rate=form.parts_turn_rate.data
         )
         db.session.add(fin_inputs)
-        
+
         # 4. Close Ticket
         ticket.is_used = True
         db.session.commit()
-        
+
         flash('Store setup complete! Please log in.', 'success')
         return redirect(url_for('auth.login'))
-        
+
     return render_template('onboarding_worksheet.html', form=form, title='Dealership Setup Worksheet')
 
 @onboarding_bp.route("/manage/initial_setup", methods=['GET', 'POST'])
 @login_required
 def review_setup():
     form = StoreSettingsForm()
-    
-    # Fetch Data
-    main_team = Team.query.filter_by(store_id=current_user.store_id).first()
-    fin_inputs = FinancialInputs.query.filter_by(user_id=current_user.id).first()
-    
+
+    main_team = Team.query.filter_by(
+        store_id=current_user.store_id
+    ).first()
+
+    fin_inputs = FinancialInputs.query.filter_by(
+        user_id=current_user.id
+    ).first()
+
+    # =========================
+    # GET – Pre-fill Form
+    # =========================
     if request.method == 'GET':
-        # Pre-fill Form
+
         if main_team:
             form.store_name.data = main_team.name
-        
+
         if fin_inputs:
             form.elr.data = fin_inputs.effective_labor_rate
             form.parts_to_labor.data = fin_inputs.parts_to_labor_ratio
@@ -125,15 +186,38 @@ def review_setup():
             form.parts_fill_rate.data = fin_inputs.parts_fill_rate
             form.parts_turn_rate.data = fin_inputs.parts_turn_rate
 
+    # =========================
+    # POST – Save Changes
+    # =========================
     if form.validate_on_submit():
-        # Save Changes
+
+        new_name = form.store_name.data.strip()
+
         if main_team:
-            main_team.name = form.store_name.data
-        
+            if main_team.name != new_name:
+
+                conflict = Team.query.filter_by(
+                    store_id=current_user.store_id,
+                    name=new_name
+                ).first()
+
+                if conflict:
+                    flash(
+                        "A team with this name already exists for this store.",
+                        "danger"
+                    )
+                    return render_template(
+                        'store_settings.html',
+                        form=form,
+                        title='Initial Setup Review'
+                    )
+
+                main_team.name = new_name
+
         if not fin_inputs:
             fin_inputs = FinancialInputs(user_id=current_user.id)
             db.session.add(fin_inputs)
-            
+
         fin_inputs.effective_labor_rate = form.elr.data
         fin_inputs.parts_to_labor_ratio = form.parts_to_labor.data
         fin_inputs.labor_margin = form.labor_margin.data
@@ -153,12 +237,18 @@ def review_setup():
         fin_inputs.purchase_discounts = form.purchase_discounts.data
         fin_inputs.parts_fill_rate = form.parts_fill_rate.data
         fin_inputs.parts_turn_rate = form.parts_turn_rate.data
-        
+
         db.session.commit()
+
         flash('Store settings updated successfully.', 'success')
         return redirect(url_for('onboarding.review_setup'))
 
-    return render_template('store_settings.html', form=form, title='Initial Setup Review')
+    return render_template(
+        'store_settings.html',
+        form=form,
+        title='Initial Setup Review'
+    )
+
 
 # ==========================================
 # 2. BULK TEAM UPLOAD ROUTES
@@ -169,22 +259,22 @@ def review_setup():
 def download_sample_csv():
     """Generates a sample CSV file for the user to fill out."""
     header = [
-        'Type', 'Name', 'Number', 'Team', 'Level', 
+        'Type', 'Name', 'Number', 'Team', 'Level',
         '10_Wk_FRH', '10_Wk_Days_Off',
         'Work_Days', 'Start_Time', 'End_Time', 'Lunch_Start', 'Lunch_End'
     ]
-    
+
     rows = [
         ['ASM', 'John Advisor', '101', 'Blue Team', '', '', '', 'Mon;Tue;Wed;Thu;Fri', '07:00', '16:00', '12:00', '13:00'],
         ['Tech', 'Mike Mechanic', '1101', 'Blue Team', 'A', '450.0', '2', 'Tue;Wed;Thu;Fri;Sat', '08:00', '17:00', '12:00', '13:00'],
         ['Tech', 'Sarah Service', '1102', 'Red Team', 'B', '380.5', '0', '', '', '', '', '']
     ]
-    
+
     si = io.StringIO()
     cw = csv.writer(si)
     cw.writerow(header)
     cw.writerows(rows)
-    
+
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=team_upload_template.csv"
     output.headers["Content-type"] = "text/csv"
@@ -194,23 +284,23 @@ def download_sample_csv():
 @login_required
 def team_upload():
     form = BulkTeamUploadForm()
-    
+
     if form.validate_on_submit():
         f = form.csv_file.data
         stream = io.TextIOWrapper(f.stream, encoding="UTF-8", newline=None)
         csv_input = csv.reader(stream)
-        
+
         # Skip header
         next(csv_input, None)
-        
+
         count_created = 0
         errors = []
-        
+
         today = date.today()
         start_date = date(today.year, today.month, 1)
         last_day = calendar.monthrange(today.year, today.month)[1]
         end_date = date(today.year, today.month, last_day)
-        
+
         def parse_time(t_str):
             try:
                 if t_str and ':' in t_str:
@@ -232,7 +322,7 @@ def team_upload():
         for row_index, row in enumerate(csv_input, start=2):
             if not row:
                 continue
-            
+
             try:
                 row_type = row[0].strip().upper()
                 name = row[1].strip()
@@ -250,10 +340,10 @@ def team_upload():
             if not team:
                 team = Team(name=team_name, store_id=current_user.store_id)
                 db.session.add(team)
-                db.session.flush() 
-            
+                db.session.flush()
+
             person = None
-            
+
             if 'ASM' in row_type:
                 existing = ASM.query.filter_by(asm_number=number, store_id=current_user.store_id).first()
                 if not existing:
@@ -264,7 +354,7 @@ def team_upload():
                         store_id=current_user.store_id
                     )
                     db.session.add(person)
-                
+
             elif 'TECH' in row_type:
                 level = row[4].strip() if len(row) > 4 else ''
                 try:
@@ -273,12 +363,12 @@ def team_upload():
                 except ValueError:
                     errors.append(f"Row {row_index}: invalid FRH or days off value.")
                     continue
-                
+
                 total_work_days = 50 - days_off
                 calc_dpo = 0.0
                 if total_work_days > 0:
                     calc_dpo = raw_frh / total_work_days
-                
+
                 existing = TeamMember.query.filter_by(tech_number=number, team_id=team.id).first()
                 if not existing:
                     person = TeamMember(
@@ -293,18 +383,18 @@ def team_upload():
                         hist_vacation_days=days_off
                     )
                     db.session.add(person)
-            
-            db.session.flush() 
-            
+
+            db.session.flush()
+
             if person and hasattr(person, 'id'):
                 csv_days = parse_days(row[7]) if len(row) > 7 else None
-                work_days = csv_days if csv_days else [0, 1, 2, 3, 4] 
-                
+                work_days = csv_days if csv_days else [0, 1, 2, 3, 4]
+
                 s_time = parse_time(row[8]) if len(row) > 8 else form.default_start_time.data
                 e_time = parse_time(row[9]) if len(row) > 9 else form.default_end_time.data
                 l_start = parse_time(row[10]) if len(row) > 10 else form.default_lunch_start.data
                 l_end = parse_time(row[11]) if len(row) > 11 else form.default_lunch_end.data
-                
+
                 if isinstance(person, TeamMember):
                     current_day = start_date
                     while current_day <= end_date:
@@ -324,12 +414,12 @@ def team_upload():
                         current_day += timedelta(days=1)
 
             count_created += 1
-            
+
         db.session.commit()
         if errors:
             for message in errors:
                 flash(message, 'warning')
         flash(f'Successfully imported {count_created} rows and generated schedules!', 'success')
-        return redirect(url_for('teams.teams')) 
-        
+        return redirect(url_for('teams.teams'))
+
     return render_template('onboarding_team_upload.html', form=form, title='Bulk Team Upload')

@@ -1,0 +1,22 @@
+<h2>Store Users</h2>
+
+<form method="POST">
+  <input name="username" placeholder="Username" required>
+  <input name="password" type="password" placeholder="Password" required>
+
+  <select name="role">
+    <option value="admin">Admin</option>
+    <option value="manager">Manager</option>
+    <option value="viewer">Viewer</option>
+  </select>
+
+  <button class="btn btn-primary">Create User</button>
+</form>
+
+<hr>
+
+<ul>
+{% for u in users %}
+  <li>{{ u.username }} — {{ u.role }}</li>
+{% endfor %}
+</ul>

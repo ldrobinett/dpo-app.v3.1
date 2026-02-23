@@ -8,7 +8,7 @@ from alembic import context
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-print("ALEMBIC SQLALCHEMY URL:", config.get_main_option("sqlalchemy.url"))
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -37,7 +37,32 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
+# --- FORCE MODEL IMPORTS (CRITICAL) ---
+from models import (
+    User,
+    Role,
+    Capability,
+    Team,
+    TeamMember,
+    ASM,
+    FinancialInputs,
+    FinancialForecast,
+    ScheduleEntry,
+    TeamSchedule,
+    WorkLog,
+    RepairOrder,
+    LaborGrid,
+    LaborGridRate,
+    ManagedStore,
+    Store,
+    OnboardingTicket,
+    Holiday,
+)
+
+# association tables MUST be imported too
+from models import user_roles, role_capabilities
+# -------------------------------------
+
 target_db = current_app.extensions['migrate'].db
 
 # other values from the config, defined by the needs of env.py,

@@ -3,8 +3,8 @@ from flask_login import login_user, current_user, logout_user, login_required
 from extensions import db, bcrypt
 from models import User
 from forms import RegistrationForm, LoginForm # Use original forms
-import traceback 
-import sys 
+import traceback
+import sys
 from urllib.parse import urlparse
 
 # Create the Blueprint
@@ -28,30 +28,23 @@ def register():
 
 @auth_bp.route("/login", methods=['GET', 'POST'])
 def login():
-    try:
-        if current_user.is_authenticated:
-            return redirect(url_for('main.home'))
-        
-        form = LoginForm() # Uses username
-        
-        if form.validate_on_submit():
-            # [REVERTED] Filter by username
-            user = User.query.filter_by(username=form.username.data).first()
-            
-            if user and bcrypt.check_password_hash(user.password, form.password.data):
-                login_user(user, remember=form.remember.data)
-                next_page = request.args.get('next')
-                return redirect(_safe_next_url(next_page) or url_for('main.home'))
-            else:
-                flash('Login Unsuccessful. Please check username and password', 'danger')
-        
-        return render_template('login.html', title='Login', form=form)
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
 
-    except Exception as e:
-        print(f"---! CRITICAL ERROR IN LOGIN ROUTE !---", file=sys.stderr)
-        print(traceback.format_exc(), file=sys.stderr)
-        sys.stderr.flush()
-        return "An internal server error occurred. Check the server log.", 500
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        username = form.username.data
+        user = User.query.filter_by(username=username).first()
+
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user, remember=form.remember.data)
+            next_page = request.args.get('next')
+            return redirect(_safe_next_url(next_page) or url_for('main.home'))
+        else:
+            flash('Login Unsuccessful. Please check username and password', 'danger')
+
+    return render_template('login.html', title='Login', form=form)
 
 
 @auth_bp.route("/logout")
@@ -68,3 +61,5 @@ def _safe_next_url(next_url):
     if parsed.scheme or parsed.netloc:
         return None
     return next_url
+
+

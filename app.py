@@ -4,14 +4,13 @@ import os
 from flask import Flask, redirect, request, url_for
 from flask_login import current_user
 from flask_migrate import Migrate
-
+from utils.permissions import can
 from extensions import db, login_manager, bcrypt
 from models import User, OperatorUser
 
-
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
-
+    app.jinja_env.globals["can"] = can
     # -------------------------------------------------
     # Core config
     # -------------------------------------------------
@@ -52,7 +51,7 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
     login_manager.init_app(app)
-
+    import models
     migrate = Migrate(app, db)
 
     # -------------------------------------------------
@@ -114,6 +113,7 @@ def create_app():
     from blueprints.onboarding import onboarding_bp
     from blueprints.reconciliation import reconciliation_bp
     from blueprints.operator import operator_bp
+    from blueprints.users import users_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
@@ -127,6 +127,7 @@ def create_app():
     app.register_blueprint(onboarding_bp)
     app.register_blueprint(reconciliation_bp)
     app.register_blueprint(operator_bp)
+    app.register_blueprint(users_bp)
 
     return app
 

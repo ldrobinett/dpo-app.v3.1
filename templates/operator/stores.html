@@ -1,76 +1,202 @@
-<!doctype html>
-<html>
-<head>
-  <title>{{ title }}</title>
-  <style>
-    table { border-collapse: collapse; width: 100%; }
-    td, th { border: 1px solid #ccc; padding: 8px; }
-    .pw { font-family: monospace; }
-  </style>
-</head>
-<body>
-  <h2>Store Index</h2>
+{% extends "base.html" %}
 
-  <form method="post" action="{{ url_for('operator.logout') }}">
-    <button type="submit">Log out</button>
-  </form>
+{% block content %}
 
-  <p><a href="{{ url_for('operator.store_new') }}">+ Add Store</a></p>
+<div class="container mt-4">
 
-  <table>
-    <thead>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Operator – Store Index</h2>
+
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-danger"
+         href="{{ url_for('operator.store_deleted_index') }}">
+        Deleted Stores
+      </a>
+
+      <a class="btn btn-primary"
+         href="{{ url_for('operator.store_new') }}">
+        + Add Store
+      </a>
+    </div>
+  </div>
+
+  <table class="table table-hover align-middle">
+    <thead class="table-dark">
       <tr>
         <th>Store</th>
         <th>Env</th>
+        <th>Tier</th>
         <th>Status</th>
-        <th>URL</th>
-        <th>Admin User</th>
-        <th>Admin PW</th>
-        <th>Actions</th>
+        <th>Admin</th>
+        <th class="text-end">Actions</th>
       </tr>
     </thead>
+
     <tbody>
-      {% for s in stores %}
-      <tr>
-        <td>{{ s.name }}</td>
-        <td>{{ s.environment }}</td>
-        <td>{{ s.status }}</td>
-        <td><a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">Open</a></td>
-        <td class="pw">{{ s.admin_username }}</td>
-        <td class="pw">
-          <span id="pw-{{ s.id }}">••••••••</span>
-          <button type="button" onclick="reveal({{ s.id }})">Reveal</button>
+    {% for s in stores %}
+
+      <tr class="
+        {% if s.status == 'archived' %}table-warning
+        {% endif %}
+      ">
+
+        <!-- Store Name -->
+        <td class="fw-semibold">
+          {{ s.name }}
         </td>
+
+        <!-- Environment -->
         <td>
-          <a href="{{ url_for('operator.store_edit', store_id=s.id) }}">Edit</a>
+          {% if s.environment == "prod" %}
+            <span class="badge bg-success">Production</span>
+          {% elif s.environment == "staging" %}
+            <span class="badge bg-warning text-dark">Staging</span>
+          {% else %}
+            <span class="badge bg-secondary">
+              {{ s.environment|title }}
+            </span>
+          {% endif %}
+        </td>
+
+        <!-- Tier -->
+        <td>
+          {% if s.tier == "beta" %}
+            <span class="badge bg-secondary">Beta</span>
+          {% elif s.tier == "pro" %}
+            <span class="badge bg-primary">Pro</span>
+          {% elif s.tier == "enterprise" %}
+            <span class="badge bg-dark">Enterprise</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Status -->
+        <td>
+          {% if s.status == "active" %}
+            <span class="badge bg-success">Active</span>
+          {% elif s.status == "archived" %}
+            <span class="badge bg-warning text-dark">Archived</span>
+          {% else %}
+            <span class="badge bg-secondary">Unknown</span>
+          {% endif %}
+        </td>
+
+        <!-- Admin Username -->
+        <td class="fw-semibold">
+          {{ s.admin_username }}
+        </td>
+
+        <!-- Actions -->
+        <td class="text-end">
+
+          <div class="d-flex gap-2 justify-content-end flex-wrap">
+
+            <!-- OPEN (active only) -->
+            {% if s.status == "active" %}
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('operator.open_store', store_id=s.id) }}">
+                Open
+              </a>
+            {% endif %}
+
+            <!-- EDIT -->
+            <a class="btn btn-sm btn-outline-dark"
+               href="{{ url_for('operator.store_edit', store_id=s.id) }}">
+              Edit
+            </a>
+
+            <!-- ARCHIVE -->
+            {% if s.status == "active" %}
+              <form method="POST"
+                    action="{{ url_for('operator.store_archive', store_id=s.id) }}">
+                <button class="btn btn-sm btn-outline-warning"
+                        onclick="return confirm('Archive this store?')">
+                  Archive
+                </button>
+              </form>
+            {% endif %}
+
+            <!-- RESTORE -->
+            {% if s.status == "archived" %}
+              <form method="POST"
+                    action="{{ url_for('operator.store_restore', store_id=s.id) }}">
+                <button class="btn btn-sm btn-outline-success">
+                  Restore
+                </button>
+              </form>
+            {% endif %}
+
+            <!-- SOFT DELETE (archived only) -->
+            {% if s.status == "archived" %}
+              <form method="POST"
+                    action="{{ url_for('operator.store_soft_delete', store_id=s.id) }}">
+                <button class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('Delete this store? It will be hidden but not purged.')">
+                  Delete
+                </button>
+              </form>
+            {% endif %}
+
+            <!-- Reveal Password (not for deleted) -->
+            {% if s.status != "deleted" %}
+              <button class="btn btn-sm btn-outline-secondary"
+                      type="button"
+                      onclick="reveal({{ s.id }})">
+                Reveal PW
+              </button>
+            {% endif %}
+
+          </div>
+
+          <div class="small text-muted mt-1 text-end">
+            <span id="pw-{{ s.id }}">••••••••</span>
+          </div>
+
+        </td>
+
+      </tr>
+
+    {% else %}
+      <tr>
+        <td colspan="6" class="text-center text-muted py-4">
+          No stores found.
         </td>
       </tr>
-      {% endfor %}
+    {% endfor %}
     </tbody>
+
   </table>
 
-  <script>
-    async function reveal(storeId) {
-      const opPw = prompt("Confirm operator password to reveal:");
-      if (!opPw) return;
+</div>
 
-      const form = new FormData();
-      form.append("operator_password", opPw);
+<script>
+async function reveal(storeId) {
+  const opPw = prompt("Confirm operator password:");
+  if (!opPw) return;
 
-      const res = await fetch(`/operator/stores/${storeId}/reveal`, { method: "POST", body: form });
-      const data = await res.json();
+  const form = new FormData();
+  form.append("operator_password", opPw);
 
-      if (!res.ok) {
-        alert(data.error || "Reveal failed");
-        return;
-      }
+  const res = await fetch(`/operator/stores/${storeId}/reveal`, {
+    method: "POST",
+    body: form
+  });
 
-      const el = document.getElementById(`pw-${storeId}`);
-      el.textContent = data.password;
+  const data = await res.json();
 
-      // auto-hide after 20 seconds
-      setTimeout(() => { el.textContent = "••••••••"; }, 20000);
-    }
-  </script>
-</body>
-</html>
+  if (!res.ok) {
+    alert(data.error || "Reveal failed");
+    return;
+  }
+
+  const el = document.getElementById(`pw-${storeId}`);
+  el.textContent = data.password;
+
+  setTimeout(() => {
+    el.textContent = "••••••••";
+  }, 20000);
+}
+</script>
+
+{% endblock %}

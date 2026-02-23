@@ -1,13 +1,9 @@
-/* --- TEAM SCHEDULES PAGE SPECIFIC FIXES (Lumen Theme) --- */
+/* ============================================================
+   TEAM SCHEDULES PAGE SPECIFIC FIXES (Lumen Theme)
+   ============================================================ */
 
-/* 1. Fix the Bright Green Team Header */
-/* This targets the main schedule grouping header (e.g., 'Team 1') 
-   and changes it from bright green to Lumen's prominent primary/info color. */
 .schedule-team-header {
-    /* Assuming you are using a custom class or Bootstrap's .bg-success. 
-       We will force it to use Lumen's primary color for professionalism. 
-       If you can, use class="bg-primary text-white" in your HTML instead of this CSS. */
-    background-color: #007bff !important; /* Lumen's standard Primary Blue */
+    background-color: #007bff !important;
     color: white !important;
     padding: 10px 15px;
     font-size: 1.5rem;
@@ -16,27 +12,22 @@
     margin-bottom: 5px;
 }
 
-/* 2. Fix the Gray Schedule Blocks */
-/* This targets the individual schedule entries (date and time blocks) 
-   and ensures they are light but distinct, using Lumen's secondary light color. */
 .schedule-entry-block {
-    background-color: #f8f9fa !important; /* Very light gray/off-white */
+    background-color: #f8f9fa !important;
     border: 1px solid #ced4da;
     border-radius: 5px;
     padding: 10px;
     margin-bottom: 10px;
-    color: #343a40; /* Dark text for high contrast */
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Very light shadow */
+    color: #343a40;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-/* 3. Ensure Text Color within Schedule Blocks is Dark */
 .schedule-entry-block .date,
 .schedule-entry-block .member-name,
 .schedule-entry-block .time-range {
-    color: #343a40 !important; /* Force dark text for readability */
+    color: #343a40 !important;
 }
 
-/* Assuming the date is a separate element (like a small badge) */
 .schedule-entry-block .date {
     font-size: 0.9em;
     font-weight: 600;
@@ -44,66 +35,59 @@
     margin-bottom: 5px;
 }
 
-/* You must apply the class .schedule-team-header to the div that contains "Team 1" 
-   and .schedule-entry-block to the individual schedule cards in your schedules.html template. */
+/* ============================================================
+   FullCalendar.js Button Overrides (LUMEN)
+   ============================================================ */
 
-/*
- * ============================================
- * FullCalendar.js Button Overrides for LUMEN Theme
- * ============================================
- */
-
-/* Target ALL calendar buttons (Prev/Next, Today, View buttons) */
 .fc-button {
-    /* CRITICAL: Override the dark background color left over from Slate */
-    background-color: #f8f9fa !important; /* Use a very light background (bg-light) */
-    border-color: #ced4da !important; /* Use a light border */
-    color: #343a40 !important; /* Force dark text for contrast */
-    box-shadow: none !important; /* Remove any lingering dark shadows */
+    background-color: #f8f9fa !important;
+    border-color: #ced4da !important;
+    color: #343a40 !important;
+    box-shadow: none !important;
 }
 
-/* Ensure the button text is visible inside the button group (Prev/Next/Today) */
 .fc-button-group .fc-button {
     color: #343a40 !important;
 }
 
-/* Fix for the right-side view buttons (month, week, day) */
 .fc-button-group {
-    /* Ensure the wrapper does not have a dark background */
     background-color: transparent !important;
 }
 
-/* Highlight the active/selected button (e.g., if 'month' is selected) */
-.fc-state-active, 
+.fc-state-active,
 .fc-state-active:hover {
-    /* Use Lumen's primary style for the ACTIVE button (blue background, white text) */
-    background-color: #007bff !important; 
+    background-color: #007bff !important;
     border-color: #007bff !important;
     color: white !important;
 }
 
-/*
- * ============================================
- * LUMEN THEME OVERRIDES & GENERAL STYLES
- * ============================================
- */
+/* ============================================================
+   GENERAL LUMEN OVERRIDES
+   ============================================================ */
 
-/* General Body and Layout */
-/* NOTE: Lumen handles the primary light background and dark text color */
 body {
-    /* Set a default text color for custom elements */
-    color: #343a40; 
+    color: #343a40;
+    background-color: #f8f9fa;
 }
 
-/* --- NAVIGATION BAR --- */
-/* Lumen handles the Navbar look; keep custom spacing/font weight */
+/* ============================================================
+   NAVIGATION BAR (⚠️ SCOPED FLEX — THIS IS THE FIX ⚠️)
+   ============================================================ */
+
 .navbar {
     padding: 1rem 1.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,.1); /* Lighter shadow for light mode */
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+/* 🔥 CRITICAL FIX: flex ONLY applies inside navbar */
+.navbar .container-fluid {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .navbar-brand {
-    color: #ffffff !important; /* Lumen uses dark text on its light/primary navbar */
+    color: #ffffff !important;
     font-size: 1.5rem;
     font-weight: 600;
     text-decoration: none;
@@ -111,21 +95,13 @@ body {
 }
 
 .nav-link {
-    color: color: rgba(255, 255, 255, 0.8) !important;
+    color: rgba(255, 255, 255, 0.8) !important;
     text-decoration: none;
     transition: color 0.2s ease-in-out;
 }
 
 .nav-link:hover {
-    color: #ffffff !important; 
-}
-
-/* Flexbox utilities for alignment (keep as is) */
-.container-fluid {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+    color: #ffffff !important;
 }
 
 .me-auto {
@@ -137,24 +113,25 @@ body {
     justify-content: flex-end;
 }
 
-/* --- FORMS AND CARDS --- */
+/* ============================================================
+   FORMS AND CARDS
+   ============================================================ */
+
 .container {
     padding-top: 50px;
     padding-bottom: 50px;
 }
 
 .card {
-    /* Lumen handles card background (white/light), ensure black text */
     border: none;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); 
-    color: #343a40; /* Ensure text inside the card is dark */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: #343a40;
     background-color: #ffffff;
 }
 
 .card-header {
-    /* Lumen theme uses a light background for the header, keep dark text */
-    color: #343a40; 
+    color: #343a40;
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
     padding: 20px;
@@ -165,35 +142,36 @@ body {
 .form-label {
     font-weight: 600;
     margin-bottom: 8px;
-    color: #343a40; /* Dark text for contrast */
+    color: #343a40;
 }
 
 .form-control,
 .form-select {
     border-radius: 8px;
     padding: 10px 15px;
-    /* Lumen handles styling, ensure input text is dark */
-    color: #343a40; 
+    color: #343a40;
 }
 
-/* The SVG for the dropdown arrow needs to be dark for light mode */
 .form-select {
     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23343a40"><path d="M7.247 11.14 2.451 5.658C1.885 5.074 2.301 4 3.204 4h9.592a1 1 0 0 1 .903 1.658L8.753 11.14a1 1 0 0 1-1.506 0z"/></svg>');
 }
 
+/* ============================================================
+   BUTTONS
+   ============================================================ */
 
-/* --- BUTTONS --- */
 .btn {
     border-radius: 8px;
     padding: 10px 20px;
     font-weight: 600;
     transition: all 0.2s ease-in-out;
-    /* Remove 'color: white !important;' - Lumen handles button text color */
 }
 
-/* --- CHECKBOXES FOR DAYS OF WEEK --- */
+/* ============================================================
+   CHECKBOXES
+   ============================================================ */
+
 .form-check-label {
-    /* Ensure the text next to the checkbox is dark */
     color: #343a40;
     font-weight: normal;
     font-size: 1rem;
@@ -206,8 +184,10 @@ body {
     margin-right: 1.5rem;
 }
 
+/* ============================================================
+   ALERTS AND VALIDATION
+   ============================================================ */
 
-/* --- ALERTS AND VALIDATION (Revert to standard light colors) --- */
 .alert-success {
     color: #0f5132;
     background-color: #d1e7dd;
@@ -224,42 +204,19 @@ body {
     color: #dc3545;
 }
 
+/* ============================================================
+   FULLCALENDAR READABILITY
+   ============================================================ */
 
-/*
- * ============================================
- * FullCalendar.js Readability Fix for LUMEN Theme
- * ============================================
- */
-
-/* Targets the main title (e.g., "October 2025") and ensures it's DARK */
 .fc-toolbar h2,
-.fc-toolbar .fc-center,
-.fc-toolbar .fc-center h2,
 .fc-toolbar-title {
-    color: #343a40 !important; /* Force black/dark gray text */
+    color: #343a40 !important;
 }
 
-/* Targets the day names (Mon, Tue, etc.) in the calendar header */
 .fc-col-header-cell a {
     color: #343a40 !important;
 }
 
-/* Targets the Prev/Next and View buttons (Month, Week, Day) */
-.fc-button {
-    /* Lumen buttons should already have dark text, but enforce for safety */
-    color: #343a40 !important; 
-    /* Remove background-color: #4b6276; */
-    /* Remove border-color: #4b6276; */
-}
-
-/* Highlight the active/selected button (e.g., 'today' or 'month') */
-.fc-state-active, 
-.fc-state-active:hover {
-    /* Use Lumen's primary button style, which has white text on primary background */
-    color: white !important; 
-}
-
-/* Targets all calendar text (events, day numbers) and forces DARK text */
 .fc-theme-standard a,
 .fc-theme-standard td,
 .fc-theme-standard th,
@@ -268,10 +225,23 @@ body {
 .fc-col-header-cell-cushion,
 .fc-event-title,
 .fc-event-time {
-    color: #343a40 !important; /* CRITICAL: Ensure all calendar text is dark */
+    color: #343a40 !important;
 }
 
-/* Ensure day cells have a visible light background */
 .fc-daygrid-day {
-    background-color: #ffffff; 
+    background-color: #ffffff;
+}
+
+/* Fix financial dashboard (and all tabs) text visibility */
+.nav-tabs .nav-link {
+    color: #212529 !important;   /* Bootstrap dark */
+}
+
+.nav-tabs .nav-link.active {
+    color: #000 !important;
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #0d6efd !important;   /* Bootstrap primary blue */
 }

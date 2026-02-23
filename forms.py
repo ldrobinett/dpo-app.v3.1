@@ -47,6 +47,12 @@ class LoginForm(FlaskForm):
     remember = BooleanField('Remember Me')
     submit = SubmitField('Login')
 
+class UserCreationForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired(), Length(min=3, max=50)])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=6)])
+    roles = SelectMultipleField("Roles", coerce=int, validators=[DataRequired()])
+    submit = SubmitField("Create User")
+
 # ==========================================
 # ONBOARDING & SETTINGS FORMS
 # ==========================================
@@ -56,7 +62,7 @@ class OnboardingForm(FlaskForm):
     username = StringField('Manager Username', validators=[DataRequired(), Length(min=4)])
     password = PasswordField('Create Password', validators=[DataRequired(), Length(min=6)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    
+
     # 2. Facility
     bays_with_lifts = IntegerField('Bays with Lifts', validators=[Optional()])
     bays_without_lifts = IntegerField('Bays without Lifts', validators=[Optional()])
@@ -66,7 +72,7 @@ class OnboardingForm(FlaskForm):
     parts_to_labor = DecimalField('Overall Parts to Labor Ratio', places=2, validators=[DataRequired()])
     labor_margin = DecimalField('Overall Labor Margin %', places=1, validators=[DataRequired()])
     parts_margin = DecimalField('Overall Parts Margin %', places=1, validators=[DataRequired()])
-    
+
     # 4. Customer Pay (CP) Baseline
     cp_elr = DecimalField('CP Effective Labor Rate ($)', places=2, validators=[Optional()])
     cp_parts_to_labor = DecimalField('CP Parts to Labor Ratio', places=2, validators=[Optional()])
@@ -76,22 +82,22 @@ class OnboardingForm(FlaskForm):
     # 5. Adjustments & KPIs
     other_ro_gross = FloatField('Other RO Gross (+/- $)', validators=[Optional()])
     unapplied_time_cost = FloatField('Unapplied Time Cost ($)', validators=[Optional()])
-    
+
     wholesale_gross = FloatField('Wholesale Gross', validators=[Optional()])
     parts_retail_gross = FloatField('Parts Retail Gross', validators=[Optional()])
     parts_inventory_adjust = FloatField('Parts Inv Adjust', validators=[Optional()])
     parts_allowance = FloatField('Parts Allowance', validators=[Optional()])
     purchase_discounts = FloatField('Purchase Discounts', validators=[Optional()])
-    
+
     parts_fill_rate = FloatField('Parts Fill Rate %', validators=[Optional()])
     parts_turn_rate = FloatField('Parts Turn Rate', validators=[Optional()])
-    
+
     submit = SubmitField('Launch My Dashboard')
 
 class StoreSettingsForm(FlaskForm):
     # 1. Store Identity
     store_name = StringField('Dealership / Store Name', validators=[DataRequired()])
-    
+
     # 2. Facility
     bays_with_lifts = IntegerField('Bays with Lifts', validators=[Optional()])
     bays_without_lifts = IntegerField('Bays without Lifts', validators=[Optional()])
@@ -101,7 +107,7 @@ class StoreSettingsForm(FlaskForm):
     parts_to_labor = DecimalField('Overall Parts to Labor Ratio', places=2, validators=[DataRequired()])
     labor_margin = DecimalField('Overall Labor Margin %', places=1, validators=[DataRequired()])
     parts_margin = DecimalField('Overall Parts Margin %', places=1, validators=[DataRequired()])
-    
+
     # 4. Customer Pay (CP) Baseline
     cp_elr = DecimalField('CP Effective Labor Rate ($)', places=2, validators=[Optional()])
     cp_parts_to_labor = DecimalField('CP Parts to Labor Ratio', places=2, validators=[Optional()])
@@ -111,16 +117,16 @@ class StoreSettingsForm(FlaskForm):
     # 5. Adjustments & KPIs
     other_ro_gross = FloatField('Other RO Gross (+/- $)', validators=[Optional()])
     unapplied_time_cost = FloatField('Unapplied Time Cost ($)', validators=[Optional()])
-    
+
     wholesale_gross = FloatField('Wholesale Gross', validators=[Optional()])
     parts_retail_gross = FloatField('Parts Retail Gross', validators=[Optional()])
     parts_inventory_adjust = FloatField('Parts Inv Adjust', validators=[Optional()])
     parts_allowance = FloatField('Parts Allowance', validators=[Optional()])
     purchase_discounts = FloatField('Purchase Discounts', validators=[Optional()])
-    
+
     parts_fill_rate = FloatField('Parts Fill Rate %', validators=[Optional()])
     parts_turn_rate = FloatField('Parts Turn Rate', validators=[Optional()])
-    
+
     submit = SubmitField('Update Store Settings')
 
 class BulkTeamUploadForm(FlaskForm):
@@ -129,13 +135,13 @@ class BulkTeamUploadForm(FlaskForm):
         FileRequired(),
         FileAllowed(['csv'], 'CSV Files Only!')
     ])
-    
+
     # Standard Schedule Defaults
     default_start_time = TimeField('Default Start Time', validators=[DataRequired()])
     default_end_time = TimeField('Default End Time', validators=[DataRequired()])
     default_lunch_start = TimeField('Default Lunch Start', validators=[Optional()])
     default_lunch_end = TimeField('Default Lunch End', validators=[Optional()])
-    
+
     submit = SubmitField('Import Team Structure')
 
 # ==========================================
@@ -166,20 +172,20 @@ class TeamMemberForm(FlaskForm):
     tech_number = StringField('Tech Number', validators=[Optional(), Length(max=20)])
     team = QuerySelectField('Team', query_factory=team_query, get_label='name', allow_blank=True, blank_text='-- Unassigned --')
     tech_level = StringField('Tech Level (e.g., A, B, C)', validators=[Optional(), Length(max=50)])
-    
+
     dpo_calculation_mode = RadioField('DPO Setting',
                                       choices=[('manual', 'Set DPO Manually'), ('calculated', 'Calculate DPO (Historical)')],
                                       default='manual',
                                       validators=[DataRequired()])
     daily_production_objective = FloatField('Manual DPO (FRH)', validators=[Optional(), NumberRange(min=0)])
-    
+
     # Historical Data Fields
     hist_frh_total = FloatField('Historical Total FRH', validators=[Optional(), NumberRange(min=0)], default=80.0)
     hist_days_in_period = IntegerField('Historical Days', validators=[Optional(), NumberRange(min=1)], default=10)
     hist_training_days = IntegerField('Training Days', validators=[Optional(), NumberRange(min=0)], default=0)
     hist_vacation_days = IntegerField('Vacation Days', validators=[Optional(), NumberRange(min=0)], default=0)
     expected_lift_percent = FloatField('Expected Lift %', validators=[Optional(), NumberRange(min=0)], default=100.0)
-    
+
     submit = SubmitField('Save Member')
 
 # ==========================================
@@ -188,9 +194,9 @@ class TeamMemberForm(FlaskForm):
 class ScheduleEntryForm(FlaskForm):
     # Using helper here to show numbers
     team_member = QuerySelectField('Team Member', query_factory=team_member_query, get_label=get_member_label, validators=[DataRequired()])
-    
+
     schedule_type = SelectField(
-        'Schedule Type', 
+        'Schedule Type',
         choices=[
             ('WORK', 'Work Day (Productive)'),
             ('PTO', 'PTO (Non-Productive)'),
@@ -199,7 +205,7 @@ class ScheduleEntryForm(FlaskForm):
         validators=[DataRequired()],
         default='WORK'
     )
-    
+
     date = DateField('Date', validators=[DataRequired()], default=date.today)
     start_time = TimeField('Start Time', validators=[Optional()])
     end_time = TimeField('End Time', validators=[Optional()])
@@ -263,14 +269,14 @@ class RouteSheetForm(FlaskForm):
     ro_number = StringField('RO #', validators=[DataRequired(), Length(max=20)])
     customer_name = StringField('Customer Name', validators=[DataRequired(), Length(max=100)])
     vehicle_info = StringField('Vehicle', validators=[Optional(), Length(max=100)])
-    
+
     asm = QuerySelectField('ASM', query_factory=asm_query, get_label='name', allow_blank=True, blank_text='-- ASM --')
     service_description = TextAreaField('Service / Repair', validators=[Optional(), Length(max=255)])
-    
+
     # --- FIXED: Use get_member_label here to show Name + Number ---
     team_member = QuerySelectField('Tech', query_factory=team_member_query, get_label=get_member_label, allow_blank=True, blank_text='-- Tech --')
     # -------------------------------------------------------------
-    
+
     status = SelectField('Status', choices=[
         ('Dispatch', 'To Dispatch'),
         ('Inspection', 'In Inspection'),
@@ -281,7 +287,7 @@ class RouteSheetForm(FlaskForm):
         ('Ready', 'Ready for Pickup'),
         ('Closed', 'Closed')
     ], default='Dispatch')
-    
+
     promised_time = DateTimeLocalField('Promised Time', format='%Y-%m-%dT%H:%M', validators=[Optional()])
     notes = TextAreaField('Internal Notes', validators=[Optional()])
     submit = SubmitField('Add RO')
@@ -292,12 +298,12 @@ class RouteSheetForm(FlaskForm):
 class WorkLogForm(FlaskForm):
     team_member = QuerySelectField('Team Member', query_factory=team_member_query, get_label=get_member_label, validators=[DataRequired()])
     date = DateField('Date', validators=[DataRequired()], default=date.today)
-    
+
     ro_number = StringField('RO Number', validators=[Optional(), Length(max=50)])
     line_item = StringField('Line Item', validators=[Optional(), Length(max=10)])
     flat_rate_hours = FloatField('Flat Rate Hours (Sold)', validators=[DataRequired(), NumberRange(min=0)])
     actual_time = FloatField('Actual Hours (Clocked)', validators=[Optional(), NumberRange(min=0)])
-    
+
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Work Log')
 
@@ -387,20 +393,20 @@ class CPGPOpportunityForm(FlaskForm):
     curr_parts_ratio = FloatField('Current P:L Ratio', validators=[DataRequired()])
     curr_parts_margin = FloatField('Current Parts Margin %', validators=[DataRequired()])
     curr_ro_count = IntegerField('Current Monthly ROs', validators=[DataRequired()])
-    
+
     opp_elr = FloatField('Target ELR', validators=[DataRequired()])
     opp_hours_per_ro = FloatField('Target Hrs/RO', validators=[DataRequired()])
     opp_labor_margin = FloatField('Target Labor Margin %', validators=[DataRequired()])
     opp_parts_ratio = FloatField('Target P:L Ratio', validators=[DataRequired()])
     opp_parts_margin = FloatField('Target Parts Margin %', validators=[DataRequired()])
     opp_ro_count = IntegerField('Target Monthly ROs', validators=[DataRequired()])
-    
+
     submit = SubmitField('Compare')
 
 class CapacityOpportunityForm(FlaskForm):
     days_in_month = FloatField('Days in Month', default=21, validators=[DataRequired()])
     hours_per_day = FloatField('Hours per Day', default=8, validators=[DataRequired()])
-    
+
     curr_tech_count = FloatField('Current Techs', validators=[DataRequired()])
     curr_proficiency = FloatField('Current Proficiency', validators=[DataRequired()])
     curr_elr = FloatField('Current ELR', validators=[DataRequired()])
@@ -408,7 +414,7 @@ class CapacityOpportunityForm(FlaskForm):
     curr_parts_ratio = FloatField('Current P:L Ratio', validators=[DataRequired()])
     curr_parts_margin = FloatField('Current Parts Margin %', validators=[DataRequired()])
     curr_unapplied = FloatField('Current Unapplied Cost ($)', default=0)
-    
+
     opp_tech_count = FloatField('Target Techs', validators=[DataRequired()])
     opp_proficiency = FloatField('Target Proficiency', validators=[DataRequired()])
     opp_elr = FloatField('Target ELR', validators=[DataRequired()])
@@ -416,5 +422,5 @@ class CapacityOpportunityForm(FlaskForm):
     opp_parts_ratio = FloatField('Target P:L Ratio', validators=[DataRequired()])
     opp_parts_margin = FloatField('Target Parts Margin %', validators=[DataRequired()])
     opp_unapplied = FloatField('Target Unapplied Cost ($)', default=0)
-    
+
     submit = SubmitField('Calculate Opportunity')

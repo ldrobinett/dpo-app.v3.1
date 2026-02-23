@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-dark text-white">
+            <h4 class="mb-0">CDK Route Sheet Audit Upload</h4>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                Upload your CDK Current Log CSV to audit and sync the Route Sheet.
+            </p>
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Select CSV File</label>
+                    <input type="file" name="csv_file" class="form-control" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    Upload & Audit
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
