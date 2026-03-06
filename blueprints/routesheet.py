@@ -282,6 +282,8 @@ def cdk_audit_upload():
         updated = 0
         created = 0
 
+        imported_ro_numbers = set()   # ✅ TRACK IMPORTED ROs
+
         for row in csv_reader:
 
             ro_number = row.get("RO")
@@ -295,10 +297,10 @@ def cdk_audit_upload():
             if not ro_number:
                 continue
 
+            imported_ro_numbers.add(ro_number)  # ✅ ADD TO TRACKER
+
             # ----------------------------------------
             # Convert CDK Status → Internal Status
-            # Handles multiple statuses like:
-            # "AUTH. HOLD, BOOKED"
             # ----------------------------------------
             mapped_status = "Dispatch"
 
@@ -328,7 +330,6 @@ def cdk_audit_upload():
             ).first()
 
             if ro:
-                # UPDATE existing
                 ro.customer_name = customer
                 ro.vehicle_info = f"{year} {model}" if model else ro.vehicle_info
                 ro.service_description = service
@@ -342,7 +343,6 @@ def cdk_audit_upload():
                 updated += 1
 
             else:
-                # CREATE new
                 new_ro = RepairOrder(
                     ro_number=ro_number,
                     customer_name=customer,
@@ -359,9 +359,30 @@ def cdk_audit_upload():
                 db.session.add(new_ro)
                 created += 1
 
+        # ==================================================
+        # CLOSE ROs NOT PRESENT IN THE AUDIT FILE
+        # ==================================================
+        existing_ros = RepairOrder.query.filter_by(
+            store_id=current_user.store_id
+        ).all()
+
+        closed_count = 0
+
+        for ro in existing_ros:
+            if ro.ro_number not in imported_ro_numbers:
+                if ro.status != "Closed":
+                    ro.status = "Closed"
+                    ro.audit_source = "CDK"
+                    ro.audit_timestamp = datetime.utcnow()
+                    closed_count += 1
+
         db.session.commit()
 
-        flash(f"Audit complete. {updated} updated, {created} created.", "success")
+        flash(
+            f"Audit complete. {updated} updated, {created} created, {closed_count} closed.",
+            "success"
+        )
+
         return redirect(url_for("routesheet.view_sheet"))
 
     return render_template("cdk_upload.html")

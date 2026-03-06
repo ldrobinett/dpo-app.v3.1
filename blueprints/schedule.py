@@ -300,6 +300,132 @@ def new_schedule_entry():
 
     return render_template('create_edit_schedule_entry.html', title='New Schedule Entry', form=form)
 
+@schedule_bp.route("/copy_month_schedule", methods=["POST"])
+@login_required
+def copy_month_schedule():
+
+    source_year = int(request.form.get("source_year"))
+    source_month = int(request.form.get("source_month"))
+    target_year = int(request.form.get("target_year"))
+    target_month = int(request.form.get("target_month"))
+
+    clear_existing = request.form.get("clear_existing") == "on"
+
+    # -------------------------------------
+    # SOURCE RANGE
+    # -------------------------------------
+    source_start = date(source_year, source_month, 1)
+    source_end = date(
+        source_year,
+        source_month,
+        calendar.monthrange(source_year, source_month)[1]
+    )
+
+    source_entries = (
+        ScheduleEntry.query
+        .join(TeamMember)
+        .join(Team)
+        .filter(
+            Team.store_id == current_user.store_id,
+            ScheduleEntry.date >= source_start,
+            ScheduleEntry.date <= source_end
+        )
+        .all()
+    )
+
+    if not source_entries:
+        flash("No schedules found in source month.", "warning")
+        return redirect(url_for("schedule.schedule_calendar"))
+
+    # -------------------------------------
+    # BUILD WEEKDAY PATTERN (SKIP OFF)
+    # -------------------------------------
+    pattern = {}
+
+    for entry in source_entries:
+
+        if entry.schedule_type == "OFF":
+            continue  # ✅ Skip days off automatically
+
+        key = (entry.team_member_id, entry.date.weekday())
+
+        # Only need one pattern per weekday
+        if key not in pattern:
+            pattern[key] = {
+                "start_time": entry.start_time,
+                "end_time": entry.end_time,
+                "lunch_start": entry.lunch_start,
+                "lunch_end": entry.lunch_end,
+                "schedule_type": entry.schedule_type,
+                "notes": entry.notes
+            }
+
+    # -------------------------------------
+    # TARGET RANGE
+    # -------------------------------------
+    target_start = date(target_year, target_month, 1)
+    target_end = date(
+        target_year,
+        target_month,
+        calendar.monthrange(target_year, target_month)[1]
+    )
+
+    # -------------------------------------
+    # CLEAR EXISTING IF REQUESTED
+    # -------------------------------------
+    if clear_existing:
+        ScheduleEntry.query.join(TeamMember).join(Team).filter(
+            Team.store_id == current_user.store_id,
+            ScheduleEntry.date >= target_start,
+            ScheduleEntry.date <= target_end
+        ).delete(synchronize_session=False)
+
+    # -------------------------------------
+    # BUILD TARGET MONTH
+    # -------------------------------------
+    created = 0
+    total_days = calendar.monthrange(target_year, target_month)[1]
+
+    for day in range(1, total_days + 1):
+
+        current_date = date(target_year, target_month, day)
+        weekday = current_date.weekday()
+
+        for (team_member_id, pattern_weekday), values in pattern.items():
+
+            if weekday != pattern_weekday:
+                continue
+
+            # Skip if not clearing and already exists
+            if not clear_existing:
+                existing = ScheduleEntry.query.filter_by(
+                    team_member_id=team_member_id,
+                    date=current_date
+                ).first()
+
+                if existing:
+                    continue
+
+            new_entry = ScheduleEntry(
+                team_member_id=team_member_id,
+                date=current_date,
+                start_time=values["start_time"],
+                end_time=values["end_time"],
+                lunch_start=values["lunch_start"],
+                lunch_end=values["lunch_end"],
+                schedule_type=values["schedule_type"],
+                notes=values["notes"]
+            )
+
+            db.session.add(new_entry)
+            created += 1
+
+    db.session.commit()
+
+    flash(f"Schedule copied successfully. {created} entries created.", "success")
+
+    return redirect(url_for("schedule.schedule_calendar"))
+
 @schedule_bp.route("/schedule/<int:entry_id>/edit", methods=['GET', 'POST'])
 @login_required
 def edit_schedule_entry(entry_id):

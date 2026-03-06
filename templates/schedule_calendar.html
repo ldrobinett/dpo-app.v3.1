@@ -1,62 +1,165 @@
 {% extends "base.html" %}
 
 {% block styles %}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
 {% endblock %}
 
-
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Schedule Calendar</h1>
-        
-        <form method="GET" action="{{ url_for('schedule.schedule_calendar') }}" class="d-flex align-items-center">
-            <label for="team_id" class="form-label me-2 mb-0">View:</label>
-            <select name="team_id" id="team_id" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
-                <option value="" {% if not selected_team_id %}selected{% endif %}>
-                    -- All Teams --
-                </option>
-                {% for team in all_teams %}
-                    <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>
-                        {{ team.name }}
-                    </option>
-                {% endfor %}
-            </select>
-            <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button></noscript>
-        </form>
-        </div>
 
-    <div class="card bg-light text-dark shadow-lg mb-4">
-        <div class="card-body">
-            <div id='calendar'></div> 
-        </div>
+
+
+
+<!-- ============================= -->
+<!-- CALENDAR HEADER -->
+<!-- ============================= -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Schedule Calendar</h1>
+
+    <form method="GET"
+          action="{{ url_for('schedule.schedule_calendar') }}"
+          class="d-flex align-items-center">
+
+        <label for="team_id" class="form-label me-2 mb-0">View:</label>
+
+        <select name="team_id"
+                id="team_id"
+                class="form-select me-2"
+                style="width: auto;"
+                onchange="this.form.submit()">
+
+            <option value="" {% if not selected_team_id %}selected{% endif %}>
+                -- All Teams --
+            </option>
+
+            {% for team in all_teams %}
+            <option value="{{ team.id }}"
+                    {% if selected_team_id == team.id %}selected{% endif %}>
+                {{ team.name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <noscript>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                Filter
+            </button>
+        </noscript>
+    </form>
+</div>
+
+<!-- ============================= -->
+<!-- COPY MONTH CARD -->
+<!-- ============================= -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+
+        <h5 class="card-title mb-3">
+            <i class="fas fa-copy me-2"></i>Copy Monthly Schedule
+        </h5>
+
+        <form method="POST"
+              action="{{ url_for('schedule.copy_month_schedule') }}"
+              onsubmit="return confirm('Copy schedule to target month? This may overwrite existing entries.');">
+
+            <div class="row g-3 align-items-end">
+
+                <div class="col-md-2">
+                    <label class="form-label">Source Month</label>
+                    <input type="number"
+                           name="source_month"
+                           class="form-control"
+                           min="1"
+                           max="12"
+                           required>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Source Year</label>
+                    <input type="number"
+                           name="source_year"
+                           class="form-control"
+                           required>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Target Month</label>
+                    <input type="number"
+                           name="target_month"
+                           class="form-control"
+                           min="1"
+                           max="12"
+                           required>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Target Year</label>
+                    <input type="number"
+                           name="target_year"
+                           class="form-control"
+                           required>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="clear_existing"
+                               id="clear_existing">
+
+                        <label class="form-check-label"
+                               for="clear_existing">
+                            Clear existing schedules in target month first
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">
+                    Copy Schedule
+                </button>
+            </div>
+
+        </form>
+
     </div>
+</div>
+
+<!-- ============================= -->
+<!-- CALENDAR -->
+<!-- ============================= -->
+<div class="card bg-light text-dark shadow-lg mb-4">
+    <div class="card-body">
+        <div id='calendar'></div>
+    </div>
+</div>
+
 {% endblock %}
 
 
 {% block scripts %}
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                events: {{ events | tojson | safe }},
-                editable: false, 
-                selectable: true,
-		displayEventTime: false, 
-                // Optional: Adjust how events look if needed
-                // eventDisplay: 'block', // Makes events take up more vertical space
-                // dayMaxEventRows: true, // Adds a "+ more" link if too many events
-            });
-            
-            calendar.render();
-        });
-    </script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    var calendarEl = document.getElementById('calendar');
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: {{ events | tojson | safe }},
+        editable: false,
+        selectable: true,
+        displayEventTime: false
+    });
+
+    calendar.render();
+});
+</script>
 {% endblock %}

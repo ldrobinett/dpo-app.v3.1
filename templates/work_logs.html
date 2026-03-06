@@ -1,148 +1,269 @@
 {% extends "base.html" %}
 
 {% block content %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
-    /* 1. HEADER STYLING */
+    /* Sticky header */
     .log-header-container {
         position: sticky;
         top: 0;
-        z-index: 950; 
+        z-index: 950;
         background-color: #ffffff;
         border-bottom: 3px solid #0d6efd;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
 
-    /* 2. TABLE CONTAINER */
     .table-container {
         width: 100%;
         overflow-x: auto;
-        padding-bottom: 100px; 
+        padding-bottom: 60px;
     }
 
-    /* 3. TABLE HEADER STYLING */
     thead th {
         background-color: #212529;
         color: white;
-        white-space: nowrap; 
+        white-space: nowrap;
         vertical-align: middle;
     }
 
-    /* Action Button Styles */
     .action-btn { margin: 0 2px; }
 </style>
 
-<div class="d-flex flex-column w-100">
-    
-    <div class="log-header-container py-3 mb-0">
-        <div class="container-fluid px-4">
-            <div class="d-flex justify-content-between align-items-center">
-                
-                <div style="min-width: 150px;">
-                    <span class="text-muted fw-bold fs-5">
-                        <i class="fas fa-list-alt me-2"></i>Work Logs
-                    </span>
-                </div>
-                
-                <div class="text-center px-2">
-                    <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
-                        Tech Production Log
-                    </h1>
-                </div>
-                
-                <div class="text-end" style="min-width: 150px;">
-                    <a href="{{ url_for('worklog.new_work_log') }}" class="btn btn-success fw-bold shadow-sm">
-                        <i class="fas fa-plus-circle me-2"></i>Log New Job
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
 
+<!-- ============================= -->
+<!-- DATE RANGE FILTER -->
+<!-- ============================= -->
+<div class="container-fluid px-4 mt-3">
+
+    <form method="GET" class="row g-3 align-items-end mb-3">
+
+        <div class="col-auto">
+            <label class="form-label">Start Date</label>
+            <input type="date"
+                   name="start_date"
+                   class="form-control"
+                   value="{{ start_date }}">
+        </div>
+
+        <div class="col-auto">
+            <label class="form-label">End Date</label>
+            <input type="date"
+                   name="end_date"
+                   class="form-control"
+                   value="{{ end_date }}">
+        </div>
+
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">
+                Apply
+            </button>
+            <a href="{{ url_for('worklog.work_logs') }}"
+               class="btn btn-outline-secondary">
+                Reset
+            </a>
+        </div>
+
+        <div class="col-auto ms-auto text-muted small">
+            Showing {{ pagination.total }} total logs
+        </div>
+
+    </form>
+</div>
+
+
+<!-- ============================= -->
+<!-- HEADER -->
+<!-- ============================= -->
+<div class="log-header-container py-3 mb-0">
     <div class="container-fluid px-4">
-        <div class="table-container">
-            <table class="table table-hover table-striped mb-0 align-middle">
-                <thead class="table-dark text-center">
-                    <tr>
-                        <th style="width: 120px;">Date</th>
-                        <th style="width: 100px;">Tech #</th>
-                        <th class="text-start">Tech Name</th>
-                        <th style="width: 100px;">RO #</th>
-                        <th style="width: 80px;">Line</th>
-                        <th style="width: 120px;">Sold (FRH)</th>
-                        <th style="width: 120px;">Actual</th>
-                        <th style="width: 100px;">Efficiency</th>
-                        <th class="text-start" style="width: 25%;">Notes</th>
-                        <th style="width: 120px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in logs %}
-                    <tr class="text-center">
-                        <td class="fw-bold">{{ log.date.strftime('%m/%d/%Y') }}</td>
-                        
-                        <td class="text-secondary fw-bold">
-                            {{ log.team_member.tech_number if log.team_member.tech_number else '--' }}
-                        </td>
-                        
-                        <td class="text-start fw-bold">
-                            {{ log.team_member.name }}
-                        </td>
-                        
-                        <td><span class="badge bg-light text-dark border">{{ log.ro_number or '--' }}</span></td>
-                        <td>{{ log.line_item or '-' }}</td>
-                        
-                        <td class="fw-bold text-primary fs-5">
-                            {{ "%.2f"|format(log.flat_rate_hours) }}
-                        </td>
-                        
-                        <td class="text-secondary fw-bold">
-                            {{ "%.2f"|format(log.actual_time) if log.actual_time else '--' }}
-                        </td>
-                        
-                        <td>
-                            {% if log.actual_time and log.actual_time > 0 %}
-                                {% set eff = (log.flat_rate_hours / log.actual_time) * 100 %}
-                                <span class="badge rounded-pill 
-                                    {% if eff >= 120 %}bg-success
-                                    {% elif eff >= 100 %}bg-primary
-                                    {% elif eff >= 80 %}bg-warning text-dark
-                                    {% else %}bg-danger{% endif %}">
-                                    {{ "%.0f"|format(eff) }}%
-                                </span>
-                            {% else %}
-                                <span class="text-muted small">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <td class="text-start text-muted small text-wrap" style="line-height: 1.2;">
-                            {{ log.notes or '' }}
-                        </td>
-                        
-                        <td class="text-end" style="white-space: nowrap;">
-                            <a href="{{ url_for('worklog.edit_work_log', log_id=log.id) }}" class="btn btn-sm btn-outline-primary action-btn" title="Edit">
-                                <i class="fas fa-pencil-alt"></i>
-                            </a>
-                            <form action="{{ url_for('worklog.delete_work_log', log_id=log.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this log entry?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger action-btn" title="Delete">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="10" class="text-center py-5 text-muted bg-white">
-                            <i class="fas fa-clipboard-list fa-3x mb-3 d-block text-secondary"></i>
-                            <h4 class="text-secondary">No Logs Found</h4>
-                            <p>Use the green button above or the Route Sheet to start logging work.</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="d-flex justify-content-between align-items-center">
+
+            <div style="min-width: 150px;">
+                <span class="text-muted fw-bold fs-5">
+                    <i class="fas fa-list-alt me-2"></i>Work Logs
+                </span>
+            </div>
+
+            <div class="text-center px-2">
+                <h1 class="mb-0 fw-bold text-uppercase text-primary"
+                    style="font-size: 2rem; letter-spacing: 1px;">
+                    Tech Production Log
+                </h1>
+            </div>
+
+            <div class="text-end" style="min-width: 150px;">
+                <a href="{{ url_for('worklog.new_work_log') }}"
+                   class="btn btn-success fw-bold shadow-sm">
+                    <i class="fas fa-plus-circle me-2"></i>Log New Job
+                </a>
+            </div>
+
         </div>
     </div>
 </div>
+
+
+<!-- ============================= -->
+<!-- TABLE -->
+<!-- ============================= -->
+<div class="container-fluid px-4 mt-3">
+    <div class="table-container">
+        <table class="table table-hover table-striped mb-0 align-middle">
+            <thead class="table-dark text-center">
+                <tr>
+                    <th style="width:120px;">Date</th>
+                    <th style="width:100px;">Tech #</th>
+                    <th class="text-start">Tech Name</th>
+                    <th style="width:100px;">RO #</th>
+                    <th style="width:80px;">Line</th>
+                    <th style="width:120px;">Sold (FRH)</th>
+                    <th style="width:120px;">Actual</th>
+                    <th style="width:100px;">Efficiency</th>
+                    <th class="text-start" style="width:25%;">Notes</th>
+                    <th style="width:120px;">Actions</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for log in logs %}
+                <tr class="text-center">
+
+                    <td class="fw-bold">
+                        {{ log.date.strftime('%m/%d/%Y') }}
+                    </td>
+
+                    <td class="text-secondary fw-bold">
+                        {{ log.team_member.tech_number if log.team_member.tech_number else '--' }}
+                    </td>
+
+                    <td class="text-start fw-bold">
+                        {{ log.team_member.name }}
+                    </td>
+
+                    <td>
+                        <span class="badge bg-light text-dark border">
+                            {{ log.ro_number or '--' }}
+                        </span>
+                    </td>
+
+                    <td>{{ log.line_item or '-' }}</td>
+
+                    <td class="fw-bold text-primary fs-5">
+                        {{ "%.2f"|format(log.flat_rate_hours) }}
+                    </td>
+
+                    <td class="text-secondary fw-bold">
+                        {{ "%.2f"|format(log.actual_time) if log.actual_time else '--' }}
+                    </td>
+
+                    <td>
+                        {% if log.actual_time and log.actual_time > 0 %}
+                            {% set eff = (log.flat_rate_hours / log.actual_time) * 100 %}
+                            <span class="badge rounded-pill
+                                {% if eff >= 120 %}bg-success
+                                {% elif eff >= 100 %}bg-primary
+                                {% elif eff >= 80 %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}">
+                                {{ "%.0f"|format(eff) }}%
+                            </span>
+                        {% else %}
+                            <span class="text-muted small">—</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-start text-muted small text-wrap">
+                        {{ log.notes or '' }}
+                    </td>
+
+                    <td class="text-end" style="white-space: nowrap;">
+                        <a href="{{ url_for('worklog.edit_work_log', log_id=log.id) }}"
+                           class="btn btn-sm btn-outline-primary action-btn"
+                           title="Edit">
+                            <i class="fas fa-pencil-alt"></i>
+                        </a>
+
+                        <form action="{{ url_for('worklog.delete_work_log', log_id=log.id) }}"
+                              method="POST"
+                              class="d-inline"
+                              onsubmit="return confirm('Delete this log entry?');">
+                            <button type="submit"
+                                    class="btn btn-sm btn-outline-danger action-btn"
+                                    title="Delete">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </form>
+                    </td>
+
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-muted bg-white">
+                        <i class="fas fa-clipboard-list fa-3x mb-3 d-block text-secondary"></i>
+                        <h4 class="text-secondary">No Logs Found</h4>
+                        <p>Adjust date filters or log new work above.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+
+    <!-- ============================= -->
+    <!-- PAGINATION -->
+    <!-- ============================= -->
+    {% if pagination.pages > 1 %}
+    <div class="mt-4 d-flex justify-content-center">
+        <nav>
+            <ul class="pagination mb-0">
+
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link"
+                       href="{{ url_for('worklog.work_logs',
+                                        page=pagination.prev_num,
+                                        start_date=start_date,
+                                        end_date=end_date) }}">
+                        Previous
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link"
+                               href="{{ url_for('worklog.work_logs',
+                                                page=p,
+                                                start_date=start_date,
+                                                end_date=end_date) }}">
+                                {{ p }}
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link"
+                       href="{{ url_for('worklog.work_logs',
+                                        page=pagination.next_num,
+                                        start_date=start_date,
+                                        end_date=end_date) }}">
+                        Next
+                    </a>
+                </li>
+                {% endif %}
+
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+</div>
+
 {% endblock %}

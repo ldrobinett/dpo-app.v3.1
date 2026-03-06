@@ -7,3 +7,5 @@ site.db
 venv/
 .env
 migrations/**/__pycache__/
+*.db
+desktop-tutorial/

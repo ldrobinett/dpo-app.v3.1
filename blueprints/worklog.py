@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, url_for, flash, redirect
+from flask import Blueprint, render_template, url_for, flash, redirect, request
 from flask_login import login_required, current_user
 from extensions import db
 from models import WorkLog, TeamMember, Team
 from forms import WorkLogForm
 from utils.permissions import require_capability
+from datetime import date, timedelta, datetime
+from sqlalchemy.orm import joinedload
 
 worklog_bp = Blueprint("worklog", __name__)
 
@@ -15,19 +17,51 @@ worklog_bp = Blueprint("worklog", __name__)
 @login_required
 @require_capability("worklog.manage")
 def work_logs():
-    logs = (
+
+    page = request.args.get("page", 1, type=int)
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+
+    base_query = (
         WorkLog.query
+        .options(joinedload(WorkLog.team_member))
         .join(TeamMember)
         .join(Team)
         .filter(Team.store_id == current_user.store_id)
+    )
+
+    # =========================
+    # DATE FILTERING
+    # =========================
+
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    else:
+        start_date = date.today()  # ✅ default to today
+
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    else:
+        end_date = start_date  # ✅ same day by default
+
+    base_query = base_query.filter(
+        WorkLog.date >= start_date,
+        WorkLog.date <= end_date
+    )
+
+    pagination = (
+        base_query
         .order_by(WorkLog.date.desc(), WorkLog.id.desc())
-        .all()
+        .paginate(page=page, per_page=25)
     )
 
     return render_template(
         "work_logs.html",
         title="Work Logs",
-        logs=logs,
+        logs=pagination.items,
+        pagination=pagination,
+        start_date=start_date.strftime("%Y-%m-%d"),
+        end_date=end_date.strftime("%Y-%m-%d"),
     )
 
 # =====================================================

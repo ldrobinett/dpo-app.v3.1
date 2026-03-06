@@ -6,7 +6,7 @@ import calendar
 from flask import Blueprint, render_template, url_for, flash, redirect, request, make_response
 from flask_login import login_required, current_user
 from extensions import db, bcrypt
-from models import OnboardingTicket, User, FinancialInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability
+from models import OnboardingTicket, User, FinancialInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability, ManagedStore
 from forms import OnboardingForm, StoreSettingsForm, BulkTeamUploadForm
 
 onboarding_bp = Blueprint('onboarding', __name__)
@@ -148,7 +148,9 @@ def setup_store(token):
 @login_required
 def review_setup():
     form = StoreSettingsForm()
-
+    store = ManagedStore.query.filter_by(
+        id=current_user.store_id
+    ).first()
     main_team = Team.query.filter_by(
         store_id=current_user.store_id
     ).first()
@@ -162,8 +164,8 @@ def review_setup():
     # =========================
     if request.method == 'GET':
 
-        if main_team:
-            form.store_name.data = main_team.name
+        if store:
+            form.store_name.data = store.name
 
         if fin_inputs:
             form.elr.data = fin_inputs.effective_labor_rate
@@ -193,27 +195,11 @@ def review_setup():
 
         new_name = form.store_name.data.strip()
 
-        if main_team:
-            if main_team.name != new_name:
+        # Update store name (Dealer Name)
+        if store and store.name != new_name:
+            store.name = new_name
 
-                conflict = Team.query.filter_by(
-                    store_id=current_user.store_id,
-                    name=new_name
-                ).first()
-
-                if conflict:
-                    flash(
-                        "A team with this name already exists for this store.",
-                        "danger"
-                    )
-                    return render_template(
-                        'store_settings.html',
-                        form=form,
-                        title='Initial Setup Review'
-                    )
-
-                main_team.name = new_name
-
+        # Ensure financial inputs exist
         if not fin_inputs:
             fin_inputs = FinancialInputs(user_id=current_user.id)
             db.session.add(fin_inputs)

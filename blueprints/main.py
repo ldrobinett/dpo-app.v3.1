@@ -60,6 +60,7 @@ def home():
     # Inputs & Shop Stats
     fin_inputs = FinancialInputs.query.filter_by(user_id=current_user.id).first()
 
+    
     # --- BAY UTILIZATION CALCULATION ---
     bay_utilization = 0.0
     if fin_inputs:
