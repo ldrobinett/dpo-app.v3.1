@@ -520,15 +520,60 @@ def monthly_forecast():
 @login_required
 @require_capability("finance.view")
 def production_display():
-    # --- Robust User Check ---
+
     if not current_user.is_authenticated or isinstance(current_user._get_current_object(), AnonymousUserMixin):
         flash('Session expired or user not fully authenticated. Please log in.', 'warning')
         return redirect(url_for('auth.login'))
 
     production_data = get_production_display_data(current_user.store_id)
+
     today_date_str = date.today().strftime("%A, %B %d, %Y")
 
-    return render_template('production_display.html',
-                           title="Live Production Display",
-                           production_data=production_data,
-                           today_date_str=today_date_str)
+    # Flatten all members for store leaderboard
+    all_members = []
+    for team, members in production_data.items():
+        all_members.extend(members)
+
+    # Sort by MTD %
+    all_members_sorted = sorted(
+        all_members,
+        key=lambda m: m['percent_mtd'],
+        reverse=True
+    )
+
+    # Shop Pace MTD
+    total_expected_mtd = 0
+    total_actual_mtd = 0
+
+    for member in all_members:
+        total_expected_mtd += member['expected_mtd']
+        total_actual_mtd += member['actual_mtd']
+
+    shop_pace = 0
+
+    if total_expected_mtd > 0:
+        shop_pace = (total_actual_mtd / total_expected_mtd) * 100
+
+    # Store highlights
+    store_leader = None
+    needs_attention = None
+    big_day = None
+
+    if all_members_sorted:
+        store_leader = all_members_sorted[0]
+        needs_attention = min(all_members_sorted, key=lambda m: m['percent_mtd'])
+        big_day = max(all_members_sorted, key=lambda m: m['percent_today'])
+
+    return render_template(
+        "production_display.html",
+        title="Live Production Display",
+        production_data=production_data,
+        today_date_str=today_date_str,
+        all_members_sorted=all_members_sorted,
+        store_leader=store_leader,
+        needs_attention=needs_attention,
+        big_day=big_day,
+        shop_pace=shop_pace,
+        total_actual_mtd=total_actual_mtd,
+        total_expected_mtd=total_expected_mtd
+    )

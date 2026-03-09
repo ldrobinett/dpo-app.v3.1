@@ -34,5 +34,7 @@ git pull origin dev
 Write-Host "Current migration head:" -ForegroundColor Yellow
 flask db current
 
+# Start the dev server
 Write-Host "Development environment ready." -ForegroundColor Green
-Write-Host "Run 'flask run' when ready." -ForegroundColor Cyan
+Write-Host "Run 'python run.py' when ready." -ForegroundColor Cyan
+python run.py

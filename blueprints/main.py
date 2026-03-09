@@ -132,6 +132,16 @@ def home():
     daily_goal = 0.0
     absent_techs = []
 
+    needed_appointments = 0
+
+    if hours_per_ro > 0:
+        needed_appointments = daily_goal / hours_per_ro
+
+    needed_appointments = round(needed_appointments)
+
+    cp_needed = round(needed_appointments * 0.70)
+    wp_needed = needed_appointments - cp_needed
+
     for tech in all_techs:
         entry = ScheduleEntry.query.filter_by(team_member_id=tech.id, date=today).first()
         if entry:
@@ -155,6 +165,34 @@ def home():
         WorkLog.date <= today
     ).group_by(TeamMember.id).order_by(func.sum(WorkLog.flat_rate_hours).desc()).limit(5).all()
 
+        # --- 5. WEEKLY FINANCIAL FORECAST (for Executive Dashboard) ---
+
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    current_week_dates = f"{start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')}"
+
+    weekly_financial_total = {
+        "total_gross": 0.0,
+        "labor_gross": 0.0,
+        "parts_gross": 0.0,
+        "expected_frh": 0.0
+    }
+
+    # Pull forecast for the month
+    forecast = FinancialForecast.query.filter_by(
+        store_id=store_id,
+        month=today.month,
+        year=today.year
+    ).first()
+
+    if forecast:
+        # Estimate weekly portion from monthly totals
+        weekly_financial_total["total_gross"] = forecast.total_gross / 4
+        weekly_financial_total["labor_gross"] = forecast.labor_gross / 4
+        weekly_financial_total["parts_gross"] = forecast.parts_gross / 4
+        weekly_financial_total["expected_frh"] = forecast.expected_frh / 4
+    
     return render_template('home.html',
                            title='Executive Dashboard',
                            today_date=today.strftime('%A, %B %d'),
@@ -164,6 +202,11 @@ def home():
                            mtd_sold=mtd_sold,
                            month_progress=work_progress_pct * 100,
                            hours_per_ro=hours_per_ro,
+                           weekly_financial_total=weekly_financial_total,
+                           current_week_dates=current_week_dates,
+                           needed_appointments=needed_appointments,
+                           cp_needed=cp_needed,
+                           wp_needed=wp_needed,
 
                            # New Bay Utilization Metric
                            bay_utilization=bay_utilization,

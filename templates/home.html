@@ -46,6 +46,7 @@
         </div>
     </div>
 
+    {#
     <div class="col-xl-4 col-md-6">
         <div class="card border-start border-4 border-success h-100 shadow-sm">
             <div class="card-body">
@@ -60,7 +61,23 @@
             </div>
         </div>
     </div>
+    #}
 
+    
+            <div class="col-xl-4 col-md-6">
+                <div class="card border-start border-4 border-dark h-100 shadow-sm">
+                    <div class="card-header">
+                        This Week Expected Performance ({{ current_week_dates }})
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between"><strong>Total Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.total_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Labor Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.labor_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Parts Gross:</strong> <span>${{ "%.2f"|format(weekly_financial_total.parts_gross) }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between"><strong>Expected FRH:</strong> <span>{{ "%.2f"|format(weekly_financial_total.expected_frh) }}</span></li>
+                    </ul>
+                </div>
+            </div>
+    {#
     <div class="col-xl-4 col-md-6">
         <div class="card border-start border-4 border-purple h-100 shadow-sm" style="border-left-color: #6f42c1 !important;">
             <div class="card-body">
@@ -73,6 +90,49 @@
                 </div>
                 <small class="text-muted">MTD Average</small>
             </div>
+        </div>
+    </div>
+</div>
+#}
+
+<div class="col-xl-4 col-md-6">
+    <div class="card border-start border-4 border-purple h-100 shadow-sm" style="border-left-color:#6f42c1 !important;">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+
+                    <div class="small text-muted text-uppercase fw-bold">
+                        Needed Appointments Today
+                    </div>
+
+                    <div class="h2 mb-0 fw-bold" style="color:#6f42c1;">
+                        {{ needed_appointments }}
+                    </div>
+
+                    <div class="row text-center mt-2">
+
+                        <div class="col">
+                            <div class="h3 fw-bold text-success mb-0">{{ cp_needed }}</div>
+                            <div class="small text-muted">CP</div>
+                        </div>
+
+                        <div class="col">
+                            <div class="h3 fw-bold text-primary mb-0">{{ wp_needed }}</div>
+                            <div class="small text-muted">WP</div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <i class="fas fa-calendar-check fa-2x opacity-25" style="color:#6f42c1;"></i>
+
+            </div>
+
+            <small class="text-muted">
+                Based on scheduled hours / avg hours per RO
+            </small>
+
         </div>
     </div>
 </div>
