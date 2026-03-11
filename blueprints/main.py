@@ -92,7 +92,7 @@ def home():
     mtd_ro_count = efficiency_stats[2] or 0
 
     shop_efficiency = (mtd_sold / mtd_actual * 100) if mtd_actual > 0 else 0.0
-    hours_per_ro = (mtd_sold / mtd_ro_count) if mtd_ro_count > 0 else 0.0
+    hours_per_ro = (mtd_sold / mtd_ro_count) if mtd_ro_count > 0 else 0
 
     # --- 2. WORKFLOW PULSE ---
     active_ros = RepairOrder.query.filter(
@@ -132,16 +132,6 @@ def home():
     daily_goal = 0.0
     absent_techs = []
 
-    needed_appointments = 0
-
-    if hours_per_ro > 0:
-        needed_appointments = daily_goal / hours_per_ro
-
-    needed_appointments = round(needed_appointments)
-
-    cp_needed = round(needed_appointments * 0.70)
-    wp_needed = needed_appointments - cp_needed
-
     for tech in all_techs:
         entry = ScheduleEntry.query.filter_by(team_member_id=tech.id, date=today).first()
         if entry:
@@ -152,6 +142,17 @@ def home():
                     daily_goal += (tech.daily_production_objective or 0.0)
             else:
                 absent_techs.append({'name': tech.name, 'reason': entry.schedule_type})
+
+
+    # --- Needed Appointments Calculation (AFTER daily_goal exists) ---
+
+    needed_appointments = 0
+
+    if hours_per_ro > 0:
+        needed_appointments = round(daily_goal / hours_per_ro)
+
+    cp_needed = round(needed_appointments * 0.70)
+    wp_needed = needed_appointments - cp_needed
 
     prod_pace = (today_production / daily_goal * 100) if daily_goal > 0 else 0.0
 
