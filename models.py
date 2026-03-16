@@ -176,6 +176,9 @@ class ManagedStore(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    routesheet_audit_timestamp = db.Column(db.DateTime)
+    tech_hours_audit_timestamp = db.Column(db.DateTime)
+
     @property
     def is_active(self) -> bool:
         return self.status == "active"

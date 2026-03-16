@@ -7,6 +7,9 @@ from flask_migrate import Migrate
 from utils.permissions import can
 from extensions import db, login_manager, bcrypt
 from models import User, OperatorUser
+from config import PRODTRACKER_VERSION
+import pytz
+pacific = pytz.timezone("US/Pacific")
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -44,6 +47,20 @@ def create_app():
     app.config["SESSION_COOKIE_SECURE"] = (
         os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
     )
+    # -------------------------------------------------
+    # Time zone
+    # -------------------------------------------------
+    @app.template_filter("pst")
+    def convert_to_pacific(dt):
+        if not dt:
+            return None
+
+        if dt.tzinfo is None:
+            dt = pytz.utc.localize(dt)
+
+        return dt.astimezone(pacific)
+
+
 
     # -------------------------------------------------
     # Extensions
@@ -53,6 +70,13 @@ def create_app():
     login_manager.init_app(app)
     import models
     migrate = Migrate(app, db)
+
+    #--------------------------------------------------
+    #Prodtracker Version
+    #--------------------------------------------------
+    @app.context_processor
+    def inject_app_info():
+        return dict(prodtracker_version=PRODTRACKER_VERSION)
 
     # -------------------------------------------------
     # Flask-Login config

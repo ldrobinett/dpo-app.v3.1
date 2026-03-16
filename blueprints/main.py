@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required, current_user, AnonymousUserMixin
 from extensions import db
-from models import RepairOrder, WorkLog, TeamMember, ScheduleEntry, FinancialForecast, FinancialInputs, Team
+from models import RepairOrder, WorkLog, TeamMember, ScheduleEntry, FinancialForecast, FinancialInputs, Team, ManagedStore
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
 import calendar
+import pytz
 
 main_bp = Blueprint('main', __name__)
 
@@ -143,12 +144,34 @@ def home():
             else:
                 absent_techs.append({'name': tech.name, 'reason': entry.schedule_type})
 
+    #todays gross target ---
+    today_labor_gross = 0
+    today_parts_gross = 0
+    today_total_gross = 0
+
+    fin_inputs = FinancialInputs.query.filter_by(user_id=current_user.id).first()
+
+    if fin_inputs and daily_goal > 0:
+
+        elr = fin_inputs.effective_labor_rate or 0
+        parts_ratio = fin_inputs.parts_to_labor_ratio or 0
+        labor_margin = (fin_inputs.labor_margin or 0) / 100
+        parts_margin = (fin_inputs.parts_margin or 0) / 100
+
+        # Revenue
+        labor_revenue = daily_goal * elr
+        parts_revenue = labor_revenue * parts_ratio
+
+        # Gross
+        today_labor_gross = labor_revenue * labor_margin
+        today_parts_gross = parts_revenue * parts_margin
+        today_total_gross = today_labor_gross + today_parts_gross
 
     # --- Needed Appointments Calculation (AFTER daily_goal exists) ---
 
     needed_appointments = 0
 
-    if hours_per_ro > 0:
+    if hours_per_ro > 0 and daily_goal > 0:
         needed_appointments = round(daily_goal / hours_per_ro)
 
     cp_needed = round(needed_appointments * 0.70)
@@ -194,9 +217,39 @@ def home():
         weekly_financial_total["parts_gross"] = forecast.parts_gross / 4
         weekly_financial_total["expected_frh"] = forecast.expected_frh / 4
     
+    store = db.session.get(ManagedStore, store_id)
+
+    routesheet_audit = store.routesheet_audit_timestamp if store else None
+    tech_hours_audit = store.tech_hours_audit_timestamp if store else None
+
+    routesheet_audit_stale = True
+    tech_hours_audit_stale = True
+
+    pacific = pytz.timezone("US/Pacific")
+
+    if routesheet_audit:
+        routesheet_audit_stale = datetime.utcnow() - routesheet_audit > timedelta(hours=24)
+
+    if tech_hours_audit:
+        tech_hours_audit_stale = datetime.utcnow() - tech_hours_audit > timedelta(hours=24)
+   
+    # --- Today's Needed Hours to Stay on Pace ---
+
+    remaining_work_days = total_work_days - days_passed_work
+
+    today_needed_hours = 0
+
+    if remaining_work_days > 0:
+        today_needed_hours = ((expected_pace_hours - mtd_sold) / remaining_work_days) + daily_goal
+
+    today_needed_hours = max(today_needed_hours, 0)
+
     return render_template('home.html',
                            title='Executive Dashboard',
                            today_date=today.strftime('%A, %B %d'),
+                           today_total_gross=today_total_gross,
+                           today_labor_gross=today_labor_gross,
+                           today_parts_gross=today_parts_gross,
                            projected_gross=projected_gross,
                            expected_pace_hours=expected_pace_hours,
                            monthly_frh_goal=monthly_frh_goal,
@@ -208,6 +261,12 @@ def home():
                            needed_appointments=needed_appointments,
                            cp_needed=cp_needed,
                            wp_needed=wp_needed,
+                           routesheet_audit=routesheet_audit,
+                           tech_hours_audit=tech_hours_audit,
+                           routesheet_audit_stale=routesheet_audit_stale,
+                           tech_hours_audit_stale=tech_hours_audit_stale,
+                           today_needed_hours=today_needed_hours,
+
 
                            # New Bay Utilization Metric
                            bay_utilization=bay_utilization,

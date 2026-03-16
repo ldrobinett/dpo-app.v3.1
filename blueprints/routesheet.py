@@ -4,10 +4,11 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from extensions import db
-from models import RepairOrder, TeamMember, Team, WorkLog, ASM
+from models import RepairOrder, TeamMember, Team, WorkLog, ASM, ManagedStore
 from forms import RouteSheetForm, QuickLogForm
 from datetime import date, datetime, timedelta
 from utils.permissions import require_capability
+from utils.audit import update_audit_timestamp
 import csv
 import io
 
@@ -376,7 +377,15 @@ def cdk_audit_upload():
                     ro.audit_timestamp = datetime.utcnow()
                     closed_count += 1
 
+        store = db.session.get(ManagedStore, current_user.store_id)
+
+        if store:
+            store.routesheet_audit_timestamp = datetime.utcnow()
+
         db.session.commit()
+
+        #Update store audit timestamp
+        #update_audit_timestamp(current_user.store_id)
 
         flash(
             f"Audit complete. {updated} updated, {created} created, {closed_count} closed.",

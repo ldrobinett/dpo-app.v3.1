@@ -113,6 +113,15 @@ body {
     justify-content: flex-end;
 }
 
+.version-badge {
+    font-size: 0.65rem;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background-color: #495057;
+    color: #fff;
+    margin-left: 6px;
+}
+
 /* ============================================================
    FORMS AND CARDS
    ============================================================ */

@@ -3,7 +3,7 @@ import io
 from flask import Blueprint, render_template, flash, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import WorkLog, TeamMember, Team
+from models import WorkLog, TeamMember, Team, ManagedStore
 from forms import ReconciliationForm
 from datetime import datetime
 
@@ -121,6 +121,12 @@ def reconcile_logs():
                     'status': 'Unknown Tech'
                 })
 
+        store = db.session.get(ManagedStore, current_user.store_id)
+        if store:
+            store.tech_hours_audit_timestamp = datetime.utcnow()
+
+        db.session.commit()
+
     return render_template('reconciliation.html', form=form, results=audit_results, title="Work Log Reconciliation")
 
 @reconciliation_bp.route("/manage/reconcile/add", methods=['POST'])
@@ -144,8 +150,13 @@ def add_from_audit():
         )
         
         db.session.add(new_log)
-        db.session.commit()
-        
+                
+        # Update Tech Hours CDK audit timestamp
+        store = db.session.get(ManagedStore, current_user.store_id)
+        if store:
+            store.tech_hours_audit_timestamp = datetime.utcnow()
+            db.session.commit()
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
