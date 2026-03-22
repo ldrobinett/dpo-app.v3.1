@@ -9,6 +9,206 @@ import pytz
 
 main_bp = Blueprint('main', __name__)
 
+#---helper elapsed work hours--
+def get_elapsed_work_hours():
+    tz = pytz.timezone("US/Pacific")
+    now = datetime.now(tz)
+
+    start = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    end = now.replace(hour=17, minute=0, second=0, microsecond=0)
+
+    if now < start:
+        return 0.1  # prevents divide-by-zero + early morning weirdness
+
+    if now > end:
+        return 10  # full day
+
+    elapsed = now - start
+    return elapsed.total_seconds() / 3600
+
+#---Todays Focus helper---
+import math
+
+def generate_today_focus(daily_goal, today_production, forecasted_utilization, current_utilization, status_counts):
+    gap = max(daily_goal - today_production, 0)
+    ros_needed = math.ceil(gap / 2) if gap > 0 else 0  # ~2 FRH per RO
+
+    if gap <= 0:
+        return {
+            "issue": "On Track",
+            "blocker": "None",
+            "gap": 0,
+            "ros_needed": 0,
+            "pace_needed": 0,
+            "actions": [
+                "Maintain current workflow",
+                "Keep dispatch flowing",
+                "Watch carryover"
+            ],
+            "message": "You are on pace for today",
+
+            # 🔥 REQUIRED (prevents crash)
+            "utilization_hint": "",
+            "recovery_target": 0,
+            "recovery_ros": 0,
+            "dispatch_pull": 0,
+            "inspection_pull": 0,
+            "approval_pull": 0
+        }
+
+    if today_production == 0:
+        issue = "No Production Started"
+        blocker = "No active work in process"
+        actions = [
+            "Dispatch first jobs immediately",
+            "Check for stuck write-ups or approvals",
+            "Load bays with quick work first"
+        ]
+    elif current_utilization < forecasted_utilization:
+        issue = "Low Utilization"
+        blocker = "Workload lacking"
+        actions = [
+            "Pull forward appointments",
+            "Call waiters / no-shows",
+            "Rebalance advisor load"
+        ]
+    else:
+        issue = "Pacing Risk"
+        actions = [
+            "Prioritize quick-turn jobs",
+            "Close near-complete ROs",
+            "Push approvals"
+        ]
+
+    # simple pacing (we'll upgrade later)
+    elapsed_hours = get_elapsed_work_hours()
+    remaining_hours = max(10 - get_elapsed_work_hours(), 1)
+
+    pace_needed = round(gap / remaining_hours, 1)
+
+   
+    # convert to 2-hour recovery block
+    recovery_hours = min(2, remaining_hours)
+    recovery_target = round(pace_needed * recovery_hours, 1)
+
+    # convert to ROs (~2 FRH each)
+    recovery_ros = int(recovery_target / 2)
+
+    
+    dispatch = status_counts.get('Dispatch', 0)
+    inspection = status_counts.get('Inspection', 0)
+    approval = status_counts.get('Approval', 0)
+    service = status_counts.get('Service', 0)
+    dispatch_pull = min(dispatch, int(recovery_ros * 0.5))
+    inspection_pull = min(inspection, int(recovery_ros * 0.3))
+    approval_pull = min(approval, int(recovery_ros * 0.2))
+    production_ratio = 0
+
+    if daily_goal > 0:
+        production_ratio = today_production / daily_goal
+
+    # 🚨 1. NOTHING IN SERVICE (CRITICAL)
+    if service == 0 and dispatch > 0:
+        issue = "No Active Work"
+        blocker = f"{dispatch} ROs ready but none in service"
+        actions = [
+            "Assign work to techs immediately",
+            "Move top priority ROs into service",
+            "Verify techs are actively working"
+        ]
+
+    # 🚧 2. STUCK BEFORE INSPECTION
+    elif dispatch > 0 and inspection == 0:
+        issue = "Dispatch Bottleneck"
+        blocker = f"{dispatch} ROs not entering inspection"
+        actions = [
+            "Start inspections immediately",
+            "Assign diagnostic work",
+            "Ensure techs are pulling vehicles in"
+        ]
+
+    # 🔍 3. INSPECTION BACKLOG
+    elif inspection > service * 2:
+        issue = "Inspection Backlog"
+        blocker = f"{inspection} ROs stuck in inspection"
+        actions = [
+            "Complete diagnostics faster",
+            "Move completed inspections to approval",
+            "Prioritize quick inspections"
+        ]
+
+    # 📞 4. APPROVAL BOTTLENECK
+    elif approval > service:
+        issue = "Approval Bottleneck"
+        blocker = f"{approval} ROs waiting for approval"
+        actions = [
+            "Call customers immediately",
+            "Prioritize high-value approvals",
+            "Clear approval queue"
+        ]
+
+    # ⚖️ 5. SERVICE UNDERLOADED
+    elif service < dispatch:
+        issue = "Underloaded Service"
+        blocker = f"Only {service} active vs {dispatch} ready"
+        actions = [
+            "Increase dispatch rate",
+            "Feed more work into service",
+            "Balance workload across techs"
+        ]
+
+    # 📉 6. UTILIZATION PROBLEM (only if flow exists)
+    elif current_utilization < forecasted_utilization:
+        issue = "Low Utilization"
+        blocker = "Not enough work loaded"
+        actions = [
+            "Pull forward appointments",
+            "Call waiters / no-shows",
+            "Increase incoming work"
+        ]
+
+    elif production_ratio < 0.5 and service > 0:
+        issue = "Low Production Output"
+        blocker = f"Only {round(production_ratio * 100)}% of target achieved - Low Technician Output"
+        actions = [
+            "Check technician productivity",
+            "Intervene with slow and/or idle techs",
+            "Prioritize high-hour jobs"
+        ]
+
+    # 🟢 DEFAULT
+    else:
+        issue = "Pacing Risk"
+        blocker = "Behind expected output"
+        actions = [
+            "Push quick-turn work",
+            "Close near-complete ROs",
+            "Reduce downtime"
+        ]
+    utilization_hint = ""
+
+    if service == 0 and dispatch > 20:
+        utilization_hint = "⚠️ High idle capacity detected"
+    
+    
+       
+
+    return {
+        "issue": issue,
+        "blocker": blocker,
+        "actions": actions,
+        "gap": round(gap, 1),
+        "ros_needed": ros_needed,
+        "pace_needed": pace_needed,
+        "message": f"You are behind by {round(gap, 1)} FRH",
+        "utilization_hint": utilization_hint,
+        "recovery_target": recovery_target,
+        "recovery_ros": recovery_ros,
+        "dispatch_pull": dispatch_pull,
+        "inspection_pull": inspection_pull,
+        "approval_pull": approval_pull
+            }
+
 @main_bp.route("/help")
 @login_required
 def help_page():
@@ -62,20 +262,6 @@ def home():
     fin_inputs = FinancialInputs.query.filter_by(user_id=current_user.id).first()
 
     
-    # --- BAY UTILIZATION CALCULATION ---
-    bay_utilization = 0.0
-    if fin_inputs:
-        total_bays = (fin_inputs.bays_with_lifts or 0) + (fin_inputs.bays_without_lifts or 0)
-        if total_bays > 0 and total_work_days > 0:
-            # Capacity = Bays * 8 hours * Work Days
-            shop_monthly_capacity = total_bays * 8 * total_work_days
-
-            # Utilization = Scheduled Goal / Capacity
-            # (Using monthly_frh_goal ensures we measure against what we PLAN to do)
-            if shop_monthly_capacity > 0:
-                bay_utilization = (monthly_frh_goal / shop_monthly_capacity) * 100
-    # -----------------------------------
-
     # Shop Efficiency & Hours Per RO
     start_month = date(today.year, today.month, 1)
     efficiency_stats = db.session.query(
@@ -179,7 +365,90 @@ def home():
 
     prod_pace = (today_production / daily_goal * 100) if daily_goal > 0 else 0.0
 
-    # --- 4. TOP PERFORMERS ---
+    #--todays needed hours--
+    needed_today_hours = daily_goal
+    remaining_today_hours = max(daily_goal - today_production, 0)
+
+    # --- Monthly Planned UTILIZATION CALCULATION ---
+    projected_eod = 0
+    total_bays = 0
+
+
+    # --- Monthly Planned UTILIZATION ---
+    monthly_planned_utilization = 0.0
+
+    if fin_inputs:
+        total_bays = (fin_inputs.bays_with_lifts or 0) + (fin_inputs.bays_without_lifts or 0)
+        
+        if total_bays > 0 and total_work_days > 0:
+            shop_monthly_capacity = total_bays * 8 * total_work_days
+
+            if shop_monthly_capacity > 0:
+                monthly_planned_utilization = (monthly_frh_goal / shop_monthly_capacity) * 100
+
+    #---mtd utilization ---
+    mtd_utilization = 0
+
+    if total_bays > 0 and days_passed_work > 0:
+        mtd_capacity = total_bays * 8 * days_passed_work
+        if mtd_capacity > 0:
+            mtd_utilization = (mtd_sold / mtd_capacity) * 100
+
+    mtd_utilization = round(mtd_utilization, 1)
+
+    # --- Daily Capacity ---
+    bay_daily_capacity = total_bays * 8 if total_bays > 0 else 0
+
+
+    # --- Projected EOD (LIVE PACE - KEEP THIS) ---
+    elapsed_hours = get_elapsed_work_hours()
+    total_work_hours = 10  # FIXED (you had 9 but your day is 7–17)
+
+    if elapsed_hours > 0:
+        projected_eod = (today_production / elapsed_hours) * total_work_hours
+
+    projected_eod = max(projected_eod, 0)
+
+
+    # --- Forecast vs Actual (THIS IS THE KEY CHANGE) ---
+    forecasted_hours_today = daily_goal
+    current_hours_today = today_production
+
+
+    # --- Forecasted Utilization (PLAN-BASED, NOT PACE) ---
+    forecasted_utilization = 0
+
+    if bay_daily_capacity > 0:
+        forecasted_utilization = (forecasted_hours_today / bay_daily_capacity) * 100
+
+    forecasted_utilization = min(round(forecasted_utilization, 1), 150)
+
+
+    # --- Current Utilization ---
+    current_utilization = 0
+
+    if bay_daily_capacity > 0:
+        current_utilization = (current_hours_today / bay_daily_capacity) * 100
+
+    current_utilization = min(round(current_utilization, 1), 150)
+
+
+    # --- Capacity GAP (VS PLAN, NOT BUILDING) ---
+    capacity_gap_hours = round(forecasted_hours_today - current_hours_today, 1)
+    capacity_gap_hours = max(capacity_gap_hours, 0)
+
+
+    # --- Gap % (VS PLAN) ---
+    capacity_gap_pct = 0
+
+    if forecasted_hours_today > 0:
+        capacity_gap_pct = round((capacity_gap_hours / forecasted_hours_today) * 100, 1)
+
+
+    # --- Plan Comparison ---
+    utilization_vs_plan = round(forecasted_utilization - monthly_planned_utilization, 1)
+
+    # --- 4. TOP/bottom PERFORMERS ---
     top_techs = db.session.query(
         TeamMember.name,
         func.sum(WorkLog.flat_rate_hours).label('total_hours')
@@ -189,6 +458,14 @@ def home():
         WorkLog.date <= today
     ).group_by(TeamMember.id).order_by(func.sum(WorkLog.flat_rate_hours).desc()).limit(5).all()
 
+    bottom_techs = db.session.query(
+        TeamMember.name,
+        func.sum(WorkLog.flat_rate_hours).label('total_hours')
+    ).join(WorkLog).join(Team).filter(
+        Team.store_id == store_id,
+        WorkLog.date >= start_month,
+        WorkLog.date <= today
+    ).group_by(TeamMember.id).order_by(func.sum(WorkLog.flat_rate_hours).asc()).limit(5).all()
         # --- 5. WEEKLY FINANCIAL FORECAST (for Executive Dashboard) ---
 
     start_of_week = today - timedelta(days=today.weekday())
@@ -244,6 +521,17 @@ def home():
 
     today_needed_hours = max(today_needed_hours, 0)
 
+    today_focus = generate_today_focus(
+        daily_goal,
+        today_production,
+        forecasted_utilization,
+        current_utilization,
+        status_counts
+    )
+
+    critical_ros = late_ros[:5]
+    remaining_late_count = max(len(late_ros) - 5, 0)
+
     return render_template('home.html',
                            title='Executive Dashboard',
                            today_date=today.strftime('%A, %B %d'),
@@ -269,14 +557,25 @@ def home():
 
 
                            # New Bay Utilization Metric
-                           bay_utilization=bay_utilization,
-
+                           mtd_utilization=mtd_utilization,
+                           monthly_planned_utilization=monthly_planned_utilization,
+                           current_utilization=current_utilization,
+                           forecasted_utilization=forecasted_utilization,
+                           capacity_gap_hours=capacity_gap_hours,
+                           utilization_vs_plan=utilization_vs_plan,
+                           projected_eod=projected_eod,
                            shop_efficiency=shop_efficiency,
                            status_counts=status_counts,
-                           late_ros=late_ros,
+                           critical_ros=critical_ros,
+                           remaining_late_count=remaining_late_count,
                            warning_ros=warning_ros,
                            today_production=today_production,
                            daily_goal=daily_goal,
                            prod_pace=prod_pace,
                            absent_techs=absent_techs,
-                           top_techs=top_techs)
+                           top_techs=top_techs,
+                           bottom_techs=bottom_techs,
+                           today_focus=today_focus,
+                           needed_today_hours=needed_today_hours,
+                           remaining_today_hours=remaining_today_hours
+                           )

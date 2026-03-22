@@ -139,6 +139,11 @@ body {
     background-color: #ffffff;
 }
 
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.08);
+}
+
 .card-header {
     color: #343a40;
     border-top-left-radius: 12px;
@@ -163,6 +168,22 @@ body {
 
 .form-select {
     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23343a40"><path d="M7.247 11.14 2.451 5.658C1.885 5.074 2.301 4 3.204 4h9.592a1 1 0 0 1 .903 1.658L8.753 11.14a1 1 0 0 1-1.506 0z"/></svg>');
+}
+/*backgrond*/
+.bg-soft-primary {
+    background: rgba(13, 110, 253, 0.08);
+}
+
+.bg-soft-success {
+    background: rgba(25, 135, 84, 0.08);
+}
+
+.bg-soft-warning {
+    background: rgba(255, 193, 7, 0.12);
+}
+
+.bg-soft-info {
+    background: rgba(13, 202, 240, 0.08);
 }
 
 /* ============================================================
