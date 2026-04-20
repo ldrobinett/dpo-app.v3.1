@@ -1,5 +1,5 @@
 from operator import or_
-
+from collections import defaultdict 
 from flask import Blueprint, render_template, redirect, url_for, request
 from flask_login import login_required, current_user
 from extensions import db
@@ -444,6 +444,44 @@ def home():
     raw_avg_hours_per_ro = mtd_sold / total_ros_mtd if total_ros_mtd > 0 else 2
     avg_hours_per_ro = max(1.5, min(raw_avg_hours_per_ro, 5.0))
 
+    # ============================
+    # Tech DPO Vs today production
+    # ============================
+    today_logs = WorkLog.query.join(TeamMember).join(Team).filter(
+        Team.store_id == store_id,
+        WorkLog.date == metrics_date
+    ).all()
+
+    tech_today = defaultdict(lambda: {"frh": 0, "name": "", "target": 0})
+
+    for log in today_logs:
+        if not log.team_member:
+            continue
+
+        tech = log.team_member
+        tech_id = tech.id
+
+        tech_today[tech_id]["name"] = tech.name
+        tech_today[tech_id]["target"] = tech.daily_production_objective or 0
+        tech_today[tech_id]["frh"] += float(log.flat_rate_hours or 0)
+
+    techs_below_dpo = []
+
+    for tech_id, data in tech_today.items():
+        target = data["target"]
+        actual = data["frh"]
+
+        if target > 0 and actual < target:
+            techs_below_dpo.append({
+                "name": data["name"],
+                "actual": round(actual, 1),
+                "target": round(target, 1),
+                "gap": round(target - actual, 1)
+            })
+
+    # worst performers first
+    techs_below_dpo = sorted(techs_below_dpo, key=lambda x: x["gap"], reverse=True)
+
     # =====================================================
     # DAILY METRICS
     # =====================================================
@@ -497,9 +535,12 @@ def home():
         mtd_labor_gross / mtd_sold
         if mtd_sold > 0 else 120
     )
+    
     expected_hours_today = normal_daily_gross / gross_per_hour
 
     mtd_deficit_hours = mtd_deficit / gross_per_hour
+    mtd_target_hours = mtd_sold + mtd_deficit_hours
+    mtd_hours_gap = mtd_sold - mtd_target_hours
 
     recovery = 0
     if mtd_deficit_hours > 0 and remaining_work_days > 0:
@@ -507,6 +548,20 @@ def home():
         recovery = min(mtd_deficit_hours / remaining_work_days, max_push)
 
     today_needed_hours = expected_hours_today + recovery
+
+    # ============================
+    # SUNDAY / DISPLAY OVERRIDE
+    # ============================
+
+    display_needed_hours = (
+        expected_hours_today if is_sunday else today_needed_hours
+    )
+
+    # =====================================================
+    # TODAY PRODUCTION (CLEAN NAMING FOR UI)
+    # =====================================================
+    today_target_gross = normal_daily_gross
+    today_required_hours = display_needed_hours
 
     # =====================================================
     # UNBOOKED ADJUSTMENT
@@ -581,7 +636,6 @@ def home():
         appt_7_day_delta = appt_7_day - (needed_appointments * 6)
 
     day_label = "Sunday - Monday Readiness" if is_sunday else "Today"
-    display_needed_hours = expected_hours_today if is_sunday else today_needed_hours
 
     # =====================================================
     # DEBUG
@@ -624,12 +678,22 @@ def home():
         avg_hours_per_ro=avg_hours_per_ro,
         is_sunday=is_sunday,
         mtd_deficit=mtd_deficit,
+        mtd_deficit_hours=mtd_deficit_hours,
         day_label=day_label,
         adjusted_wip_hours=adjusted_wip_hours,
-        display_needed_hours=display_needed_hours
+        display_needed_hours=display_needed_hours,
+        techs_below_dpo=techs_below_dpo,
+        # CARD 1
+        mtd_target_hours=mtd_target_hours,
+        mtd_sold=mtd_sold,
+        mtd_hours_gap=mtd_hours_gap,
+
+        # CARD 2
+        today_target_gross=today_target_gross,
+        today_required_hours=today_required_hours
     )
 
-# --- Daily input for performance tracking ---
+        # --- Daily input for performance tracking ---
 @main_bp.route("/input-metrics", methods=["GET", "POST"])
 @login_required
 def input_metrics():
