@@ -368,8 +368,17 @@ def help_page():
 @main_bp.route("/", methods=["GET", "POST"])
 @main_bp.route("/home", methods=["GET", "POST"])
 @login_required
-@login_required
 def home():
+    today = date.today()
+    
+    start_month = date(today.year, today.month, 1)
+    def get_last_workday(d):
+        d = d - timedelta(days=1)
+        while d.weekday() == 6:  # skip Sundays
+            d -= timedelta(days=1)
+        return d
+
+    metrics_date = get_last_workday(today)
 
     user = current_user._get_current_object()
 
@@ -380,192 +389,10 @@ def home():
         return redirect(url_for("auth.login"))
 
     store_id = user.store_id
+    now = datetime.now()
 
     # =====================================================
-    # 🧠 DATE LOGIC (CRITICAL FIX)
-    # =====================================================
-    today = date.today()
-
-    def get_last_workday(d):
-        d = d - timedelta(days=1)
-        while d.weekday() == 6:  # skip Sundays
-            d -= timedelta(days=1)
-        return d
-
-    metrics_date = get_last_workday(today)
-    is_sunday = today.weekday() == 6
-
-    start_month = date(metrics_date.year, metrics_date.month, 1)
-
-    # =====================================================
-    # 🧠 WORKDAY CALCULATIONS
-    # =====================================================
-    def count_workdays(start_date, end_date):
-        day_count = 0
-        current = start_date
-        while current <= end_date:
-            if current.weekday() != 6:
-                day_count += 1
-            current += timedelta(days=1)
-        return day_count
-
-    days_passed_work = count_workdays(start_month, metrics_date)
-
-    # rough month end (safe)
-    next_month = (start_month.replace(day=28) + timedelta(days=4)).replace(day=1)
-    end_of_month = next_month - timedelta(days=1)
-
-    total_work_days = count_workdays(start_month, end_of_month)
-    remaining_work_days = max(total_work_days - days_passed_work, 1)
-
-    # =====================================================
-    # 🧠 WORKLOG DATA (MTD)
-    # =====================================================
-    mtd_sold = db.session.query(
-        func.sum(WorkLog.flat_rate_hours)
-    ).join(RepairOrder, WorkLog.ro_number == RepairOrder.ro_number
-    ).filter(
-        RepairOrder.store_id == store_id,
-        WorkLog.date >= start_month,
-        WorkLog.date <= metrics_date
-    ).scalar() or 0
-
-    total_ros_mtd = db.session.query(
-        func.count(func.distinct(WorkLog.ro_number))
-    ).join(RepairOrder, WorkLog.ro_number == RepairOrder.ro_number
-    ).filter(
-        RepairOrder.store_id == store_id,
-        WorkLog.date >= start_month,
-        WorkLog.date <= metrics_date
-    ).scalar() or 0
-
-    raw_avg_hours_per_ro = (
-        mtd_sold / total_ros_mtd
-        if total_ros_mtd > 0 else 2
-    )
-
-    avg_hours_per_ro = max(1.5, min(raw_avg_hours_per_ro, 5.0))
-
-    # =====================================================
-    # 🧠 UNBOOKED (READY / WARRANTY)
-    # =====================================================
-    unbooked_ro_hours = db.session.query(
-        func.sum(WorkLog.flat_rate_hours)
-    ).join(
-        RepairOrder, WorkLog.ro_number == RepairOrder.ro_number
-    ).filter(
-        RepairOrder.store_id == store_id,
-        or_(
-            RepairOrder.status == "Ready",
-            RepairOrder.status == "Warranty"
-        ),
-        WorkLog.date >= start_month,
-        WorkLog.date <= metrics_date
-    ).scalar() or 0
-
-    adjusted_unbooked_hours = unbooked_ro_hours * 0.75
-
-    # =====================================================
-    # 🧠 DAILY METRICS (FIXED DATE)
-    # =====================================================
-    today_metrics = DailyMetrics.query.filter_by(
-        store_id=store_id,
-        date=metrics_date
-    ).first()
-
-    mtd_gross = today_metrics.mtd_gross if today_metrics else 0
-    today_appts = today_metrics.today_appts if today_metrics else None
-    appt_7_day = today_metrics.appt_7_day if today_metrics else None
-
-    # =====================================================
-    # WIP STATUS COUNTS (FROM ROUTE SHEET)
-    # =====================================================
-
-    ros = RepairOrder.query.filter(
-        RepairOrder.store_id == store_id,
-        RepairOrder.status != "Closed"
-    ).all()
-
-    service_count = sum(1 for ro in ros if ro.status == "Service")
-    dispatch_count = sum(1 for ro in ros if ro.status == "Dispatch")
-    parts_count = sum(1 for ro in ros if ro.status == "Parts")
-    ready_count = sum(1 for ro in ros if ro.status in ["Ready", "Warranty"])
-    print("SERVICE:", service_count)
-    print("DISPATCH:", dispatch_count)
-    print("PARTS:", parts_count)
-    print("READY:", ready_count)
-    
-    # =====================================================
-    # 🧠 GROSS LOGIC
-    # =====================================================
-    projected_gross = 500000  # replace with real source
-
-    expected_mtd_gross = (
-        projected_gross * days_passed_work / total_work_days
-        if total_work_days > 0 else 0
-    )
-
-    gross_gap = expected_mtd_gross - mtd_gross
-
-    normal_daily_gross = (
-        projected_gross / total_work_days
-        if total_work_days > 0 else 0
-    )
-
-    daily_recovery_gross = (
-        gross_gap / remaining_work_days
-        if remaining_work_days > 0 else 0
-    )
-
-    today_needed_gross = normal_daily_gross + daily_recovery_gross
-
-    gross_percent_of_normal = (
-        today_needed_gross / normal_daily_gross
-        if normal_daily_gross > 0 else 1
-    )
-
-    # =====================================================
-    # 🧠 HOURS → APPOINTMENTS
-    # =====================================================
-    expected_hours_today = normal_daily_gross / 100  # TEMP placeholder
-
-    daily_recovery_hours = (
-        gross_gap / remaining_work_days / 100
-        if remaining_work_days > 0 else 0
-    )
-
-    today_needed_hours = (
-        expected_hours_today
-        + max(daily_recovery_hours, 0)
-        - adjusted_unbooked_hours
-    )
-
-    today_needed_hours = max(today_needed_hours, 0)
-
-    needed_appointments = int(
-        (today_needed_hours / avg_hours_per_ro) * 1.15
-    ) if avg_hours_per_ro > 0 else 0
-
-    # =====================================================
-    # 🧠 SUNDAY LOGIC
-    # =====================================================
-    if is_sunday:
-        today_needed_hours = 0
-        needed_appointments = 0
-
-    # =====================================================
-    # 🧠 DELTAS
-    # =====================================================
-    appointment_delta = None
-    if today_appts is not None and needed_appointments > 0:
-        appointment_delta = today_appts - needed_appointments
-
-    appt_7_day_delta = None
-    if appt_7_day is not None:
-        appt_7_day_delta = appt_7_day - (needed_appointments * 6)
-
-    # =====================================================
-    # 🧠 AUDIT STATUS
+    # 🔥 AUDIT STATUS (YOU MISSED THIS)
     # =====================================================
     store = ManagedStore.query.get(store_id)
 
@@ -576,49 +403,393 @@ def home():
     tech_hours_audit_stale = True
 
     if routesheet_audit:
-        routesheet_audit_stale = (
-            datetime.utcnow() - routesheet_audit
-        ) > timedelta(hours=2)
+        routesheet_audit_stale = (datetime.utcnow() - routesheet_audit) > timedelta(hours=2)
 
     if tech_hours_audit:
-        tech_hours_audit_stale = (
-            datetime.utcnow() - tech_hours_audit
-        ) > timedelta(hours=2)
+        tech_hours_audit_stale = (datetime.utcnow() - tech_hours_audit) > timedelta(hours=2)
+
+    
+    # =====================================================
+    # 1. FORECAST
+    # =====================================================
+    forecast = FinancialForecast.query.filter_by(
+        store_id=store_id, month=today.month, year=today.year
+    ).first()
+
+    projected_gross = forecast.total_gross if forecast else 0.0
+    monthly_frh_goal = forecast.expected_frh if forecast else 0.0
+
+    # =====================================================
+    # 2. CALENDAR - does'nt count sundays uses helper function to define where we are mtd
+    # =====================================================
+    _, days_in_month = calendar.monthrange(today.year, today.month)
+    end_of_month = date(today.year, today.month, days_in_month)
+
+    total_work_days = count_workdays(start_month, end_of_month)
+    days_passed_work = count_workdays(start_month, metrics_date)
+    remaining_work_days = count_workdays(today, end_of_month)
+
+    # =====================================================
+    # 3. WORKFLOW COUNTS (FIXED)
+    # =====================================================
+    active_ros = RepairOrder.query.filter(
+        RepairOrder.store_id == store_id,
+        RepairOrder.status != "Closed",
+    ).all()
+
+    status_counts = {
+        "Dispatch": 0,
+        "Inspection": 0,
+        "Approval": 0,
+        "Parts": 0,
+        "Service": 0,
+        "Warranty": 0,
+        "Ready": 0,
+    }
+
+    for ro in active_ros:
+        if ro.status in status_counts:
+            status_counts[ro.status] += 1
+
+    # ✅ FIXED — NOW AFTER LOOP
+    dispatch = status_counts.get("Dispatch", 0)
+    inspection = status_counts.get("Inspection", 0)
+    approval = status_counts.get("Approval", 0)
+    service = status_counts.get("Service", 0)
+
+    # =====================================================
+    # 🔥 ROUTE SUMMARY (NEW)
+    # =====================================================
+    mtd_sold = (
+        db.session.query(func.sum(WorkLog.flat_rate_hours))
+        .join(TeamMember)
+        .join(Team)
+        .filter(
+            Team.store_id == store_id,
+            WorkLog.date >= start_month,
+            WorkLog.date <= metrics_date,
+        )
+        .scalar()
+        or 0.0
+    )
+    
+    
+    total_ros_mtd = db.session.query(
+        func.count(func.distinct(WorkLog.ro_number))
+    ).filter(
+        WorkLog.date >= start_month,
+        WorkLog.date <= metrics_date
+    ).scalar() or 0
+
+    raw_avg_hours_per_ro = (
+        mtd_sold / total_ros_mtd
+        if total_ros_mtd > 0 else 2
+)
+
+    closed_ros = RepairOrder.query.filter(
+        RepairOrder.store_id == store_id,
+        RepairOrder.status == "Closed"
+    ).count()
+        
+    # simple approximation for now
+    total_hours_today = (
+        db.session.query(func.sum(WorkLog.flat_rate_hours))
+        .join(TeamMember)
+        .join(Team)
+        .filter(
+            Team.store_id == store_id,
+            WorkLog.date == metrics_date
+        )
+        .scalar()
+        or 0
+    )
 
     route_summary = {
-        "total_hours": mtd_sold  # or today's hours if you build that later
+        "total_ros_mtd": total_ros_mtd,
+        "active_ros": len(active_ros),
+        "closed_ros": closed_ros,
+        "total_hours": round(total_hours_today, 1)
     }
-    mtd_deficit = expected_mtd_gross - mtd_gross
-    #prod_pace = 0
-    #if expected_hours_today > 0:
-        #prod_pace = (total_hours_today / expected_hours_today) * 100
+
     # =====================================================
-    # 🚀 RENDER
+    # 4. PRODUCTION (MTD)
+    # =====================================================
+    
+
+
+    expected_pace_hours = (
+        monthly_frh_goal * (days_passed_work / total_work_days)
+        if total_work_days > 0 else 0
+    )
+
+    
+
+    mtd_deficit = expected_pace_hours - mtd_sold
+
+    # --- FUTURE: DPO LOGIC ---
+    techs = TeamMember.query.join(Team).filter(
+        Team.store_id == store_id
+    ).all()
+
+    expected_hours_today = sum(
+        tech.daily_production_objective or 0 for tech in techs
+    )
+
+    prod_pace = 0
+    if expected_hours_today > 0:
+        prod_pace = (total_hours_today / expected_hours_today) * 100
+
+    tech_hours = {}
+
+    for tech in techs:
+        hours = (
+            db.session.query(func.sum(WorkLog.flat_rate_hours))
+            .filter(
+                WorkLog.team_member_id == tech.id,
+                WorkLog.date >= start_month,
+                WorkLog.date <= metrics_date
+            )
+            .scalar()
+            or 0
+        )
+
+        tech_hours[tech.id] = hours
+    
+    techs_below_dpo = 0
+    techs_below_dpo_list = []
+    
+    
+    target_buffer = 0.2  # allow some buffer below target DPO
+    for tech in techs:
+        if tech.name is None:
+            continue  # skip if no name set
+
+        if tech.daily_production_objective is None:
+            continue  # skip if no DPO target set
+    
+        total_hours = tech_hours.get(tech.id, 0)
+
+        if total_hours < 10:
+            continue
+        actual_dpo = total_hours / days_passed_work if days_passed_work > 0 else 0
+        expected_dpo = tech.daily_production_objective
+
+        if actual_dpo < (expected_dpo - target_buffer):
+            techs_below_dpo += 1
+
+            techs_below_dpo_list.append({
+                "name": tech.name,
+                "actual": round(actual_dpo, 1),
+                "expected": round(expected_dpo, 1)
+            })
+
+    # =====================================================
+    # 5. APPOINTMENTS
+    # =====================================================
+
+    # =====================================================
+    # 6. DAILY METRICS (CLEAN + CORRECT ORDER)
+    # =====================================================
+
+    monthly_gross_goal = projected_gross
+
+    today_metrics = DailyMetrics.query.filter_by(
+        store_id=store_id,
+        date=metrics_date
+    ).first()
+
+    # --- Inputs ---
+    mtd_gross = today_metrics.mtd_gross if today_metrics else 0
+    today_appts = today_metrics.today_appts if today_metrics else None
+    appt_7_day = today_metrics.appt_7_day if today_metrics else None
+
+    # =====================================================
+    # 1. MTD EXPECTATIONS
+    # =====================================================
+    expected_mtd_gross = (
+        monthly_gross_goal * days_passed_work / total_work_days
+        if total_work_days > 0 else 0
+    )
+
+    gross_gap = expected_mtd_gross - mtd_gross
+
+    # =====================================================
+    # 2. BASE DAILY TARGET
+    # =====================================================
+    normal_daily_gross = (
+        monthly_gross_goal / total_work_days
+        if total_work_days > 0 else 0
+    )
+
+    # =====================================================
+    # 3. TRUE TODAY NEED (INCLUDES RECOVERY)
+    # =====================================================
+    daily_recovery_gross = (
+        gross_gap / remaining_work_days
+        if remaining_work_days > 0 else 0
+    )
+    
+    today_needed_gross = normal_daily_gross + daily_recovery_gross
+
+    #if remaining_work_days > 0:
+        #today_needed_gross += gross_gap / remaining_work_days
+
+    # =====================================================
+    # 4. CONVERT TO APPOINTMENTS (FIXED - USE PRODUCTION TARGET)
+    # =====================================================
+    
+    unbooked_ro_hours = db.session.query(
+        func.sum(WorkLog.flat_rate_hours)
+    ).join(RepairOrder, WorkLog.ro_number == RepairOrder.ro_number).filter(
+        RepairOrder.store_id == store_id,
+        or_(RepairOrder.status == "Ready", RepairOrder.status == "Warranty"),
+        WorkLog.date >= start_month,
+        WorkLog.date <= metrics_date
+    ).scalar() or 0
+
+    adjusted_unbooked_hours = unbooked_ro_hours * 0.75
+    daily_recovery = (mtd_deficit / remaining_work_days if remaining_work_days > 0 else 0)
+
+    today_needed_hours = expected_hours_today + max(daily_recovery, 0) - adjusted_unbooked_hours# 🔥 THIS IS THE KEY
+    today_needed_hours = max(today_needed_hours, 0)
+
+    # avg hours per RO (MTD based)
+
+    avg_hours_per_ro = max(1.5, min(raw_avg_hours_per_ro, 5.0))
+
+    # final appointment target
+    needed_appointments = int(
+        (today_needed_hours / avg_hours_per_ro) * 1.15
+    ) if avg_hours_per_ro > 0 else 0
+
+    
+    # =====================================================
+    # 5. DELTAS (ONLY AFTER TARGET EXISTS)
+    # =====================================================
+    appointment_delta = None
+    if today_appts is not None and needed_appointments > 0:
+        appointment_delta = today_appts - needed_appointments
+
+    appt_7_day_delta = None
+    if appt_7_day is not None and needed_appointments > 0:
+        appt_7_day_delta = appt_7_day - (needed_appointments * 7)
+
+    
+    # =====================================================
+    # 6. CONTEXT METRIC
+    # =====================================================
+    gross_percent_of_normal = (
+        today_needed_gross / normal_daily_gross
+        if normal_daily_gross > 0 else 1
+    )
+
+    # =====================================================
+    # 🔥 ACCOUNTABILITY ENGINE
+    # =====================================================
+    accountability_items = []
+
+    if dispatch > inspection * 2 and dispatch > 10:
+        accountability_items.append({
+            "issue": "Dispatch Bottleneck",
+            "key": "dispatch",
+            "summary": f"{dispatch} dispatch / {inspection} inspection",
+            "timeframe": "Now (1-2 hrs)"
+        })
+
+    if appointment_delta is not None and appointment_delta < 0:
+        accountability_items.append({
+            "issue": "Appointment Shortage",
+            "key": "appointments",
+            "summary": f"Short {abs(appointment_delta)}",
+            "timeframe": "Today + 7 Days"
+        })
+
+    if mtd_deficit > 0:
+        accountability_items.append({
+            "issue": "Production Behind",
+            "key": "production",
+            "summary": f"{int(mtd_deficit)} FRH behind",
+            "timeframe": "Daily"
+        })
+
+    # =====================================================
+    # 🔥 RESPONSE HANDLING
+    # =====================================================
+    responses = {}
+
+    if request.method == "POST":
+        for item in accountability_items:
+            key = item["key"]
+
+            plan = request.form.get(f"{key}_plan", "")
+            owner = request.form.get(f"{key}_owner", "")
+            timing = request.form.get(f"{key}_timing", "")
+
+            status, message = validate_response(key, plan)
+
+            responses[key] = {
+                "plan": plan,
+                "owner": owner,
+                "timing": timing,
+                "status": status,
+                "message": message
+            }
+    if today.weekday() == 6:  # Sunday
+        today_needed_hours = 0
+        needed_appointments = 0
+        today_needed_gross = None
+    is_sunday = today.weekday() == 6
+    # =====================================================
+    # 7. RENDER
     # =====================================================
     return render_template(
         "home.html",
-        mtd_gross=mtd_gross,
-        expected_mtd_gross=expected_mtd_gross,
-        today_needed_gross=today_needed_gross,
-        gross_percent_of_normal=gross_percent_of_normal,
-        normal_daily_gross=normal_daily_gross,
+
+        # core
+        projected_gross=projected_gross,
+        monthly_frh_goal=monthly_frh_goal,
+        mtd_sold=mtd_sold,
+        mtd_deficit=mtd_deficit,
+        expected_pace_hours=expected_pace_hours,
+        techs_below_dpo=techs_below_dpo,
+        techs_below_dpo_list=techs_below_dpo_list,
+        expected_hours_today=expected_hours_today,
+        prod_pace=prod_pace,
+        routesheet_audit=routesheet_audit,
+        routesheet_audit_stale=routesheet_audit_stale,
+        tech_hours_audit=tech_hours_audit,
+        tech_hours_audit_stale=tech_hours_audit_stale,
+        active_ros=active_ros,
+        total_ros_mtd=total_ros_mtd,
+
+
+        # workflow
+        status_counts=status_counts,
+        dispatch=dispatch,
+        inspection=inspection,
+        approval=approval,
+        service=service,
+        route_summary=route_summary,
+        avg_hours_per_ro=avg_hours_per_ro,
+
+        # appointments
         needed_appointments=needed_appointments,
         today_appts=today_appts,
         appointment_delta=appointment_delta,
         appt_7_day=appt_7_day,
         appt_7_day_delta=appt_7_day_delta,
-        avg_hours_per_ro=avg_hours_per_ro,
         is_sunday=is_sunday,
-        routesheet_audit=routesheet_audit,
-        tech_hours_audit=tech_hours_audit,
-        routesheet_audit_stale=routesheet_audit_stale,
-        tech_hours_audit_stale=tech_hours_audit_stale,
-        route_summary=route_summary,
-        expected_hours_today=expected_hours_today,
-        today_needed_hours=today_needed_hours,
-        mtd_deficit=mtd_deficit,
-        projected_gross=projected_gross,
-        true_forecast_gross=mtd_gross
+
+        # gross
+        mtd_gross=mtd_gross,
+        expected_mtd_gross=expected_mtd_gross,
+        today_needed_gross=today_needed_gross,
+        normal_daily_gross=normal_daily_gross,
+        gross_percent_of_normal=gross_percent_of_normal,
+
+        # 🔥 NEW SYSTEM
+        accountability_items=accountability_items,
+        responses=responses
     )
 
 # --- Daily input for performance tracking ---

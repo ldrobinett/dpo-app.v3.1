@@ -493,3 +493,99 @@ class LaborGridRate(db.Model):
     hours = db.Column(db.Float, nullable=False)
     effective_rate = db.Column(db.Float, nullable=False)
     grid_id = db.Column(db.Integer, db.ForeignKey("labor_grid.id"), nullable=False)
+
+#action history memory layer#
+class ActionHistory(db.Model):
+    __tablename__ = "action_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    store_id = db.Column(
+        db.Integer,
+        db.ForeignKey("managed_store.id", name="fk_actionhistory_store"),  # ✅ NAME IT
+        nullable=False
+    )
+
+    action_text = db.Column(db.String(255), nullable=False)
+    success = db.Column(db.Boolean, nullable=False)
+
+    # --- CONTEXT SNAPSHOT ---
+    dispatch_count = db.Column(db.Integer)
+    inspection_count = db.Column(db.Integer)
+    approval_count = db.Column(db.Integer)
+    service_count = db.Column(db.Integer)
+
+    # --- TIMESTAMP ---
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.Index("ix_action_store_text", "store_id", "action_text"),
+        db.Index("ix_action_store_time", "store_id", "timestamp"),  # ✅ NEW: critical for queries
+    )
+
+    def __repr__(self):
+        return (
+            f"<ActionHistory store={self.store_id} "
+            f"action='{self.action_text}' success={self.success}>"
+        )
+
+#decision weighting model#
+class DecisionWeights(db.Model):
+    __tablename__ = "decision_weights"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    store_id = db.Column(
+        db.Integer,
+        db.ForeignKey("managed_store.id", name="fk_weights_store"),  # ✅ NAME IT
+        nullable=False,
+        unique=True
+    )
+
+    base_weight = db.Column(db.Float, nullable=False, default=1.0)
+    history_weight = db.Column(db.Float, nullable=False, default=2.0)
+    context_weight = db.Column(db.Float, nullable=False, default=1.5)
+
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.Index("ix_weights_store_id", "store_id"),  # ✅ explicit index
+    )
+
+    def __repr__(self):
+        return (
+            f"<DecisionWeights store_id={self.store_id} "
+            f"base={round(self.base_weight,2)} "
+            f"history={round(self.history_weight,2)} "
+            f"context={round(self.context_weight,2)}>"
+        )
+    
+# Daily input model for home page context and decision making
+class DailyMetrics(db.Model):
+    __tablename__ = "daily_metrics"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    store_id = db.Column(
+        db.Integer,
+        db.ForeignKey("managed_store.id"),
+        nullable=False
+    )
+
+    date = db.Column(db.Date, nullable=False)
+
+    mtd_gross = db.Column(db.Float)
+    yesterday_gross = db.Column(db.Float)
+    today_appts = db.Column(db.Integer)
+    appt_7_day = db.Column(db.Integer)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("store_id", "date", name="uq_metrics_store_date"),
+    )

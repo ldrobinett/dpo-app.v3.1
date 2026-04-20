@@ -1,6 +1,8 @@
 # ---- DEV STARTUP SCRIPT ----
 
 Write-Host "Starting development environment..." -ForegroundColor Cyan
+#change directory to DPO App files
+cd C:\users\lonni\dpo-app.v3.1
 
 # Activate virtual environment (create if missing)
 if (Test-Path ".\venv\Scripts\Activate.ps1") {
