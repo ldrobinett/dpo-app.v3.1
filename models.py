@@ -567,25 +567,19 @@ class DecisionWeights(db.Model):
     
 # Daily input model for home page context and decision making
 class DailyMetrics(db.Model):
-    __tablename__ = "daily_metrics"
-
     id = db.Column(db.Integer, primary_key=True)
 
-    store_id = db.Column(
-        db.Integer,
-        db.ForeignKey("managed_store.id"),
-        nullable=False
-    )
-
+    store_id = db.Column(db.Integer, nullable=False)
     date = db.Column(db.Date, nullable=False)
 
-    mtd_gross = db.Column(db.Float)
-    yesterday_gross = db.Column(db.Float)
+    # 🔥 NEW STRUCTURE
+    total_gross = db.Column(db.Float, default=0)
+    labor_gross = db.Column(db.Float, default=0)
+    parts_gross = db.Column(db.Float, default=0)
+    sublet_gross = db.Column(db.Float, default=0)
+
+    # ops inputs
     today_appts = db.Column(db.Integer)
     appt_7_day = db.Column(db.Integer)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint("store_id", "date", name="uq_metrics_store_date"),
-    )

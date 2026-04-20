@@ -151,12 +151,12 @@ with app.app_context():
     if not op:
         op = OperatorUser(
             username="operator",
-            password_hash=bcrypt.generate_password_hash("password123").decode("utf-8"),
+            password_hash=bcrypt.generate_password_hash("Ltrnl0805").decode("utf-8"),
             is_active=True,
         )
         db.session.add(op)
         db.session.commit()
-        print("✅ Operator user created (operator / password123)")
+        print("✅ Operator user created (operator / Ltrnl0805)")
     else:
         print("ℹ️ Operator user already exists")
 

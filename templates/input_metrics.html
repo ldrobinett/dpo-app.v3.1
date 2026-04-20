@@ -1,55 +1,54 @@
-{% extends "base.html" %}
+<form method="POST" action="{{ url_for('main.input_metrics') }}">
 
-{% block content %}
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
 
-<div class="container py-4">
+            <div class="fw-bold mb-3">Daily Input (Yesterday)</div>
+            <div class="alert alert-info">
+                Enter yesterday’s Gross Performance. This drives all forecasting and pacing. Appt data is today's appts.
+            </div>
 
-    <div class="row justify-content-center">
-        <div class="col-md-6">
+            <!-- GROSS INPUTS -->
+            <div class="row">
 
-            <div class="card shadow-sm">
-
-                <div class="card-header fw-bold">
-                    Daily Metrics Input
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Labor Gross</label>
+                    <input type="number" step="0.01" name="labor_gross" class="form-control" required autofocus>
                 </div>
 
-                <div class="card-body">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Parts Gross</label>
+                    <input type="number" step="0.01" name="parts_gross" class="form-control">
+                </div>
 
-                    <form method="POST">
-
-                        <div class="mb-3">
-                            <label class="form-label">MTD Gross</label>
-                            <input type="number" step="0.01" name="mtd_gross" class="form-control" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Yesterday Gross</label>
-                            <input type="number" step="0.01" name="yesterday_gross" class="form-control" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Today's Appointments</label>
-                            <input type="number" name="today_appts" class="form-control">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Next 7 Days Appointments</label>
-                            <input type="number" name="appt_7_day" class="form-control">
-                        </div>
-
-                        <button class="btn btn-primary w-100">
-                            Save Metrics
-                        </button>
-
-                    </form>
-
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Sublet / Other</label>
+                    <input type="number" step="0.01" name="sublet_gross" class="form-control">
                 </div>
 
             </div>
 
+            <!-- APPOINTMENTS -->
+            <div class="row">
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Today Appointments</label>
+                    <input type="number" name="today_appts" class="form-control">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Next 7 Day Appointments</label>
+                    <input type="number" name="appt_7_day" class="form-control">
+                </div>
+
+            </div>
+
+            <!-- SUBMIT -->
+            <button type="submit" class="btn btn-primary w-100">
+                Save Metrics
+            </button>
+
         </div>
     </div>
 
-</div>
-
-{% endblock %}
+</form>

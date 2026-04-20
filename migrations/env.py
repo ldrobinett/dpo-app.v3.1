@@ -9,7 +9,6 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
@@ -37,32 +36,7 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-# --- FORCE MODEL IMPORTS (CRITICAL) ---
-from models import (
-    User,
-    Role,
-    Capability,
-    Team,
-    TeamMember,
-    ASM,
-    FinancialInputs,
-    FinancialForecast,
-    ScheduleEntry,
-    TeamSchedule,
-    WorkLog,
-    RepairOrder,
-    LaborGrid,
-    LaborGridRate,
-    ManagedStore,
-    Store,
-    OnboardingTicket,
-    Holiday,
-)
-
-# association tables MUST be imported too
-from models import user_roles, role_capabilities
-# -------------------------------------
-
+config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 
 # other values from the config, defined by the needs of env.py,
@@ -120,8 +94,7 @@ def run_migrations_online():
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
 
-    connectable = current_app.extensions["migrate"].db.engine
-
+    connectable = get_engine()
 
     with connectable.connect() as connection:
         context.configure(

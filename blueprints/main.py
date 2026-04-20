@@ -419,15 +419,17 @@ def home():
     # =====================================================
     # WORKLOG (MTD HOURS)
     # =====================================================
-    mtd_sold = db.session.query(
-        func.sum(WorkLog.flat_rate_hours)
-    ).join(
-        RepairOrder, WorkLog.ro_number == RepairOrder.ro_number
-    ).filter(
-        RepairOrder.store_id == store_id,
+    mtd_logs = WorkLog.query.join(TeamMember).join(Team).filter(
+        Team.store_id == store_id,
         WorkLog.date >= start_month,
         WorkLog.date <= metrics_date
-    ).scalar() or 0
+    ).all()
+
+    mtd_sold = 0
+
+    for log in mtd_logs:
+        if log.team_member_id and log.flat_rate_hours:
+            mtd_sold += float(log.flat_rate_hours)
 
     total_ros_mtd = db.session.query(
         func.count(func.distinct(WorkLog.ro_number))
@@ -450,7 +452,24 @@ def home():
         date=metrics_date
     ).first()
 
-    mtd_gross = today_metrics.mtd_gross if today_metrics else 0
+    # =====================================================
+    # MTD LABOR GROSS (NEW CLEAN VERSION)
+    # =====================================================
+    mtd_labor_gross = db.session.query(
+        func.sum(DailyMetrics.labor_gross)
+    ).filter(
+        DailyMetrics.store_id == store_id,
+        DailyMetrics.date >= start_month,
+        DailyMetrics.date <= metrics_date
+    ).scalar() or 0
+    mtd_total_gross = db.session.query(
+        func.sum(DailyMetrics.total_gross)
+    ).filter(
+        DailyMetrics.store_id == store_id,
+        DailyMetrics.date >= start_month,
+        DailyMetrics.date <= metrics_date
+    ).scalar() or 0
+
     today_appts = today_metrics.today_appts if today_metrics else None
     appt_7_day = today_metrics.appt_7_day if today_metrics else None
 
@@ -464,7 +483,7 @@ def home():
         if total_work_days > 0 else 0
     )
 
-    mtd_deficit = expected_mtd_gross - mtd_gross
+    mtd_deficit = expected_mtd_gross - mtd_total_gross
 
     normal_daily_gross = (
         projected_gross / total_work_days
@@ -474,8 +493,10 @@ def home():
     # =====================================================
     # HOURS LOGIC (FIXED)
     # =====================================================
-    gross_per_hour = mtd_gross / mtd_sold if mtd_sold > 0 else 100
-
+    gross_per_hour = (
+        mtd_labor_gross / mtd_sold
+        if mtd_sold > 0 else 120
+    )
     expected_hours_today = normal_daily_gross / gross_per_hour
 
     mtd_deficit_hours = mtd_deficit / gross_per_hour
@@ -541,6 +562,8 @@ def home():
             today_needed_hours = 0
             needed_appointments = 0
             # DO NOT zero capacity_gap - we want to see gap for monday prep even if it's sunday
+            # evaluate capacity against a NORMAL day
+            capacity_gap = adjusted_wip_hours - expected_hours_today
 
     # =====================================================
     # APPOINTMENTS
@@ -557,7 +580,9 @@ def home():
     if appt_7_day is not None:
         appt_7_day_delta = appt_7_day - (needed_appointments * 6)
 
-    day_label = "Closed Today (Sunday)" if is_sunday else "Today"
+    day_label = "Sunday - Monday Readiness" if is_sunday else "Today"
+    display_needed_hours = expected_hours_today if is_sunday else today_needed_hours
+
     # =====================================================
     # DEBUG
     # =====================================================
@@ -567,15 +592,26 @@ def home():
     print("Capacity Gap:", capacity_gap)
     print("Today:", today)
     print("Metrics Date:", metrics_date)
-    print("Is Sunday:", is_sunday) 
+    print("Is Sunday:", is_sunday)
+    print("normal_daily_gross:", normal_daily_gross)
+    print("gross_per_hour:", gross_per_hour)
+    print("expected_hours_today:", expected_hours_today)
+    print("mtd_labor_gross:", mtd_labor_gross)
+    print("mtd_sold:", mtd_sold)
+    print("gross_per_hour:", gross_per_hour)
+    print("mtd_total_gross:", mtd_total_gross)
     print("------------------------")
+    logs = WorkLog.query.all()
+    print("TOTAL LOGS:", len(logs))
 
+    for log in logs[:5]:
+        print(log.date, log.flat_rate_hours, log.id)
     # =====================================================
     # RENDER
     # =====================================================
     return render_template(
         "home.html",
-        mtd_gross=mtd_gross,
+        mtd_total_gross=mtd_total_gross,
         expected_mtd_gross=expected_mtd_gross,
         today_needed_hours=today_needed_hours,
         expected_hours_today=expected_hours_today,
@@ -588,7 +624,9 @@ def home():
         avg_hours_per_ro=avg_hours_per_ro,
         is_sunday=is_sunday,
         mtd_deficit=mtd_deficit,
-        day_label=day_label
+        day_label=day_label,
+        adjusted_wip_hours=adjusted_wip_hours,
+        display_needed_hours=display_needed_hours
     )
 
 # --- Daily input for performance tracking ---
@@ -597,35 +635,53 @@ def home():
 def input_metrics():
 
     if request.method == "POST":
-        mtd_gross = float(request.form.get("mtd_gross") or 0)
-        yesterday_gross = float(request.form.get("yesterday_gross") or 0)
-        today_appts = int(request.form.get("today_appts") or 0)
-        appt_7_day = int(request.form.get("appt_7_day") or 0)
+
+        labor_gross = float(request.form.get("labor_gross", 0) or 0)
+        parts_gross = float(request.form.get("parts_gross", 0) or 0)
+        sublet_gross = float(request.form.get("sublet_gross", 0) or 0)
+
+        # 🧠 auto-calc total (no human math mistakes)
+        total_gross = labor_gross + parts_gross + sublet_gross
+
+        today_appts = int(request.form.get("today_appts", 0) or 0)
+        appt_7_day = int(request.form.get("appt_7_day", 0) or 0)
+
+        # use same logic as home route
+        metrics_date = date.today() - timedelta(days=1)
 
         existing = DailyMetrics.query.filter_by(
             store_id=current_user.store_id,
-            date=date.today() - timedelta(days=1)
+            date=metrics_date
         ).first()
 
         if existing:
-            existing.mtd_gross = mtd_gross
-            existing.yesterday_gross = yesterday_gross
+            existing.total_gross = total_gross
+            existing.labor_gross = labor_gross
+            existing.parts_gross = parts_gross
+            existing.sublet_gross = sublet_gross
             existing.today_appts = today_appts
             existing.appt_7_day = appt_7_day
         else:
             existing = DailyMetrics(
                 store_id=current_user.store_id,
-                date=date.today(),
-                mtd_gross=mtd_gross,
-                yesterday_gross=yesterday_gross,
+                date=metrics_date,
+                total_gross=total_gross,
+                labor_gross=labor_gross,
+                parts_gross=parts_gross,
+                sublet_gross=sublet_gross,
                 today_appts=today_appts,
                 appt_7_day=appt_7_day
-
             )
             db.session.add(existing)
 
         db.session.commit()
-        
+
+        print("Saved Metrics:")
+        print("Labor:", labor_gross)
+        print("Parts:", parts_gross)
+        print("Sublet:", sublet_gross)
+        print("Total:", total_gross)
+
         return redirect(url_for("main.home"))
 
     return render_template("input_metrics.html")
