@@ -275,6 +275,7 @@ class FinancialForecast(db.Model):
     parts_gross = db.Column(db.Float, default=0.0)
     other_gross = db.Column(db.Float, default=0.0)
     total_gross = db.Column(db.Float, default=0.0)
+    work_days = db.Column(db.Integer)
     expected_frh = db.Column(db.Float, default=0.0)
     date_updated = db.Column(db.Date, default=date.today)
 

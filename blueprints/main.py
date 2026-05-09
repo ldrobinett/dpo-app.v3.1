@@ -1,6 +1,6 @@
 from operator import or_
 from collections import defaultdict 
-from flask import Blueprint, render_template, redirect, url_for, request
+from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from extensions import db
 from models import (
@@ -22,6 +22,7 @@ import calendar
 import pytz
 import math
 import random
+from .schedule import count_workdays, get_holiday_dates
 
 main_bp = Blueprint("main", __name__)
 
@@ -51,16 +52,6 @@ def get_elapsed_work_hours():
     elapsed = now - start
     return elapsed.total_seconds() / 3600
 
-def count_workdays(start_date, end_date):
-    day_count = 0
-    current = start_date
-
-    while current <= end_date:
-        if current.weekday() != 6:  # 6 = Sunday
-            day_count += 1
-        current += timedelta(days=1)
-
-    return day_count
 
 def generate_today_focus(
     daily_goal,
@@ -395,42 +386,180 @@ def home():
     is_sunday = today.weekday() == 6
 
     start_month = date(metrics_date.year, metrics_date.month, 1)
-
+    next_month = (start_month.replace(day=28) + timedelta(days=4)).replace(day=1)
+    end_of_month = next_month - timedelta(days=1)
     # =====================================================
     # WORKDAY CALCS
     # =====================================================
-    def count_workdays(start_date, end_date):
-        day_count = 0
-        current = start_date
-        while current <= end_date:
-            if current.weekday() != 6:
-                day_count += 1
-            current += timedelta(days=1)
-        return day_count
+    # =====================================================
+    # WORKDAY CALCS (REAL VERSION)
+    # =====================================================
 
-    days_passed_work = count_workdays(start_month, metrics_date)
+    holidays = set()
 
-    next_month = (start_month.replace(day=28) + timedelta(days=4)).replace(day=1)
-    end_of_month = next_month - timedelta(days=1)
+    for month in range(start_month.month, end_of_month.month + 1):
+        holidays.update(get_holiday_dates(metrics_date.year, month, month))
 
-    total_work_days = count_workdays(start_month, end_of_month)
-    remaining_work_days = max(total_work_days - days_passed_work, 1)
+    elapsed_work_days = count_workdays(start_month, metrics_date, holidays)
+    total_work_days = count_workdays(start_month, end_of_month, holidays)
+    remaining_work_days = max(total_work_days - elapsed_work_days, 1)
 
     # =====================================================
-    # WORKLOG (MTD HOURS)
+    # MTD HOURS (WORKLOG)
     # =====================================================
-    mtd_logs = WorkLog.query.join(TeamMember).join(Team).filter(
+    mtd_sold = db.session.query(
+        func.sum(WorkLog.flat_rate_hours)
+    ).join(TeamMember).join(Team).filter(
         Team.store_id == store_id,
         WorkLog.date >= start_month,
         WorkLog.date <= metrics_date
-    ).all()
+    ).scalar() or 0
 
-    mtd_sold = 0
+    # =====================================================
+    # DAILY METRICS (MTD INPUT)
+    # =====================================================
+    today_metrics = DailyMetrics.query.filter_by(
+        store_id=store_id,
+        date=metrics_date
+    ).first()
 
-    for log in mtd_logs:
-        if log.team_member_id and log.flat_rate_hours:
-            mtd_sold += float(log.flat_rate_hours)
+    mtd_total_gross = today_metrics.total_gross if today_metrics else 0
 
+    today_appts = today_metrics.today_appts if today_metrics else 0
+    appt_7_day = today_metrics.appt_7_day if today_metrics else 0
+
+    # =====================================================
+    # FORECAST
+    # =====================================================
+    forecast = FinancialForecast.query.filter_by(
+        store_id=store_id,
+        month=metrics_date.month,
+        year=metrics_date.year
+    ).first()
+
+    projected_gross = forecast.total_gross if forecast else 0
+
+    normal_daily_gross = (
+        projected_gross / total_work_days
+        if total_work_days > 0 else 0
+    )
+
+    # =====================================================
+    # MTD GROSS
+    # =====================================================
+    mtd_labor_gross = db.session.query(
+        func.sum(DailyMetrics.labor_gross)
+    ).filter(
+        DailyMetrics.store_id == store_id,
+        DailyMetrics.date >= start_month,
+        DailyMetrics.date <= metrics_date
+    ).scalar() or 0
+
+    mtd_total_gross = db.session.query(
+        func.sum(DailyMetrics.total_gross)
+    ).filter(
+        DailyMetrics.store_id == store_id,
+        DailyMetrics.date >= start_month,
+        DailyMetrics.date <= metrics_date
+    ).scalar() or 0
+
+
+    # =====================================================
+    # MTD POSITION
+    # =====================================================
+    expected_mtd_gross = (
+        projected_gross * (elapsed_work_days / total_work_days)
+        if total_work_days > 0 else 0
+    )
+
+    mtd_deficit = expected_mtd_gross - mtd_total_gross
+
+
+    # =====================================================
+    # GPH (REAL PERFORMANCE)
+    # =====================================================
+    DEFAULT_GPH = 120
+
+    # --- ACTUAL GPH ---
+    if mtd_sold > 0:
+        actual_gph = mtd_labor_gross / mtd_sold
+    else:
+        actual_gph = None
+
+    # --- FORECAST (FROM DB — NOT finance.py variable) ---
+    forecast = FinancialForecast.query.filter_by(
+        store_id=store_id,
+        month=metrics_date.month,
+        year=metrics_date.year
+    ).first()
+
+    forecast_gph = (
+        forecast.labor_gross / forecast.expected_frh
+        if forecast and forecast.expected_frh > 0
+        else DEFAULT_GPH
+    )
+
+    # --- BLENDED GPH ---
+    if actual_gph:
+        gph = (actual_gph * 0.7) + (forecast_gph * 0.3)
+    else:
+        gph = forecast_gph
+
+    # --- GUARDRAILS ---
+    gph = max(min(gph, 200), 80)  
+  
+    # =====================================================
+    # HOURS MODEL
+    # =====================================================
+    daily_base_hours = (
+        normal_daily_gross / gph
+        if gph > 0 else 0
+    )
+
+    mtd_deficit_hours = (
+        mtd_deficit / gph
+        if gph > 0 else 0
+    )
+
+    daily_recovery_hours = (
+        mtd_deficit_hours / remaining_work_days
+        if remaining_work_days > 0 else 0
+    )
+
+    # =====================================================
+    # SMART RECOVERY (DYNAMIC CAP)
+    # =====================================================
+
+    severity = (
+        abs(mtd_deficit) / projected_gross
+        if projected_gross > 0 else 0
+    )
+
+    if severity < 0.05:
+        cap_pct = 0.25
+    elif severity < 0.10:
+        cap_pct = 0.50
+    else:
+        cap_pct = 1.0   # no cap when things are bad
+
+    recovery_cap = daily_base_hours * cap_pct
+
+    daily_recovery_hours = max(
+        min(daily_recovery_hours, recovery_cap),
+        -recovery_cap
+    )
+
+    today_target_hours = daily_base_hours + daily_recovery_hours
+
+    # =====================================================
+    # MTD HOURS TRACKING
+    # =====================================================
+    mtd_target_hours = daily_base_hours * elapsed_work_days
+    mtd_hours_gap = mtd_sold - mtd_target_hours
+
+    # =====================================================
+    # AVERAGE HOURS PER RO
+    # =====================================================
     total_ros_mtd = db.session.query(
         func.count(func.distinct(WorkLog.ro_number))
     ).join(
@@ -441,152 +570,22 @@ def home():
         WorkLog.date <= metrics_date
     ).scalar() or 0
 
-    raw_avg_hours_per_ro = mtd_sold / total_ros_mtd if total_ros_mtd > 0 else 2
-    avg_hours_per_ro = max(1.5, min(raw_avg_hours_per_ro, 5.0))
-
-    # ============================
-    # Tech DPO Vs today production
-    # ============================
-    today_logs = WorkLog.query.join(TeamMember).join(Team).filter(
-        Team.store_id == store_id,
-        WorkLog.date == metrics_date
-    ).all()
-
-    tech_today = defaultdict(lambda: {"frh": 0, "name": "", "target": 0})
-
-    for log in today_logs:
-        if not log.team_member:
-            continue
-
-        tech = log.team_member
-        tech_id = tech.id
-
-        tech_today[tech_id]["name"] = tech.name
-        tech_today[tech_id]["target"] = tech.daily_production_objective or 0
-        tech_today[tech_id]["frh"] += float(log.flat_rate_hours or 0)
-
-    techs_below_dpo = []
-
-    for tech_id, data in tech_today.items():
-        target = data["target"]
-        actual = data["frh"]
-
-        if target > 0 and actual < target:
-            techs_below_dpo.append({
-                "name": data["name"],
-                "actual": round(actual, 1),
-                "target": round(target, 1),
-                "gap": round(target - actual, 1)
-            })
-
-    # worst performers first
-    techs_below_dpo = sorted(techs_below_dpo, key=lambda x: x["gap"], reverse=True)
+    raw_avg_hours = mtd_sold / total_ros_mtd if total_ros_mtd > 0 else 2
+    avg_hours_per_ro = max(1.5, min(raw_avg_hours, 5.0))
 
     # =====================================================
-    # DAILY METRICS
+    # APPOINTMENTS
     # =====================================================
-    today_metrics = DailyMetrics.query.filter_by(
-        store_id=store_id,
-        date=metrics_date
-    ).first()
+    needed_appointments = int(
+        today_target_hours / avg_hours_per_ro
+    ) if avg_hours_per_ro > 0 else 0
 
-    # =====================================================
-    # MTD LABOR GROSS (NEW CLEAN VERSION)
-    # =====================================================
-    mtd_labor_gross = db.session.query(
-        func.sum(DailyMetrics.labor_gross)
-    ).filter(
-        DailyMetrics.store_id == store_id,
-        DailyMetrics.date >= start_month,
-        DailyMetrics.date <= metrics_date
-    ).scalar() or 0
-    mtd_total_gross = db.session.query(
-        func.sum(DailyMetrics.total_gross)
-    ).filter(
-        DailyMetrics.store_id == store_id,
-        DailyMetrics.date >= start_month,
-        DailyMetrics.date <= metrics_date
-    ).scalar() or 0
+    appointment_delta = today_appts - needed_appointments
 
-    today_appts = today_metrics.today_appts if today_metrics else None
-    appt_7_day = today_metrics.appt_7_day if today_metrics else None
+    appt_7_day_delta = appt_7_day - (needed_appointments * 6)
 
     # =====================================================
-    # GROSS TARGET LOGIC
-    # =====================================================
-    projected_gross = 500000  # TODO: replace
-
-    expected_mtd_gross = (
-        projected_gross * days_passed_work / total_work_days
-        if total_work_days > 0 else 0
-    )
-
-    mtd_deficit = expected_mtd_gross - mtd_total_gross
-
-    normal_daily_gross = (
-        projected_gross / total_work_days
-        if total_work_days > 0 else 0
-    )
-
-    # =====================================================
-    # HOURS LOGIC (FIXED)
-    # =====================================================
-    gross_per_hour = (
-        mtd_labor_gross / mtd_sold
-        if mtd_sold > 0 else 120
-    )
-    
-    expected_hours_today = normal_daily_gross / gross_per_hour
-
-    mtd_deficit_hours = mtd_deficit / gross_per_hour
-    mtd_target_hours = mtd_sold + mtd_deficit_hours
-    mtd_hours_gap = mtd_sold - mtd_target_hours
-
-    recovery = 0
-    if mtd_deficit_hours > 0 and remaining_work_days > 0:
-        max_push = expected_hours_today * 0.5
-        recovery = min(mtd_deficit_hours / remaining_work_days, max_push)
-
-    today_needed_hours = expected_hours_today + recovery
-
-    # ============================
-    # SUNDAY / DISPLAY OVERRIDE
-    # ============================
-
-    display_needed_hours = (
-        expected_hours_today if is_sunday else today_needed_hours
-    )
-
-    # =====================================================
-    # TODAY PRODUCTION (CLEAN NAMING FOR UI)
-    # =====================================================
-    today_target_gross = normal_daily_gross
-    today_required_hours = display_needed_hours
-
-    # =====================================================
-    # UNBOOKED ADJUSTMENT
-    # =====================================================
-    unbooked_ro_hours = db.session.query(
-        func.sum(WorkLog.flat_rate_hours)
-    ).join(
-        RepairOrder, WorkLog.ro_number == RepairOrder.ro_number
-    ).filter(
-        RepairOrder.store_id == store_id,
-        or_(
-            RepairOrder.status == "Ready",
-            RepairOrder.status == "Warranty"
-        ),
-        WorkLog.date >= start_month,
-        WorkLog.date <= metrics_date
-    ).scalar() or 0
-
-    adjusted_unbooked_hours = unbooked_ro_hours * 0.75
-
-    today_needed_hours -= adjusted_unbooked_hours
-    today_needed_hours = max(today_needed_hours, 0)
-
-    # =====================================================
-    # ROUTE SHEET (WIP)
+    # WIP CAPACITY
     # =====================================================
     ros = RepairOrder.query.filter(
         RepairOrder.store_id == store_id,
@@ -598,9 +597,6 @@ def home():
     parts_count = sum(1 for ro in ros if ro.status == "Parts")
     ready_count = sum(1 for ro in ros if ro.status in ["Ready", "Warranty"])
 
-    # =====================================================
-    # WIP CAPACITY
-    # =====================================================
     adjusted_wip_hours = (
         (service_count * 1.0) +
         (dispatch_count * 0.8) +
@@ -608,58 +604,43 @@ def home():
         (ready_count * 0.25)
     ) * (avg_hours_per_ro * 0.65)
 
-    capacity_gap = adjusted_wip_hours - today_needed_hours
+    capacity_gap = adjusted_wip_hours - today_target_hours
 
     # =====================================================
-    # SUNDAY OVERRIDE (LAST)
+    # SUNDAY OVERRIDE
     # =====================================================
     if is_sunday:
-            today_needed_hours = 0
-            needed_appointments = 0
-            # DO NOT zero capacity_gap - we want to see gap for monday prep even if it's sunday
-            # evaluate capacity against a NORMAL day
-            capacity_gap = adjusted_wip_hours - expected_hours_today
-
-    # =====================================================
-    # APPOINTMENTS
-    # =====================================================
-    needed_appointments = int(
-        (today_needed_hours / avg_hours_per_ro) * 1.15
-    ) if avg_hours_per_ro > 0 else 0
-
-    appointment_delta = None
-    if today_appts is not None and needed_appointments > 0:
-        appointment_delta = today_appts - needed_appointments
-
-    appt_7_day_delta = None
-    if appt_7_day is not None:
-        appt_7_day_delta = appt_7_day - (needed_appointments * 6)
+        needed_appointments = 0
 
     day_label = "Sunday - Monday Readiness" if is_sunday else "Today"
 
     # =====================================================
     # DEBUG
     # =====================================================
-    print("---- CAPACITY DEBUG ----")
-    print("Adjusted WIP Hours:", adjusted_wip_hours)
-    print("Today Needed Hours:", today_needed_hours)
+    print("---- CLEAN MODEL DEBUG ----")
+    print("MTD Actual:", mtd_total_gross)
+    print("MTD Target:", expected_mtd_gross)
+    print("MTD Deficit:", mtd_deficit)
+    print("GPH:", gph)
+    print("Today Target Hours:", today_target_hours)
     print("Capacity Gap:", capacity_gap)
-    print("Today:", today)
+    print("Needed Appts:", needed_appointments)
+    print("--------------------------")
+    print("---- WORKDAY DEBUG ----")
+    print("Start of Month:", start_month)
     print("Metrics Date:", metrics_date)
-    print("Is Sunday:", is_sunday)
-    print("normal_daily_gross:", normal_daily_gross)
-    print("gross_per_hour:", gross_per_hour)
-    print("expected_hours_today:", expected_hours_today)
-    print("mtd_labor_gross:", mtd_labor_gross)
-    print("mtd_sold:", mtd_sold)
-    print("gross_per_hour:", gross_per_hour)
-    print("mtd_total_gross:", mtd_total_gross)
-    print("------------------------")
-    logs = WorkLog.query.all()
-    print("TOTAL LOGS:", len(logs))
+    print("End of Month:", end_of_month)
 
-    for log in logs[:5]:
-        print(log.date, log.flat_rate_hours, log.id)
+    print("Total Work Days:", total_work_days)
+    print("Elapsed Work Days:", elapsed_work_days)
+    print("Remaining Work Days:", remaining_work_days)
+
+    if total_work_days > 0:
+        print("Daily Target Gross:", projected_gross / total_work_days)
+    print("Total Work Days:", total_work_days)
+    print("Elapsed Work Days:", elapsed_work_days)
+    print("------------------------")
+
     # =====================================================
     # RENDER
     # =====================================================
@@ -667,30 +648,23 @@ def home():
         "home.html",
         mtd_total_gross=mtd_total_gross,
         expected_mtd_gross=expected_mtd_gross,
-        today_needed_hours=today_needed_hours,
-        expected_hours_today=expected_hours_today,
-        capacity_gap=capacity_gap,
+        mtd_deficit=mtd_deficit,
+        mtd_target_hours=mtd_target_hours,
+        mtd_sold=mtd_sold,
+        mtd_hours_gap=mtd_hours_gap,
+        today_target_hours=today_target_hours,
         needed_appointments=needed_appointments,
         today_appts=today_appts,
         appointment_delta=appointment_delta,
         appt_7_day=appt_7_day,
         appt_7_day_delta=appt_7_day_delta,
-        avg_hours_per_ro=avg_hours_per_ro,
-        is_sunday=is_sunday,
-        mtd_deficit=mtd_deficit,
-        mtd_deficit_hours=mtd_deficit_hours,
-        day_label=day_label,
+        capacity_gap=capacity_gap,
         adjusted_wip_hours=adjusted_wip_hours,
-        display_needed_hours=display_needed_hours,
-        techs_below_dpo=techs_below_dpo,
-        # CARD 1
-        mtd_target_hours=mtd_target_hours,
-        mtd_sold=mtd_sold,
-        mtd_hours_gap=mtd_hours_gap,
-
-        # CARD 2
-        today_target_gross=today_target_gross,
-        today_required_hours=today_required_hours
+        avg_hours_per_ro=avg_hours_per_ro,
+        normal_daily_gross=normal_daily_gross,
+        gph=gph,
+        is_sunday=is_sunday,
+        day_label=day_label
     )
 
         # --- Daily input for performance tracking ---
@@ -698,55 +672,63 @@ def home():
 @login_required
 def input_metrics():
 
+    def get_last_workday(d):
+        d = d - timedelta(days=1)
+        while d.weekday() == 6:
+            d -= timedelta(days=1)
+        return d
+
+    metrics_date = get_last_workday(date.today())
+
     if request.method == "POST":
+        labor_gross = float(request.form.get("labor_gross") or 0)
+        parts_gross = float(request.form.get("parts_gross") or 0)
+        sublet_gross = float(request.form.get("sublet_gross") or 0)
 
-        labor_gross = float(request.form.get("labor_gross", 0) or 0)
-        parts_gross = float(request.form.get("parts_gross", 0) or 0)
-        sublet_gross = float(request.form.get("sublet_gross", 0) or 0)
-
-        # 🧠 auto-calc total (no human math mistakes)
         total_gross = labor_gross + parts_gross + sublet_gross
 
-        today_appts = int(request.form.get("today_appts", 0) or 0)
-        appt_7_day = int(request.form.get("appt_7_day", 0) or 0)
+        today_appts = int(request.form.get("today_appts") or 0)
+        appt_7_day = int(request.form.get("appt_7_day") or 0)
 
-        # use same logic as home route
-        metrics_date = date.today() - timedelta(days=1)
-
-        existing = DailyMetrics.query.filter_by(
+        metrics = DailyMetrics.query.filter_by(
             store_id=current_user.store_id,
             date=metrics_date
         ).first()
 
-        if existing:
-            existing.total_gross = total_gross
-            existing.labor_gross = labor_gross
-            existing.parts_gross = parts_gross
-            existing.sublet_gross = sublet_gross
-            existing.today_appts = today_appts
-            existing.appt_7_day = appt_7_day
-        else:
-            existing = DailyMetrics(
+        if not metrics:
+            metrics = DailyMetrics(
                 store_id=current_user.store_id,
-                date=metrics_date,
-                total_gross=total_gross,
-                labor_gross=labor_gross,
-                parts_gross=parts_gross,
-                sublet_gross=sublet_gross,
-                today_appts=today_appts,
-                appt_7_day=appt_7_day
+                date=metrics_date
             )
-            db.session.add(existing)
+            db.session.add(metrics)
+
+        metrics.labor_gross = labor_gross
+        metrics.parts_gross = parts_gross
+        metrics.sublet_gross = sublet_gross
+        metrics.total_gross = total_gross
+        metrics.today_appts = today_appts
+        metrics.appt_7_day = appt_7_day
 
         db.session.commit()
 
-        print("Saved Metrics:")
+        print("✅ Saved DailyMetrics")
+        print("Date:", metrics_date)
+        print("Store:", current_user.store_id)
         print("Labor:", labor_gross)
         print("Parts:", parts_gross)
         print("Sublet:", sublet_gross)
         print("Total:", total_gross)
 
+        flash("Daily metrics saved successfully", "success")
         return redirect(url_for("main.home"))
 
-    return render_template("input_metrics.html")
+    metrics = DailyMetrics.query.filter_by(
+        store_id=current_user.store_id,
+        date=metrics_date
+    ).first()
 
+    return render_template(
+        "input_metrics.html",
+        metrics=metrics,
+        metrics_date=metrics_date
+    )

@@ -75,9 +75,49 @@ def get_holiday_dates(year, start_month, end_month):
                     if occurrence_count == 4:
                         holiday_dates.add(date(year, 11, day))
                         break
+        # Memorial Day (Last Monday in May)
+        if month == 5:
+            c = calendar.Calendar(calendar.MONDAY)
 
+            last_monday = None
+
+            for week in c.monthdayscalendar(year, 5):
+                day = week[0]  # Monday index = 0
+                if day != 0:
+                    last_monday = day
+
+            if last_monday:
+                holiday_dates.add(date(year, 5, last_monday))
+
+        # Labor Day (First Monday in September)
+        if month == 9:
+            c = calendar.Calendar(calendar.MONDAY)
+
+            for week in c.monthdayscalendar(year, 9):
+                day = week[0]  # Monday index = 0
+                if day != 0:
+                    holiday_dates.add(date(year, 9, day))
+                    break
+                
     return holiday_dates
 
+def count_workdays(start_date, end_date, holidays):
+    """
+    Counts workdays (Mon–Sat) excluding Sundays and holidays
+    """
+    day_count = 0
+    current = start_date
+
+    while current <= end_date:
+        is_sunday = current.weekday() == 6
+        is_holiday = current in holidays
+
+        if not is_sunday and not is_holiday:
+            day_count += 1
+
+        current += timedelta(days=1)
+
+    return day_count
 
 def get_team_member_choices(store_id):
     """Helper to fetch member objects for QuerySelectField choices."""

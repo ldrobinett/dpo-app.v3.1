@@ -1,11 +1,12 @@
 <form method="POST" action="{{ url_for('main.input_metrics') }}">
+    <p>Enter metrics for MTD as of Yesterday: {{ metrics.date if metrics else "Yesterday" }}</p>
 
     <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
 
-            <div class="fw-bold mb-3">Daily Input (Yesterday)</div>
+            <div class="fw-bold mb-3">MTD Input (Yesterday)</div>
             <div class="alert alert-info">
-                Enter yesterday’s Gross Performance. This drives all forecasting and pacing. Appt data is today's appts.
+                Enter yesterday’s MTD Gross Performance. This drives all forecasting and pacing. Appt data is today's appts.
             </div>
 
             <!-- GROSS INPUTS -->
@@ -13,17 +14,17 @@
 
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Labor Gross</label>
-                    <input type="number" step="0.01" name="labor_gross" class="form-control" required autofocus>
+                    <input name="labor_gross" value="{{ metrics.labor_gross if metrics else '' }}">
                 </div>
 
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Parts Gross</label>
-                    <input type="number" step="0.01" name="parts_gross" class="form-control">
+                    <input type="number" step="0.01" name="parts_gross" class="form-control" value="{{ metrics.parts_gross if metrics else '' }}">
                 </div>
 
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Sublet / Other</label>
-                    <input type="number" step="0.01" name="sublet_gross" class="form-control">
+                    <input type="number" step="0.01" name="sublet_gross" class="form-control" value="{{ metrics.sublet_gross if metrics else '' }}">
                 </div>
 
             </div>
@@ -33,12 +34,12 @@
 
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Today Appointments</label>
-                    <input type="number" name="today_appts" class="form-control">
+                    <input type="number" name="today_appts" class="form-control" value="{{ metrics.today_appts if metrics else '' }}">
                 </div>
 
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Next 7 Day Appointments</label>
-                    <input type="number" name="appt_7_day" class="form-control">
+                    <input type="number" name="appt_7_day" class="form-control" value="{{ metrics.appt_7_day if metrics else '' }}">
                 </div>
 
             </div>
@@ -47,7 +48,11 @@
             <button type="submit" class="btn btn-primary w-100">
                 Save Metrics
             </button>
-
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endwith %}
         </div>
     </div>
 

@@ -73,272 +73,173 @@
 
 </div>
 
-<!-- ===================== -->
-<!-- Capacity vs Demand -->
-<!-- ===================== -->
+
 <div class="row g-4 mb-4">
- <div class="col-xl-3 col-md-6">
+
+<!-- ===================== -->
+<!-- CAPACITY VS DEMAND -->
+<!-- ===================== -->
+<div class="col-xl-3 col-md-6">
     <div class="card shadow-sm h-100 border-start border-4 border-danger">
+        <div class="card-body">
 
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-body">
-
-                <!-- HEADER -->
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="fw-bold text-uppercase text-muted small">
-                        FRH Capacity vs Demand
-                    </div>
-                    <div class="small text-muted">
-                        {{ day_label }}
-                    </div>
-                </div>
-
-                <!-- MAIN GAP NUMBER -->
-                <div class="mb-2">
-                    <span class="fs-2 fw-bold
-                        {% if capacity_gap < 0 %}
-                            text-danger
-                        {% elif capacity_gap < 10 %}
-                            text-warning
-                        {% else %}
-                            text-success
-                        {% endif %}
-                    ">
-                        {{ capacity_gap | round(0) }}
-                    </span>
-                    <span class="text-muted">hrs</span>
-                </div>
-
-                <!-- SUBTEXT -->
-                <div class="text-muted small mb-3">
-                    {% if is_sunday %}
-                        Evaluating readiness for next working day
-                    {% elif capacity_gap < 0 %}
-                        Short on available work
-                    {% elif capacity_gap < 10 %}
-                        Tight — execution matters
-                    {% else %}
-                        Enough work to hit target
-                    {% endif %}
-                </div>
-
-                <!-- DETAILS -->
-                <div class="row text-center">
-
-                    <div class="col-4">
-                        <div class="small text-muted">WIP Hours</div>
-                        <div class="fw-bold">
-                            {{ adjusted_wip_hours | round(0) }}
-                        </div>
-                    </div>
-
-                    <div class="col-4">
-                        <div class="small text-muted">Needed Hours</div>
-                        <div class="fw-bold">
-                            {{ display_needed_hours | round(0) }}
-                        </div>
-                    </div>
-
-                    <div class="col-4">
-                        <div class="small text-muted">Appts</div>
-                        <div class="fw-bold">
-                            {{ needed_appointments }}
-                        </div>
-                    </div>
-
-                </div>
-
-            </div>
-        </div>
-    </div>
- </div>
-<!-- ===================== -->
-<!-- SUMMARY CARDS (CLEAN) -->
-<!-- ===================== -->
-
-
-    <!-- ===================== -->
-    <!-- MTD PRODUCTION (HOURS) -->
-    <!-- ===================== -->
-    <div class="col-xl-3 col-md-6">
-        <div class="card shadow-sm h-100 border-start border-4 border-primary">
-
-            <div class="card-header">
-                <h5 class="fw-bold mb-0">MTD Production (Hours)</h5>
-                <div class="text-muted small">Are we pacing this month?</div>
+            <div class="d-flex justify-content-between mb-2">
+                <div class="fw-bold text-muted small">FRH Capacity vs Demand</div>
+                <div class="small text-muted">{{ day_label }}</div>
             </div>
 
-            <div class="card-body">
-
-                <div class="d-flex justify-content-between">
-                    <span>Target</span>
-                    <span>{{ mtd_target_hours | round(0) }} hrs</span>
-                </div>
-
-                <div class="d-flex justify-content-between">
-                    <span>Actual</span>
-                    <span class="fw-bold">{{ mtd_sold | round(0) }} hrs</span>
-                </div>
-
-                <div class="d-flex justify-content-between">
-                    <span>Gap</span>
-                    <span class="{% if mtd_hours_gap < 0 %}text-danger fw-bold{% else %}text-success fw-bold{% endif %}">
-                        {{ mtd_hours_gap | round(0) }} hrs
-                    </span>
-                </div>
-
-                <div class="mt-3 small text-muted">
-                    Based on current gross-to-hours performance
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- ===================== -->
-    <!-- TODAY PRODUCTION NEED -->
-    <!-- ===================== -->
-    <div class="col-xl-3 col-md-6">
-        <div class="card shadow-sm h-100 border-start border-4 border-success">
-
-            <div class="card-header">
-                <h5 class="fw-bold mb-0">{{ day_label }} Production Need</h5>
-                <div class="text-muted small">What do we need to produce?</div>
+            <div class="fs-2 fw-bold
+                {% if capacity_gap < 0 %}text-danger
+                {% elif capacity_gap < 10 %}text-warning
+                {% else %}text-success{% endif %}
+            ">
+                {{ capacity_gap | round(0) }} hrs
             </div>
 
-            <div class="card-body">
-
-                <!-- MTD CONTEXT -->
-                <div class="d-flex justify-content-between">
-                    <span>MTD Target</span>
-                    <span>${{ expected_mtd_gross | round(0) }}</span>
-                </div>
-
-                <div class="d-flex justify-content-between mb-2">
-                    <span>MTD Actual</span>
-                    <span class="fw-bold">${{ mtd_total_gross | round(0) }}</span>
-                </div>
-
-                <hr>
-
+            <div class="small text-muted mb-3">
                 {% if is_sunday %}
-                    <div class="text-center text-muted fw-bold">
-                        Closed Today
-                    </div>
-                    <div class="text-center small text-muted">
-                        Planning for next working day
-                    </div>
+                    Monday readiness view
+                {% elif capacity_gap < 0 %}
+                    Not enough work in system
+                {% elif capacity_gap < 10 %}
+                    Tight — must execute
                 {% else %}
-
-                    <div class="text-center">
-                        <div class="text-muted small">Required Gross</div>
-                        <div class="fw-bold fs-3
-                            {% if today_needed_gross > normal_daily_gross %}
-                                text-danger
-                            {% else %}
-                                text-success
-                            {% endif %}
-                        ">
-                            ${{ today_needed_gross | round(0) }}
-                        </div>
-                    </div>
-
-                    <div class="text-center mt-2">
-                        <div class="text-muted small">Required Hours</div>
-                        <div class="fw-bold fs-4">
-                            {{ today_required_hours | round(0) }} hrs
-                        </div>
-                    </div>
-
-                    <!-- STATUS -->
-                    <div class="text-center small fw-semibold mt-2
-                        {% if gross_percent_of_normal >= 1.15 %}
-                            text-danger
-                        {% elif gross_percent_of_normal >= 1.1 %}
-                            text-warning
-                        {% elif gross_percent_of_normal >= 1.05 %}
-                            text-secondary
-                        {% else %}
-                            text-success
-                        {% endif %}
-                    ">
-                        {% if gross_percent_of_normal >= 1.15 %}
-                            Significant recovery needed
-                        {% elif gross_percent_of_normal >= 1.1 %}
-                            Moderate recovery needed
-                        {% elif gross_percent_of_normal >= 1.05 %}
-                            Slight recovery needed
-                        {% else %}
-                            On pace
-                        {% endif %}
-                    </div>
-
+                    Enough work to hit target
                 {% endif %}
-
             </div>
+
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="small text-muted">WIP</div>
+                    <div class="fw-bold">{{ adjusted_wip_hours | round(0) }}</div>
+                </div>
+                <div class="col-4">
+                    <div class="small text-muted">Needed</div>
+                    <div class="fw-bold">{{ today_target_hours | round(0) }}</div>
+                </div>
+                <div class="col-4">
+                    <div class="small text-muted">Appts</div>
+                    <div class="fw-bold">{{ needed_appointments }}</div>
+                </div>
+            </div>
+
         </div>
     </div>
+</div>
 
-    <!-- ===================== -->
-    <!-- APPOINTMENT REQUIREMENT -->
-    <!-- ===================== -->
-    <div class="col-xl-3 col-md-6">
-        <div class="card shadow-sm h-100 border-start border-4 border-dark">
+<!-- ===================== -->
+<!-- MTD PRODUCTION -->
+<!-- ===================== -->
+<div class="col-xl-3 col-md-6">
+    <div class="card shadow-sm h-100 border-start border-4 border-primary">
+        <div class="card-body">
 
-            <div class="card-header">
-                <h5 class="fw-bold mb-0">Appointment Requirement</h5>
-                <div class="text-muted small">Can we support the plan?</div>
+            <div class="fw-bold mb-2">MTD Production</div>
+
+            <div class="d-flex justify-content-between">
+                <span>Target</span>
+                <span>{{ mtd_target_hours | round(0) }}</span>
             </div>
 
-            <div class="card-body">
-
-                <div class="d-flex justify-content-between">
-                    <span>Needed</span>
-                    <span class="fw-bold">{{ needed_appointments }}</span>
-                </div>
-
-                <div class="d-flex justify-content-between">
-                    <span>Scheduled</span>
-                    <span class="fw-bold">{{ today_appts or 0 }}</span>
-                </div>
-
-                <hr>
-
-                {% if is_sunday %}
-                    <div class="text-center text-muted">
-                        Closed Today
-                    </div>
-                {% elif appointment_delta is none %}
-                    <div class="text-center text-muted">
-                        No data entered
-                    </div>
-                {% else %}
-                    <div class="text-center fw-bold
-                        {% if appointment_delta < -5 %}
-                            text-danger
-                        {% elif appointment_delta < 0 %}
-                            text-warning
-                        {% elif appointment_delta == 0 %}
-                            text-secondary
-                        {% else %}
-                            text-success
-                        {% endif %}
-                    ">
-                        {% if appointment_delta < -5 %}
-                            Short {{ appointment_delta | abs }} (critical)
-                        {% elif appointment_delta < 0 %}
-                            Short {{ appointment_delta | abs }}
-                        {% elif appointment_delta == 0 %}
-                            On target
-                        {% else %}
-                            Over by {{ appointment_delta }}
-                        {% endif %}
-                    </div>
-                {% endif %}
-
+            <div class="d-flex justify-content-between">
+                <span>Actual</span>
+                <span class="fw-bold">{{ mtd_sold | round(0) }}</span>
             </div>
+
+            <div class="d-flex justify-content-between">
+                <span>Gap</span>
+                <span class="{% if mtd_hours_gap < 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ mtd_hours_gap | round(0) }}
+                </span>
+            </div>
+
         </div>
     </div>
+</div>
+
+<!-- ===================== -->
+<!-- TODAY NEED -->
+<!-- ===================== -->
+<div class="col-xl-3 col-md-6">
+    <div class="card shadow-sm h-100 border-start border-4 border-success">
+        <div class="card-body">
+
+            <div class="fw-bold mb-2">{{ day_label }} Production Need</div>
+
+            <div class="d-flex justify-content-between">
+                <span>MTD Target</span>
+                <span>${{ expected_mtd_gross | round(0) }}</span>
+            </div>
+
+            <div class="d-flex justify-content-between mb-2">
+                <span>MTD Actual</span>
+                <span class="fw-bold">${{ mtd_total_gross | round(0) }}</span>
+            </div>
+
+            <hr>
+
+            {% if is_sunday %}
+                <div class="text-center text-muted">Closed</div>
+            {% else %}
+
+                <div class="text-center">
+                    <div class="small text-muted">Required Gross</div>
+                    <div class="fw-bold fs-3">
+                        ${{ (today_target_hours * gph) | round(0) }}
+                    </div>
+                </div>
+
+                <div class="text-center mt-2">
+                    <div class="small text-muted">Required Hours</div>
+                    <div class="fw-bold fs-4">
+                        {{ today_target_hours | round(0) }}
+                    </div>
+                </div>
+
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<!-- ===================== -->
+<!-- APPOINTMENTS -->
+<!-- ===================== -->
+<div class="col-xl-3 col-md-6">
+    <div class="card shadow-sm h-100 border-start border-4 border-dark">
+        <div class="card-body">
+
+            <div class="fw-bold mb-2">Appointments</div>
+
+            <div class="d-flex justify-content-between">
+                <span>Needed</span>
+                <span class="fw-bold">{{ needed_appointments }}</span>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <span>Scheduled</span>
+                <span>{{ today_appts or 0 }}</span>
+            </div>
+
+            <hr>
+
+            <div class="text-center fw-bold
+                {% if appointment_delta < 0 %}text-danger
+                {% elif appointment_delta == 0 %}text-secondary
+                {% else %}text-success{% endif %}
+            ">
+                {% if appointment_delta < 0 %}
+                    Short {{ appointment_delta | abs }}
+                {% elif appointment_delta == 0 %}
+                    On target
+                {% else %}
+                    Over {{ appointment_delta }}
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
 
 </div>
 
