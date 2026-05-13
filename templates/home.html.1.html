@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+
+{% block container_class %}container-fluid px-4{% endblock %}
+
+{% block content %}
+
+<!-- ===================== -->
+<!-- EXECUTIVE HEADER -->
+<!-- ===================== -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+
+    <!-- LEFT -->
+    <div>
+        <h2 class="fw-bold mb-0">Executive Summary</h2>
+        <div class="text-muted small">Live operational snapshot</div>
+        <div class="border-bottom pb-1 mb-1"></div>
+
+        <!-- SYSTEM STATUS -->
+        <div class="mt-1 small">
+            <div class="{% if routesheet_audit_stale %}text-danger fw-bold{% else %}text-success{% endif %}">
+                {% if routesheet_audit_stale %}🔴{% else %}🟢{% endif %}
+                Routesheet CDK Sync
+                <span class="fw-normal ms-1 opacity-75">
+                    ({{ (routesheet_audit|pst).strftime('%b %d, %I:%M %p') if routesheet_audit else 'Never' }})
+                </span>
+            </div>
+
+            <div class="{% if tech_hours_audit_stale %}text-danger fw-bold{% else %}text-success{% endif %}">
+                {% if tech_hours_audit_stale %}🔴{% else %}🟢{% endif %}
+                Tech Hours CDK Sync
+                <span class="fw-normal ms-1 opacity-75">
+                    ({{ (tech_hours_audit|pst).strftime('%b %d, %I:%M %p') if tech_hours_audit else 'Never' }})
+                </span>
+            </div>
+            {#<div class="mt-2 small fw-bold 
+                {% if route_summary.total_hours < expected_hours_today %}
+                    text-danger
+                {% else %}
+                    text-success
+                {% endif %}
+            ">
+                {% if route_summary.total_hours < expected_hours_today %}
+                    🔻 Behind production pace today
+                {% else %}
+                    🔺 On pace or exceeding today
+                {% endif %}
+            </div>
+            #}
+        </div>
+    </div>
+
+    <!-- RIGHT ACTIONS -->
+    <div class="d-flex flex-column align-items-end gap-2">
+
+        {% if not metrics_entered_today %}
+            <a href="{{ url_for('main.input_metrics') }}" 
+            class="btn btn-sm btn-primary">
+                Enter Daily Metrics
+            </a>
+        {% else %}
+            <a href="{{ url_for('main.input_metrics') }}" 
+            class="btn btn-sm btn-outline-secondary">
+                Update Metrics
+            </a>
+        {% endif %}
+
+        <a href="{{ url_for('routesheet.view_sheet') }}" 
+           class="btn btn-primary fw-bold shadow-sm">
+            <i class="fas fa-columns me-2"></i>Go to Route Sheet
+        </a>
+
+    </div>
+
+</div>
+
+<!-- ===================== -->
+<!-- Capacity vs Demand -->
+<!-- ===================== -->
+<div class="row g-4 mb-4">
+ <div class="col-xl-3 col-md-6">
+    <div class="card shadow-sm h-100 border-start border-4 border-danger">
+
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+
+                <!-- HEADER -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-bold text-uppercase text-muted small">
+                        FRH Capacity vs Demand
+                    </div>
+                    <div class="small text-muted">
+                        {{ day_label }}
+                    </div>
+                </div>
+
+                <!-- MAIN GAP NUMBER -->
+                <div class="mb-2">
+                    <span class="fs-2 fw-bold
+                        {% if capacity_gap < 0 %}
+                            text-danger
+                        {% elif capacity_gap < 10 %}
+                            text-warning
+                        {% else %}
+                            text-success
+                        {% endif %}
+                    ">
+                        {{ capacity_gap | round(0) }}
+                    </span>
+                    <span class="text-muted">hrs</span>
+                </div>
+
+                <!-- SUBTEXT -->
+                <div class="text-muted small mb-3">
+                    {% if is_sunday %}
+                        Evaluating readiness for next working day
+                    {% elif capacity_gap < 0 %}
+                        Short on available work
+                    {% elif capacity_gap < 10 %}
+                        Tight — execution matters
+                    {% else %}
+                        Enough work to hit target
+                    {% endif %}
+                </div>
+
+                <!-- DETAILS -->
+                <div class="row text-center">
+
+                    <div class="col-4">
+                        <div class="small text-muted">WIP Hours</div>
+                        <div class="fw-bold">
+                            {{ adjusted_wip_hours | round(0) }}
+                        </div>
+                    </div>
+
+                    <div class="col-4">
+                        <div class="small text-muted">Needed Hours</div>
+                        <div class="fw-bold">
+                            {{ today_required_hours | round(0) }}
+                        </div>
+                    </div>
+
+                    <div class="col-4">
+                        <div class="small text-muted">Appts</div>
+                        <div class="fw-bold">
+                            {{ needed_appointments }}
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+ </div>
+<!-- ===================== -->
+<!-- SUMMARY CARDS (CLEAN) -->
+<!-- ===================== -->
+
+
+    <!-- ===================== -->
+    <!-- MTD PRODUCTION (HOURS) -->
+    <!-- ===================== -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card shadow-sm h-100 border-start border-4 border-primary">
+
+            <div class="card-header">
+                <h5 class="fw-bold mb-0">MTD Production (Hours)</h5>
+                <div class="text-muted small">Are we pacing this month?</div>
+            </div>
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+                    <span>Target</span>
+                    <span>{{ mtd_target_hours | round(0) }} hrs</span>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <span>Actual</span>
+                    <span class="fw-bold">{{ mtd_sold | round(0) }} hrs</span>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <span>Gap</span>
+                    <span class="{% if mtd_hours_gap < 0 %}text-danger fw-bold{% else %}text-success fw-bold{% endif %}">
+                        {{ mtd_hours_gap | round(0) }} hrs
+                    </span>
+                </div>
+
+                <div class="mt-3 small text-muted">
+                    Based on current gross-to-hours performance
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== -->
+    <!-- TODAY PRODUCTION NEED -->
+    <!-- ===================== -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card shadow-sm h-100 border-start border-4 border-success">
+
+            <div class="card-header">
+                <h5 class="fw-bold mb-0">{{ day_label }} Production Need</h5>
+                <div class="text-muted small">What do we need to produce?</div>
+            </div>
+
+            <div class="card-body">
+
+                <!-- MTD CONTEXT -->
+                <div class="d-flex justify-content-between">
+                    <span>MTD Target</span>
+                    <span>${{ expected_mtd_gross | round(0) }}</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span>MTD Actual</span>
+                    <span class="fw-bold">${{ mtd_total_gross | round(0) }}</span>
+                </div>
+
+                <hr>
+
+                {% if is_sunday %}
+                    <div class="text-center text-muted fw-bold">
+                        Closed Today
+                    </div>
+                    <div class="text-center small text-muted">
+                        Planning for next working day
+                    </div>
+                {% else %}
+
+                    <div class="text-center">
+                        <div class="text-muted small">Required Gross</div>
+                        <div class="fw-bold fs-3
+                            {% if today_needed_gross > normal_daily_gross %}
+                                text-danger
+                            {% else %}
+                                text-success
+                            {% endif %}
+                        ">
+                            ${{ today_needed_gross | round(0) }}
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-2">
+                        <div class="text-muted small">Required Hours</div>
+                        <div class="fw-bold fs-4">
+                            {{ today_required_hours | round(0) }} hrs
+                        </div>
+                    </div>
+
+                    <!-- STATUS -->
+                    <div class="text-center small fw-semibold mt-2
+                        {% if gross_percent_of_normal >= 1.15 %}
+                            text-danger
+                        {% elif gross_percent_of_normal >= 1.1 %}
+                            text-warning
+                        {% elif gross_percent_of_normal >= 1.05 %}
+                            text-secondary
+                        {% else %}
+                            text-success
+                        {% endif %}
+                    ">
+                        {% if gross_percent_of_normal >= 1.15 %}
+                            Significant recovery needed
+                        {% elif gross_percent_of_normal >= 1.1 %}
+                            Moderate recovery needed
+                        {% elif gross_percent_of_normal >= 1.05 %}
+                            Slight recovery needed
+                        {% else %}
+                            On pace
+                        {% endif %}
+                    </div>
+
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== -->
+    <!-- APPOINTMENT REQUIREMENT -->
+    <!-- ===================== -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card shadow-sm h-100 border-start border-4 border-dark">
+
+            <div class="card-header">
+                <h5 class="fw-bold mb-0">Tomorrow's Appointment Requirement</h5>
+                <div class="text-muted small">Can we support the plan?</div>
+            </div>
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+                    <span>Needed</span>
+                    <span class="fw-bold">{{ needed_appointments }}</span>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <span>Scheduled</span>
+                    <span class="fw-bold">{{ today_appts or 0 }}</span>
+                </div>
+
+                <hr>
+
+                {% if is_sunday %}
+                    <div class="text-center text-muted">
+                        Closed Today
+                    </div>
+                {% elif appointment_delta is none %}
+                    <div class="text-center text-muted">
+                        No data entered
+                    </div>
+                {% else %}
+                    <div class="text-center fw-bold
+                        {% if appointment_delta < -5 %}
+                            text-danger
+                        {% elif appointment_delta < 0 %}
+                            text-warning
+                        {% elif appointment_delta == 0 %}
+                            text-secondary
+                        {% else %}
+                            text-success
+                        {% endif %}
+                    ">
+                        {% if appointment_delta < -5 %}
+                            Short {{ appointment_delta | abs }} (critical)
+                        {% elif appointment_delta < 0 %}
+                            Short {{ appointment_delta | abs }}
+                        {% elif appointment_delta == 0 %}
+                            On target
+                        {% else %}
+                            Over by {{ appointment_delta }}
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===================== -->
+<!-- PRODUCTION + UTILIZATION -->
+<!-- ===================== -->
+<div class="row g-4 mb-4">
+
+    <div class="col-xl-3 col-md-6">
+        <div class="card shadow-sm h-100 border-start border-4 border-danger">
+
+            <div class="card-header">
+                <h5 class="fw-bold mb-0">Below DPO (Today)</h5>
+                <div class="text-muted small">Who is behind target?</div>
+            </div>
+
+            <div class="card-body">
+
+                {% if techs_below_dpo %}
+                    {% for tech in techs_below_dpo[:5] %}
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{{ tech.name }}</span>
+                            <span class="text-danger fw-bold">
+                                -{{ tech.gap }}
+                            </span>
+                        </div>
+
+                        <div class="small text-muted mb-2">
+                            {{ tech.actual }} / {{ tech.target }} hrs
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-success text-center fw-bold">
+                        All techs on target
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===================== -->
+<!-- WORKFLOW -->
+<!-- ===================== -->
+<div class="row g-4 mb-4">
+
+    <div class="col-lg-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">Workflow Pulse</div>
+
+            <div class="card-body">
+                {#
+                <div class="d-flex justify-content-between text-center mb-3 px-2">
+                    {% for key, val in status_counts.items() %}
+                        <div>
+                            <div class="h4 fw-bold mb-0">{{ val }}</div>
+                            <div class="small text-muted">{{ key }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="text-center small fw-semibold mt-2
+                    {% if status_counts.get('Waiting', 0) > 5 %}
+                        text-danger
+                    {% elif status_counts.get('Waiting', 0) > 2 %}
+                        text-warning
+                    {% else %}
+                        text-success
+                    {% endif %}
+                ">
+                    {% if status_counts.get('Waiting', 0) > 5 %}
+                        Workflow bottleneck detected
+                    {% elif status_counts.get('Waiting', 0) > 2 %}
+                        Minor delays in workflow
+                    {% else %}
+                        Workflow moving efficiently
+                    {% endif %}
+                    
+                </div>
+                #}
+                <div class="border-top my-3"></div>
+
+                <div class="row">
+
+                    <div class="col-md-6 border-end">
+                        <div class="small text-muted mb-2 fw-bold">Top Performers (MTD)</div>
+                        {% for tech in top_techs %}
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-success">▲ {{ tech.name }}</span>
+                                <strong>{{ "%.1f"|format(tech.total_hours) }}</strong>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="small text-muted mb-2 fw-bold">Needs Attention</div>
+                        {% for tech in bottom_techs %}
+                            <div class="d-flex justify-content-between small mb-1">
+                                {% if tech.total_hours < 5 %}
+                                    <span class="text-danger fw-bold">▼ {{ tech.name }}</span>
+                                {% else %}
+                                    <span class="text-warning">▼ {{ tech.name }}</span>
+                                {% endif %}
+                                <strong>{{ "%.1f"|format(tech.total_hours) }}</strong>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                </div>
+
+                <div class="mt-3 p-2 bg-light rounded small text-muted">
+                    ⚠️ Review technician output and balance workload to maintain flow
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- CRITICAL -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">🔥 Critical Promise Time</div>
+            <div class="card-body">
+
+                {% for ro in critical_ros %}
+                    <div class="mb-2">
+                        <strong>#{{ ro.ro_number }}</strong>
+                        <div class="small text-muted">
+                            {{ ro.customer_name }} • {{ ro.promised_time.strftime("%I:%M %p") }}
+                        </div>
+                    </div>
+                {% endfor %}
+
+                
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="col-xl-6 col-md-12">
+    <div class="card shadow-sm border-start border-4 border-dark h-100">
+
+        <div class="card-header fw-bold text-center">
+            Operations Accountability
+        </div>
+        <div class="mb-3 small text-muted">
+            All gaps require a clear plan, owner, and timing. No plan = no control.
+        </div>
+
+        <div class="card-body">
+
+            <form method="POST">
+
+                {% for item in accountability_items %}
+
+                {% set r = responses.get(item.key, {}) %}
+
+                <div class="mb-4 p-2 border rounded">
+
+                    <!-- ISSUE -->
+                    <div class="fw-bold">
+                        {{ item.issue }}
+                    </div>
+
+                    <div class="text-muted small mb-2">
+                        {{ item.summary }} • {{ item.timeframe }}
+                    </div>
+
+                    <!-- PLAN INPUT -->
+                    <input type="text"
+                           name="{{ item.key }}_plan"
+                           class="form-control mb-2"
+                           placeholder="What is your plan?"
+                           value="{{ r.plan or '' }}">
+
+                    <!-- OWNER -->
+                    <select name="{{ item.key }}_owner"
+                            class="form-select mb-2">
+                        <option value="">Owner</option>
+                        <option {% if r.owner == "SM" %}selected{% endif %}>SM</option>
+                        <option {% if r.owner == "ASM" %}selected{% endif %}>ASM</option>
+                        <option {% if r.owner == "Advisor" %}selected{% endif %}>Advisor</option>
+                    </select>
+
+                    <!-- TIMING -->
+                    <select name="{{ item.key }}_timing"
+                            class="form-select mb-2">
+                        <option value="">Timing</option>
+                        <option {% if r.timing == "1 Hour" %}selected{% endif %}>1 Hour</option>
+                        <option {% if r.timing == "2 Hours" %}selected{% endif %}>2 Hours</option>
+                        <option {% if r.timing == "EOD" %}selected{% endif %}>EOD</option>
+                    </select>
+
+                    <!-- STATUS -->
+                    {% if r.status == "missing" %}
+                        <div class="text-danger small">🔴 No response</div>
+                    {% elif r.status == "weak" %}
+                        <div class="text-warning small">🟠 {{ r.message }}</div>
+                    {% elif r.status == "good" %}
+                        <div class="text-success small">🟢 Valid plan</div>
+                    {% endif %}
+
+                </div>
+
+                {% endfor %}
+
+                <button class="btn btn-dark w-100">
+                    Submit Responses
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+{#<!-- ACTION PERFORMANCE -->
+<div class="card mt-4">
+  <div class="card-header">
+    <strong>Action Performance</strong>
+  </div>
+
+  <div class="card-body">
+
+    {% if action_performance and action_performance|length > 0 %}
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="text-muted small">
+            <tr>
+              <th>Action</th>
+              <th class="text-end">Success</th>
+              <th class="text-end">Uses</th>
+              <th class="text-end">Rating</th>
+              <th>Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in action_performance %}
+            <tr>
+              <td>
+                {{ a.action }}
+              </td>
+
+              <td class="text-end fw-bold">
+                {{ a.success_rate }}%
+              </td>
+
+              <td class="text-end text-muted">
+                {{ a.total }}
+              </td>
+
+              <td class="text-end">
+                {% if a.performance == "🟢 High" %}
+                  <span class="text-success fw-bold">High</span>
+                {% elif a.performance == "🟡 Medium" %}
+                  <span class="text-warning fw-bold">Medium</span>
+                {% else %}
+                  <span class="text-danger fw-bold">Low</span>
+                {% endif %}
+              </td>
+
+              <td class="text-muted small">
+                {{ a.context }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    {% else %}
+
+      <!-- SAFE EMPTY STATE -->
+      <div class="text-center text-muted py-3">
+        <div>No action performance data yet</div>
+        <small>Data will appear after a few days of usage</small>
+      </div>
+
+    {% endif %}
+
+  </div>
+</div>
+#}
+<div class="card mt-4">
+  <div class="card-header fw-bold">Decision Engine Weights</div>
+  <div class="card-body small text-muted">
+    <div>Base Weight: {{ base_weight }}</div>
+    <div>History Weight: {{ history_weight }}</div>
+    <div>Context Weight: {{ context_weight }}</div>
+  </div>
+</div>
+
+{% endblock %}

@@ -578,6 +578,7 @@ class DailyMetrics(db.Model):
     labor_gross = db.Column(db.Float, default=0)
     parts_gross = db.Column(db.Float, default=0)
     sublet_gross = db.Column(db.Float, default=0)
+    cp_ros_mtd = db.Column(db.Integer, default=0)
 
     # ops inputs
     today_appts = db.Column(db.Integer)

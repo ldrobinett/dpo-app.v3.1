@@ -6,13 +6,17 @@
         <div class="col-md-3 d-none d-md-block">
             <div class="sticky-top" style="top: 80px; z-index: 1;">
                 <div class="list-group shadow-sm">
-                    <a class="list-group-item list-group-item-action fw-bold bg-light">Contents</a>
-                    <a href="#setup" class="list-group-item list-group-item-action">1. Techs & DPO Setup</a>
-                    <a href="#scheduling" class="list-group-item list-group-item-action">2. Scheduling</a>
-                    <a href="#routesheet" class="list-group-item list-group-item-action">3. Daily Route Sheet</a>
-                    <a href="#logging" class="list-group-item list-group-item-action">4. Logging Hours</a>
-                    <a href="#display" class="list-group-item list-group-item-action">5. Live Display</a>
-                    <a href="#financials" class="list-group-item list-group-item-action">6. Financial Tools</a>
+                    <a class="list-group-item list-group-item-action fw-bold bg-light">Help Contents</a>
+                    <a href="#overview" class="list-group-item list-group-item-action">1. What ProdTracker Does</a>
+                    <a href="#daily-flow" class="list-group-item list-group-item-action">2. Daily Manager Workflow</a>
+                    <a href="#home-page" class="list-group-item list-group-item-action">3. Understanding the Home Page</a>
+                    <a href="#setup" class="list-group-item list-group-item-action">4. Setup Requirements</a>
+                    <a href="#routesheet" class="list-group-item list-group-item-action">5. Route Sheet</a>
+                    <a href="#worklog" class="list-group-item list-group-item-action">6. Work Log & Reconciliation</a>
+                    <a href="#financial" class="list-group-item list-group-item-action">7. Financial Inputs & Forecast</a>
+                    <a href="#calculators" class="list-group-item list-group-item-action">8. Calculators</a>
+                    <a href="#definitions" class="list-group-item list-group-item-action">9. Common Definitions</a>
+                    <a href="#troubleshooting" class="list-group-item list-group-item-action">10. Troubleshooting</a>
                 </div>
             </div>
         </div>
@@ -20,96 +24,442 @@
         <div class="col-md-9">
             <div class="card shadow-sm mb-5">
                 <div class="card-header bg-dark text-white py-3">
-                    <h2 class="mb-0"><i class="fas fa-book me-2"></i>ProdTracker User Manual</h2>
-                    <small class="text-white-50">Version 2.0</small>
+                    <h2 class="mb-0">
+                        <i class="fas fa-circle-question me-2"></i>ProdTracker Help Guide
+                    </h2>
+                    <small class="text-white-50">Quick-start guide for managers and department leaders</small>
                 </div>
-                <div class="card-body p-5">
 
-                    <section id="setup" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">1. Setting Up Technicians & DPO</h3>
-                        <p class="text-muted">The foundation of the system is accurate Production Objectives.</p>
-                        
-                        <h5 class="fw-bold mt-4">Setting the Daily Production Objective (DPO)</h5>
-                        <p>Navigate to <strong>Manage > Team Members</strong> and click <strong>Edit</strong> on a technician. You have two ways to set their daily goal:</p>
-                        <ul>
-                            <li class="mb-2"><strong>Manual Mode (Best for New Hires):</strong> Select "Set DPO Manually" and enter a fixed number (e.g., 8.0 hours/day).</li>
-                            <li><strong>Calculated Mode (Best for Established Techs):</strong> Select "Calculate DPO (Historical)" and enter their last 10 weeks of data (Total FRH, Days Worked, Time Off). Enter a <strong>Lift %</strong> target (e.g., 115 for a 15% increase) to auto-calculate their goal.</li>
-                        </ul>
-                    </section>
+                <div class="card-body p-4 p-md-5">
 
-                    <section id="scheduling" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">2. Scheduling & Communication</h3>
-                        
-                        <h5 class="fw-bold mt-4">Generating the Month</h5>
-                        <p>Go to <strong>Manage > Generate Schedules</strong>. Select the Team, Date Range, and Working Days. The system automatically marks system holidays (Thanksgiving, Christmas, etc.) as non-productive.</p>
+                    <section id="overview" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">1. What ProdTracker Does</h3>
 
-                        <h5 class="fw-bold mt-4">The Printable Calendar 🖨️</h5>
-                        <p>Navigate to <strong>Manage > Standard Team Schedules</strong>. Press <code>Ctrl + P</code> to print a clean schedule for the shop bulletin board.</p>
-                    </section>
+                        <p class="text-muted mb-3">
+                            ProdTracker is designed to help dealership managers understand whether the department is on pace,
+                            where the production risks are, and what action to take next.
+                        </p>
 
-                    <section id="routesheet" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">3. The Daily Route Sheet</h3>
-                        <p class="text-muted">The command center for Advisors and Techs.</p>
+                        <p class="text-muted">
+                            ProdTracker is built to drive the behavior needed to achieve daily performance and hit forecast.
+                            What gets measured gets managed.
+                        </p>
 
-                        <div class="row g-4 mt-2">
-                            <div class="col-md-6">
-                                <div class="card h-100 bg-light border-0">
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 bg-light">
                                     <div class="card-body">
-                                        <h6 class="fw-bold"><i class="fas fa-tasks me-2"></i>Workflow</h6>
-                                        <p class="small">Use the <strong>"Add RO"</strong> row at the bottom for new jobs. Click the <strong>Status Button</strong> to move cars through the shop flow (Dispatch → Inspection → Approval → Parts → Service → Ready).</p>
+                                        <h6 class="fw-bold">Pace to Forecast</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Compares actual performance to the monthly financial forecast and shows whether the shop is ahead or behind.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="card h-100 bg-light border-0">
+
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 bg-light">
                                     <div class="card-body">
-                                        <h6 class="fw-bold"><i class="fas fa-exclamation-circle me-2"></i>Alerts</h6>
-                                        <ul class="small mb-0 ps-3">
-                                            <li><strong>Red Time:</strong> Vehicle is past promised time.</li>
-                                            <li><strong>Yellow Time:</strong> Vehicle due within 2 hours.</li>
-                                            <li><strong>Yellow Note Icon:</strong> Unread internal note.</li>
+                                        <h6 class="fw-bold">Daily Production Focus</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Shows today’s target, today’s load, appointment pressure, and workflow bottlenecks that need manager attention.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Tech & Workflow Visibility</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Highlights which technicians are behind pace and which repair orders are behind promise time.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="daily-flow" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">2. Daily Manager Workflow</h3>
+                        <p class="text-muted">
+                            The system works best when it is used in the same order each day.
+                        </p>
+
+                        <div class="card border-start border-4 border-primary bg-light mb-3">
+                            <div class="card-body">
+                                <h5 class="fw-bold mb-3">Recommended Daily Order</h5>
+                                <ol class="mb-0">
+                                    <li class="mb-2">
+                                        <strong>Input Daily Metrics</strong><br>
+                                        Enter previous workday gross and appointment data. This takes less than one minute.
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong>Update the Route Sheet</strong><br>
+                                        Confirm the shop workflow matches what is happening in the DMS. If your store chooses to use the route sheet throughout the day, advisors and technicians can use it to track workflow and log work hours, giving the department real-time workflow visibility.
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong>Reconcile Work Logs</strong><br>
+                                        Confirm hours logged in ProdTracker match actual flagged technician hours.
+                                    </li>
+                                    <li class="mb-2">
+                                        <strong>Review the Home Page</strong><br>
+                                        Check pace, bottlenecks, late work, and technician pace.
+                                    </li>
+                                    <li>
+                                        <strong>Use a Calculator if Needed</strong><br>
+                                        Open the recommended tool from Today’s Focus when deeper diagnosis is needed.
+                                    </li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-secondary mb-0">
+                            <strong>Important:</strong> most stores report previous workday gross and hours, not live same-day financial performance.
+                            The homepage is built around that reality.
+                        </div>
+                    </section>
+
+                    <section id="home-page" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">3. Understanding the Home Page</h3>
+
+                        <h5 class="fw-bold mt-4">Today’s Focus</h5>
+                        <p>
+                            This is the fastest summary of what needs your attention right now. It identifies the primary issue,
+                            explains the impact, suggests actions, and gives a recommended tool or route to investigate further.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Daily Targets</h5>
+                        <p>
+                            This card compares your monthly forecast to your projected month-end result and shows how much daily recovery is needed.
+                            It includes:
+                        </p>
+                        <ul>
+                            <li>forecasted gross</li>
+                            <li>projected month-end gross</li>
+                            <li>monthly FRH goal</li>
+                            <li>projected month-end FRH</li>
+                            <li>base daily target</li>
+                            <li>updated daily target including recovery need</li>
+                        </ul>
+
+                        <h5 class="fw-bold mt-4">Appointment Information</h5>
+                        <p>
+                            Shows whether the store has enough appointment load to support the day and the near-term horizon.
+                            This helps answer: <strong>Do we have enough traffic to support production?</strong>
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Today’s Work Opportunity</h5>
+                        <p>
+                            Estimates how much current workflow is available to support today’s target. This is based on route sheet status mix
+                            and weighted WIP logic. It is directional, not final accounting.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Hours Pace</h5>
+                        <p>
+                            Shows expected MTD FRH versus actual MTD FRH and how much work is still needed to stay on plan.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Route Sheet Action Board</h5>
+                        <p>
+                            Combines workflow status counts, bottleneck alerts, and the oldest overdue repair orders into one action area.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Bottom 5 Techs / Top Performers</h5>
+                        <p>
+                            Shows which technicians are furthest behind pace and which are leading the month.
+                        </p>
+                    </section>
+
+                    <section id="setup" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">4. Setup Requirements</h3>
+
+                        <p class="text-muted">
+                            ProdTracker is only as good as the setup behind it. These items should be maintained first.
+                        </p>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Initial Setup</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Use the Manage area to upload your team data and build your initial schedule.
+                                            The tool provides a CSV template that you can fill out and upload.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Team Members</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Every technician should have the correct team, tech number, and daily production objective.
+                                            During initial setup, use Team Members in Manage to either manually set or calculate daily production objectives.
+                                            Calculated objectives are preferred.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Schedules</h6>
+                                        <p class="mb-0 small text-muted">
+                                            Team schedules and PTO/training entries drive staffing assumptions and pace calculations.
+                                            The schedule includes copy features to make monthly setup easier.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Financial Inputs</h6>
+                                        <p class="mb-0 small text-muted">
+                                            ELR, parts ratio, margins, unapplied time, and other financial values affect forecast and calculator outputs.
+                                            These are used along with schedule data to create the monthly forecast.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card h-100 border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">Monthly Forecast</h6>
+                                        <p class="mb-0 small text-muted">
+                                            The homepage pace logic compares current results to the monthly forecast.
+                                            If the forecast is wrong, pace guidance will be wrong.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="routesheet" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">5. Route Sheet</h3>
+                        <p>
+                            The Route Sheet is the workflow board for open repair orders. Managers should use it to see where work is stuck,
+                            whether enough jobs are loaded, and which customers are at promise-time risk.
+                        </p>
+
+                        <ul>
+                            <li><strong>Dispatch</strong> = work available but not moving yet</li>
+                            <li><strong>Inspection</strong> = diagnostic / inspection phase</li>
+                            <li><strong>Approval</strong> = waiting on approval</li>
+                            <li><strong>Parts</strong> = delayed by parts</li>
+                            <li><strong>Service</strong> = actively being worked</li>
+                            <li><strong>Ready / Warranty</strong> = effectively closeable or near closeable work</li>
+                        </ul>
+
+                        <div class="alert alert-warning mb-0">
+                            Route Sheet bottlenecks usually require workflow action, not calculator action.
+                        </div>
+                    </section>
+
+                    <section id="worklog" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">6. Work Log & Reconciliation</h3>
+                        <p>
+                            The Work Log stores logged FRH by technician and repair order each day. Reconciliation compares downloaded DMS data
+                            to ProdTracker entries so your pace and technician reporting stay accurate.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Why it matters</h5>
+                        <ul>
+                            <li>hours pace depends on logged FRH</li>
+                            <li>real-time production data is generated from technician work logs</li>
+                            <li>this data feeds your production displays so technicians can stay engaged throughout the day with their DPO</li>
+                        </ul>
+
+                        <div class="alert alert-secondary mb-0">
+                            Use <strong>Manage &gt; Reconcile Logs</strong> after downloading hours from the DMS.
+                            Easy access is also provided from the homepage by clicking the Tech Hours Sync badge.
+                        </div>
+                    </section>
+
+                    <section id="financial" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">7. Financial Inputs & Forecast</h3>
+                        <p>
+                            The financial dashboard is where the monthly forecast begins. The home page uses those values to determine whether the department
+                            is on pace and how much recovery is needed.
+                        </p>
+
+                        <h5 class="fw-bold mt-4">Key financial sources</h5>
+                        <ul>
+                            <li><strong>Monthly Forecast:</strong> Financial Dashboard / Forecast tools</li>
+                            <li><strong>MTD Actual Gross:</strong> Daily Metrics input</li>
+                            <li><strong>MTD Actual FRH:</strong> Work Log / Reconciled hours</li>
+                        </ul>
+                    </section>
+
+                    <section id="calculators" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">8. Calculators</h3>
+                        <p class="text-muted">
+                            Calculators are for diagnosis and what-if planning. Use them when Today’s Focus points you there.
+                        </p>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Calculator</th>
+                                        <th>Best Used For</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>CP Menu / MPI Opportunity Calculator</td>
+                                        <td>Estimating gross impact from tenths, MPI opportunity, and CP menu improvements.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>RO &amp; Appointment Calculator</td>
+                                        <td>Estimating daily RO need, appointment need, and capacity support.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gross Profit Opportunity Calculator</td>
+                                        <td>Comparing current gross profit per RO to an opportunity state.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Capacity Opportunity Calculator</td>
+                                        <td>Comparing current shop capacity and financial output to an improved state.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Pace Recovery Calculator</td>
+                                        <td>Understanding how much daily recovery is needed to close the monthly gap.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Appointment Lift Calculator</td>
+                                        <td>Estimating how much extra gross and FRH added appointments can generate.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section id="definitions" class="mb-5">
+                        <h3 class="text-primary border-bottom pb-2">9. Common Definitions</h3>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">FRH</h6>
+                                        <p class="mb-0 small text-muted">Flat rate hours. This is the production language used throughout the site.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">DPO</h6>
+                                        <p class="mb-0 small text-muted">Daily production objective for a technician.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">ELR</h6>
+                                        <p class="mb-0 small text-muted">Effective labor rate used in financial modeling and calculators.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">WIP</h6>
+                                        <p class="mb-0 small text-muted">Work in process. Open work currently in the workflow.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">CP</h6>
+                                        <p class="mb-0 small text-muted">Customer pay work.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 bg-light h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">WP</h6>
+                                        <p class="mb-0 small text-muted">Warranty pay work.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="troubleshooting" class="mb-0">
+                        <h3 class="text-primary border-bottom pb-2">10. Troubleshooting</h3>
+
+                        <div class="accordion" id="helpAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingOne">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                                        Why does the homepage look off?
+                                    </button>
+                                </h2>
+                                <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#helpAccordion">
+                                    <div class="accordion-body">
+                                        Check the four most common causes first:
+                                        <ul class="mb-0 mt-2">
+                                            <li>daily metrics were not entered</li>
+                                            <li>route sheet is not updated</li>
+                                            <li>work logs were not reconciled</li>
+                                            <li>monthly forecast or financial inputs are outdated</li>
                                         </ul>
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingTwo">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                                        Why does Sunday look different?
+                                    </button>
+                                </h2>
+                                <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                    <div class="accordion-body">
+                                        Sunday is treated as a readiness view. The homepage is designed to help managers prepare for Monday,
+                                        not measure live Sunday production.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingThree">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
+                                        What should I update first if numbers do not look right?
+                                    </button>
+                                </h2>
+                                <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                    <div class="accordion-body">
+                                        Start with these items in order:
+                                        <ol class="mb-0">
+                                            <li>daily metrics input</li>
+                                            <li>route sheet update</li>
+                                            <li>work log reconciliation</li>
+                                            <li>monthly forecast and financial inputs</li>
+                                            <li>team member objectives and schedules</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </section>
-
-                    <section id="logging" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">4. Logging Hours</h3>
-                        <p>Accurate logging drives the Financial Dashboard.</p>
-
-                        <div class="alert alert-success">
-                            <h5 class="alert-heading"><i class="fas fa-stopwatch me-2"></i>Method A: Quick Log</h5>
-                            <p class="mb-0"><strong>Best for "In the Flow".</strong> Click the green Stopwatch icon on the Route Sheet. A popup appears pre-filled with the RO info. Enter Sold/Actual hours and click Save.</p>
-                        </div>
-
-                        <div class="alert alert-secondary">
-                            <h5 class="alert-heading"><i class="fas fa-list-alt me-2"></i>Method B: Detailed Log</h5>
-                            <p class="mb-0"><strong>Best for End-of-Day.</strong> Navigate to "Work Logs" to enter detailed line items or review your daily efficiency. This view highlights high performers in Green.</p>
-                        </div>
-                    </section>
-
-                    <section id="display" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">5. Live Production Display 📺</h3>
-                        <p>Access this via <strong>Production Display</strong> in the menu. Display this on a shop monitor.</p>
-                        <ul>
-                            <li><strong>Real-Time Bars:</strong> Shows hours flagged vs. Daily Goal.</li>
-                            <li><strong>Color Coded:</strong> <span class="text-danger fw-bold">Red</span> (Behind), <span class="text-warning fw-bold">Yellow</span> (On Track), <span class="text-success fw-bold">Green</span> (Goal Met).</li>
-                        </ul>
-                    </section>
-
-                    <section id="financials" class="mb-5">
-                        <h3 class="text-primary border-bottom pb-2">6. Financial Tools</h3>
-                        
-                        <h5 class="fw-bold mt-4">Forecasting</h5>
-                        <p>The <strong>Dashboard</strong> calculates projected Month-End Gross Profit based on scheduled productive days and current tech performance.</p>
-
-                        <h5 class="fw-bold mt-4">Reconciliation (Audit)</h5>
-                        <p>Go to <strong>Manage > Reconcile Work Logs</strong>. Upload your CDK Payroll CSV. The system compares ProdTracker logs vs. DMS payments to find missing tickets or over-reporting.</p>
-                        
-                        <h5 class="fw-bold mt-4">Opportunity Calculators</h5>
-                        <p>Use the <strong>Calculators</strong> menu to run "What-If" scenarios on MPI upsells, Shop Capacity, and Appointment Volume.</p>
                     </section>
 
                 </div>

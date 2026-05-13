@@ -9,18 +9,16 @@ from sqlalchemy.orm import joinedload
 
 worklog_bp = Blueprint("worklog", __name__)
 
-# =====================================================
-# WORK LOG LIST
-# =====================================================
-
 @worklog_bp.route("/work_logs")
 @login_required
 @require_capability("worklog.manage")
 def work_logs():
-
     page = request.args.get("page", 1, type=int)
-    start_date_str = request.args.get("start_date")
-    end_date_str = request.args.get("end_date")
+    start_date_str = request.args.get("start_date", "").strip()
+    end_date_str = request.args.get("end_date", "").strip()
+    tech_name = request.args.get("tech_name", "").strip()
+    tech_number = request.args.get("tech_number", "").strip()
+    ro_number = request.args.get("ro_number", "").strip()
 
     base_query = (
         WorkLog.query
@@ -30,24 +28,29 @@ def work_logs():
         .filter(Team.store_id == current_user.store_id)
     )
 
-    # =========================
-    # DATE FILTERING
-    # =========================
-
     if start_date_str:
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     else:
-        start_date = date.today()  # ✅ default to today
+        start_date = date.today()
 
     if end_date_str:
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     else:
-        end_date = start_date  # ✅ same day by default
+        end_date = start_date
 
     base_query = base_query.filter(
         WorkLog.date >= start_date,
         WorkLog.date <= end_date
     )
+
+    if tech_name:
+        base_query = base_query.filter(TeamMember.name.ilike(f"%{tech_name}%"))
+
+    if tech_number:
+        base_query = base_query.filter(TeamMember.tech_number.ilike(f"%{tech_number}%"))
+
+    if ro_number:
+        base_query = base_query.filter(WorkLog.ro_number.ilike(f"%{ro_number}%"))
 
     pagination = (
         base_query
@@ -62,6 +65,9 @@ def work_logs():
         pagination=pagination,
         start_date=start_date.strftime("%Y-%m-%d"),
         end_date=end_date.strftime("%Y-%m-%d"),
+        tech_name=tech_name,
+        tech_number=tech_number,
+        ro_number=ro_number,
     )
 
 # =====================================================

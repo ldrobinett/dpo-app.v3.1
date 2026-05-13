@@ -424,3 +424,62 @@ class CapacityOpportunityForm(FlaskForm):
     opp_unapplied = FloatField('Target Unapplied Cost ($)', default=0)
 
     submit = SubmitField('Calculate Opportunity')
+
+class PaceRecoveryCalculatorForm(FlaskForm):
+    monthly_forecast_gross = FloatField(
+        "Monthly Forecast Gross",
+        validators=[DataRequired(), NumberRange(min=0)],
+    )
+    mtd_actual_gross = FloatField(
+        "MTD Actual Gross",
+        validators=[DataRequired(), NumberRange(min=0)],
+    )
+    monthly_frh_goal = FloatField(
+        "Monthly FRH Goal",
+        validators=[DataRequired(), NumberRange(min=0)],
+    )
+    mtd_actual_frh = FloatField(
+        "MTD Actual FRH",
+        validators=[DataRequired(), NumberRange(min=0)],
+    )
+    elapsed_workdays = FloatField(
+        "Elapsed Workdays",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    remaining_workdays = FloatField(
+        "Remaining Workdays",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    avg_hours_per_ro = FloatField(
+        "Average Hours per RO",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    avg_gross_per_ro = FloatField(
+        "Average Gross per RO",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    submit = SubmitField("Calculate Recovery Plan")
+
+
+class AppointmentLiftCalculatorForm(FlaskForm):
+    additional_appointments = IntegerField(
+        "Additional Appointments",
+        validators=[DataRequired(), NumberRange(min=0)],
+    )
+    avg_hours_per_ro = FloatField(
+        "Average Hours per RO",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    avg_gross_per_ro = FloatField(
+        "Average Gross per RO",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    show_rate = FloatField(
+        "Show Rate (%)",
+        validators=[DataRequired(), NumberRange(min=0, max=100)],
+    )
+    workdays_per_month = FloatField(
+        "Workdays per Month",
+        validators=[DataRequired(), NumberRange(min=0.1)],
+    )
+    submit = SubmitField("Calculate Appointment Lift")    

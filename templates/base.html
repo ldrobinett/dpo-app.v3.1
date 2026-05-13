@@ -87,7 +87,7 @@
                         {% if can("production.view") %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('finance.production_display') }}">
-                                Production
+                                Live Production Display
                             </a>
                         </li>
                         {% endif %}
@@ -95,13 +95,20 @@
                         {% if can("calculators.view") %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                                Calculators
+                                Tools & Calculators
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.mpi_calculator') }}">MPI Opportunity</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.appt_calculator') }}">Volume & Appointments</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.cpgp_calculator') }}">CP Gross Profit</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.capacity_calculator') }}">Capacity</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.mpi_calculator') }}">CP Menu/MPI Opportunity Calculator</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.appt_calculator') }}">RO and Appointment Calculator</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.cpgp_calculator') }}">CP Gross Profit Opportunity Calculator</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.capacity_calculator') }}">Capacity Opportunity Calculator</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.pace_recovery_calculator') }}">Pace Recovery Calculator</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('calculators.appointment_lift_calculator') }}">Appointment Lift Calculator</a></li>
+                                <li>
+                                        <a class="dropdown-item" href="{{ url_for('labor_matrix.list_grids') }}">
+                                            Labor Matrix
+                                        </a>
+                                    </li>
                             </ul>
                         </li>
                         {% endif %}
@@ -118,7 +125,7 @@
                                 {# 1️⃣ STORE & ACCESS SETUP        #}
                                 {# =============================== #}
                                 {% if can("onboarding.manage") or can("users.manage") %}
-                                    <li><h6 class="dropdown-header">Store & Access Setup</h6></li>
+                                    <li><h6 class="dropdown-header">Store & Access Initial Setup</h6></li>
 
                                     {% if can("onboarding.manage") %}
                                         <li>
@@ -207,7 +214,7 @@
                                 {# 4️⃣ REPORTS                    #}
                                 {# =============================== #}
                                 {% if can("finance.view") %}
-                                    <li><h6 class="dropdown-header">Reports</h6></li>
+                                    <li><h6 class="dropdown-header">Financial Inputs & Reports</h6></li>
 
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('finance.dashboard') }}">
@@ -219,11 +226,7 @@
                                             Monthly Forecasts
                                         </a>
                                     </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('labor_matrix.list_grids') }}">
-                                            Labor Matrix
-                                        </a>
-                                    </li>
+                                    
                                 {% endif %}
 
                             </ul>
@@ -239,7 +242,7 @@
                     {% if current_user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('main.help_page') }}">
-                                <i class="fas fa-question-circle me-1"></i> Help
+                                <i class="fas fa-question-circle me-1"></i> How to Use/Help
                             </a>
                         </li>
                         <li class="nav-item ms-2">
