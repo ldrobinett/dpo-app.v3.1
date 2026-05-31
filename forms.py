@@ -380,7 +380,7 @@ class MPICalculatorForm(FlaskForm):
 class ApptCalculatorForm(FlaskForm):
     num_techs = FloatField('Number of Techs', validators=[DataRequired()])
     proficiency = FloatField('Proficiency Target (e.g. 1.1)', default=1.1, validators=[DataRequired()])
-    days_in_month = FloatField('Work Days in Month', default=21, validators=[DataRequired()])
+    days_in_month = FloatField('Tech Work Days in Month', default=21, validators=[DataRequired()])
     avg_hours_per_ro = FloatField('Avg Hours per RO (CP/WP)', default=2.0, validators=[DataRequired()])
     walk_in_percent = FloatField('Walk-in % (e.g. 0.10)', default=0.10, validators=[DataRequired()])
     show_rate = FloatField('Show Rate (e.g. 0.85)', default=0.85, validators=[DataRequired()])
@@ -404,7 +404,7 @@ class CPGPOpportunityForm(FlaskForm):
     submit = SubmitField('Compare')
 
 class CapacityOpportunityForm(FlaskForm):
-    days_in_month = FloatField('Days in Month', default=21, validators=[DataRequired()])
+    days_in_month = FloatField('Technician WorkDays in Month (not calendar days)', default=21, validators=[DataRequired()])
     hours_per_day = FloatField('Hours per Day', default=8, validators=[DataRequired()])
 
     curr_tech_count = FloatField('Current Techs', validators=[DataRequired()])

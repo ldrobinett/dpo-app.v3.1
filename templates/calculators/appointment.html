@@ -115,4 +115,41 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const fields = document.querySelectorAll("input, select, textarea");
+
+    function normalizeValue(value) {
+        return String(value ?? "").trim();
+    }
+
+    function highlightIfChanged(field) {
+        const initialValue = field.dataset.initialValue ?? "";
+        const currentValue = normalizeValue(field.value);
+
+        if (currentValue !== initialValue) {
+            field.classList.add("bg-warning", "bg-opacity-25", "border-warning");
+        } else {
+            field.classList.remove("bg-warning", "bg-opacity-25", "border-warning");
+        }
+    }
+
+    fields.forEach(field => {
+        if (field.type === "hidden" || field.type === "submit" || field.readOnly) {
+            return;
+        }
+
+        field.dataset.initialValue = normalizeValue(field.value);
+
+        field.addEventListener("input", function () {
+            highlightIfChanged(field);
+        });
+
+        field.addEventListener("change", function () {
+            highlightIfChanged(field);
+        });
+    });
+});
+</script>
 {% endblock %}

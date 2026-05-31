@@ -94,4 +94,47 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const fields = document.querySelectorAll("form input, form select, form textarea");
+
+  function normalizeValue(field) {
+    if (field.type === "checkbox" || field.type === "radio") {
+      return field.checked ? "checked" : "unchecked";
+    }
+    return String(field.value ?? "").trim();
+  }
+
+  function updateChangedState(field) {
+    const initialValue = field.dataset.initialValue ?? "";
+    const currentValue = normalizeValue(field);
+
+    if (currentValue !== initialValue) {
+      field.classList.add("bg-warning", "bg-opacity-25", "border-warning");
+    } else {
+      field.classList.remove("bg-warning", "bg-opacity-25", "border-warning");
+    }
+  }
+
+  fields.forEach((field) => {
+    if (
+      field.type === "hidden" ||
+      field.type === "submit" ||
+      field.type === "button" ||
+      field.hasAttribute("readonly")
+    ) {
+      return;
+    }
+
+    field.dataset.initialValue = normalizeValue(field);
+    field.addEventListener("input", function () {
+      updateChangedState(field);
+    });
+    field.addEventListener("change", function () {
+      updateChangedState(field);
+    });
+  });
+});
+</script>
 {% endblock %}

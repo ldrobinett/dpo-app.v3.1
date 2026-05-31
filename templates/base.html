@@ -157,7 +157,7 @@
                                 {# 2️⃣ PERSONNEL                  #}
                                 {# =============================== #}
                                 {% if can("teams.manage") %}
-                                    <li><h6 class="dropdown-header">Personnel</h6></li>
+                                    <li><h6 class="dropdown-header"> Manage Personnel</h6></li>
 
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('teams.teams') }}">
@@ -166,7 +166,7 @@
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('teams.team_members') }}">
-                                            Team Members
+                                            Technicians
                                         </a>
                                     </li>
                                     <li>
@@ -187,7 +187,7 @@
 
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('schedule.generate_schedule') }}">
-                                            Generate Schedules
+                                            Create/Modify Team Schedules
                                         </a>
                                     </li>
                                     <li>
@@ -197,12 +197,12 @@
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('schedule.schedules') }}">
-                                            PTO / Training
+                                            Manage PTO / Training
                                         </a>
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('reconciliation.reconcile_logs') }}">
-                                            Reconcile Logs
+                                            Run Reconcile Logs
                                         </a>
                                     </li>
 

@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block container_class %}container py-4{% endblock %}
@@ -11,7 +10,8 @@
       <div class="alert alert-info py-2 mb-4">
         <i class="fas fa-circle-info me-2"></i>
         Values are prefilled from current store data when available. Review and adjust as needed before calculating.
-    </div>
+      </div>
+
       <div class="card-body">
         <form method="POST">
           {{ form.hidden_tag() }}
@@ -19,17 +19,33 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">{{ form.monthly_forecast_gross.label.text }}</label>
-              {{ form.monthly_forecast_gross(class="form-control") }}
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.monthly_forecast_gross(
+                    class="form-control",
+                    step="1",
+                    value="{:.0f}".format((form.monthly_forecast_gross.data or 0) | float)
+                ) }}
+              </div>
             </div>
+
             <div class="col-md-6">
               <label class="form-label">{{ form.mtd_actual_gross.label.text }}</label>
-              {{ form.mtd_actual_gross(class="form-control") }}
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.mtd_actual_gross(
+                    class="form-control",
+                    step="1",
+                    value="{:.0f}".format((form.mtd_actual_gross.data or 0) | float)
+                ) }}
+              </div>
             </div>
 
             <div class="col-md-6">
               <label class="form-label">{{ form.monthly_frh_goal.label.text }}</label>
               {{ form.monthly_frh_goal(class="form-control") }}
             </div>
+
             <div class="col-md-6">
               <label class="form-label">{{ form.mtd_actual_frh.label.text }}</label>
               {{ form.mtd_actual_frh(class="form-control") }}
@@ -39,6 +55,7 @@
               <label class="form-label">{{ form.elapsed_workdays.label.text }}</label>
               {{ form.elapsed_workdays(class="form-control") }}
             </div>
+
             <div class="col-md-6">
               <label class="form-label">{{ form.remaining_workdays.label.text }}</label>
               {{ form.remaining_workdays(class="form-control") }}
@@ -48,9 +65,18 @@
               <label class="form-label">{{ form.avg_hours_per_ro.label.text }}</label>
               {{ form.avg_hours_per_ro(class="form-control") }}
             </div>
+
             <div class="col-md-6">
               <label class="form-label">{{ form.avg_gross_per_ro.label.text }}</label>
-              {{ form.avg_gross_per_ro(class="form-control") }}
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.avg_gross_per_ro(
+                    class="form-control",
+                    id="avg_gross_per_ro",
+                    value="{:.2f}".format((form.avg_gross_per_ro.data or 0) | float),
+                    placeholder="0.00"
+                ) }}
+              </div>
             </div>
           </div>
 
@@ -100,11 +126,11 @@
                   <strong>{{ "%.1f"|format(results.extra_appts_per_day) }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                  <span>Projected Month-End Gross</span>
+                  <span>Projected Month-End Gross (No Recovery)</span>
                   <strong>${{ "{:,.0f}".format(results.projected_month_end_gross) }}</strong>
                 </div>
                 <div class="d-flex justify-content-between">
-                  <span>Projected Month-End FRH</span>
+                  <span>Projected Month-End FRH (No Recovery)</span>
                   <strong>{{ "%.1f"|format(results.projected_month_end_frh) }}</strong>
                 </div>
               </div>

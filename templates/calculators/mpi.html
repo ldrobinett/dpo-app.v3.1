@@ -114,4 +114,57 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const formFields = document.querySelectorAll("input, select, textarea");
+
+    function normalizeValue(value) {
+        return String(value ?? "").trim();
+    }
+
+    function updateChangedState(field) {
+        const initialValue = field.dataset.initialValue ?? "";
+        const currentValue = normalizeValue(field.value);
+
+        if (currentValue !== initialValue) {
+            field.classList.add("bg-warning", "bg-opacity-25", "border-warning");
+        } else {
+            field.classList.remove("bg-warning", "bg-opacity-25", "border-warning");
+        }
+    }
+
+    formFields.forEach(field => {
+        if (field.type === "hidden" || field.type === "submit" || field.readOnly) {
+            return;
+        }
+
+        field.dataset.initialValue = normalizeValue(field.value);
+        updateChangedState(field);
+
+        field.addEventListener("input", () => updateChangedState(field));
+        field.addEventListener("change", () => updateChangedState(field));
+    });
+
+    const overrideFields = document.querySelectorAll(".override-check");
+
+    function checkOverride(input) {
+        const compareId = input.dataset.compare;
+        const compareEl = document.getElementById(compareId);
+        if (!compareEl) return;
+
+        if (parseFloat(input.value) != parseFloat(compareEl.value)) {
+            input.classList.add("bg-info", "bg-opacity-25", "border-info");
+        } else {
+            input.classList.remove("bg-info", "bg-opacity-25", "border-info");
+        }
+    }
+
+    overrideFields.forEach(input => {
+        checkOverride(input);
+        input.addEventListener("input", () => checkOverride(input));
+        input.addEventListener("change", () => checkOverride(input));
+    });
+});
+</script>
 {% endblock %}
