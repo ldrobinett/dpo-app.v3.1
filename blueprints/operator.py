@@ -1,6 +1,6 @@
 from functools import wraps
 from datetime import datetime
-
+import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_login import login_user, logout_user, login_required, current_user
 
@@ -122,7 +122,6 @@ def store_new():
             flash("All fields are required.", "warning")
             return redirect(url_for("operator.store_new"))
 
-        # Recommend forcing new stores to active unless you truly need otherwise
         if status not in ("active", "archived"):
             status = "active"
 
@@ -130,29 +129,29 @@ def store_new():
             name=name,
             environment=environment,
             status=status,
-            url=url,
+            url=url.rstrip("/"),
             admin_username=admin_username,
         )
         store.set_admin_password(admin_password)
 
         try:
-            with db.session.begin():
-                db.session.add(store)
-                db.session.flush()  # get store.id
+            db.session.add(store)
+            db.session.flush()
 
-                admin_user = User(
-                    username=admin_username,
-                    password=bcrypt.generate_password_hash(admin_password).decode("utf-8"),
-                    store_id=store.id
-                )
-                db.session.add(admin_user)
+            admin_user = User(
+                username=admin_username,
+                password=bcrypt.generate_password_hash(admin_password).decode("utf-8"),
+                store_id=store.id,
+            )
+            db.session.add(admin_user)
 
+            db.session.commit()
             flash("Store and admin user created.", "success")
             return redirect(url_for("operator.store_index"))
 
-        except Exception:
+        except Exception as exc:
             db.session.rollback()
-            flash("Failed to create store.", "danger")
+            flash(f"Failed to create store: {exc}", "danger")
             return redirect(url_for("operator.store_new"))
 
     return render_template("operator/store_form.html", title="Add Store", store=None)
