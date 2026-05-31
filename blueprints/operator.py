@@ -1,18 +1,15 @@
 from functools import wraps
 from datetime import datetime
 import logging
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_login import login_user, logout_user, login_required, current_user
 
 from extensions import db, bcrypt
-from models import OperatorUser, ManagedStore, User
+from models import OperatorUser, ManagedStore, User, Role, Capability
 
 operator_bp = Blueprint("operator", __name__, url_prefix="/operator")
 
-
-# ---------------------------
-# Auth helpers
-# ---------------------------
 
 def operator_required() -> bool:
     if not getattr(current_user, "is_authenticated", False):
@@ -21,7 +18,6 @@ def operator_required() -> bool:
 
 
 def operator_only(view_func):
-    """Decorator: require operator identity."""
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if not getattr(current_user, "is_authenticated", False):
@@ -33,19 +29,15 @@ def operator_only(view_func):
 
 
 def _get_store_or_404(store_id: int) -> ManagedStore:
-    s = db.session.get(ManagedStore, store_id)
-    if not s:
+    store = db.session.get(ManagedStore, store_id)
+    if not store:
         abort(404)
-    return s
+    return store
 
 
-def _operator_pw_ok(pw: str) -> bool:
-    return bool(pw) and current_user.check_password(bcrypt, pw)
+def _operator_pw_ok(password: str) -> bool:
+    return bool(password) and current_user.check_password(bcrypt, password)
 
-
-# ---------------------------
-# Auth routes
-# ---------------------------
 
 @operator_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -56,12 +48,12 @@ def login():
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
 
-        op = OperatorUser.query.filter_by(username=username, is_active=True).first()
-        if not op or not op.check_password(bcrypt, password):
+        operator = OperatorUser.query.filter_by(username=username, is_active=True).first()
+        if not operator or not operator.check_password(bcrypt, password):
             flash("Invalid operator credentials.", "danger")
             return redirect(url_for("operator.login"))
 
-        login_user(op, remember=False)
+        login_user(operator, remember=False)
         return redirect(url_for("operator.store_index"))
 
     return render_template("operator/login.html", title="Operator Login")
@@ -75,15 +67,10 @@ def logout():
     return redirect(url_for("operator.login"))
 
 
-# ---------------------------
-# Store views
-# ---------------------------
-
 @operator_bp.route("/stores", methods=["GET"])
 @login_required
 @operator_only
 def store_index():
-    # Active + Archived only (deleted hidden)
     stores = (
         ManagedStore.query
         .filter(ManagedStore.status.in_(["active", "archived"]))
@@ -138,20 +125,51 @@ def store_new():
             db.session.add(store)
             db.session.flush()
 
+            admin_role = Role.query.filter_by(name="Admin", store_id=store.id).first()
+
+            if not admin_role:
+                capabilities = {cap.key: cap for cap in Capability.query.all()}
+                admin_role_keys = [
+                    "teams.manage",
+                    "users.manage",
+                    "routesheet.view",
+                    "routesheet.edit",
+                    "worklog.manage",
+                    "finance.view",
+                    "finance.edit",
+                    "schedule.manage",
+                    "routes.view",
+                    "worklog.view",
+                    "schedule.view",
+                    "production.view",
+                    "manage.view",
+                    "calculators.view",
+                    "onboarding.manage",
+                ]
+
+                admin_role = Role(name="Admin", store_id=store.id)
+                admin_role.capabilities = [
+                    capabilities[key] for key in admin_role_keys if key in capabilities
+                ]
+                db.session.add(admin_role)
+                db.session.flush()
+
             admin_user = User(
                 username=admin_username,
                 password=bcrypt.generate_password_hash(admin_password).decode("utf-8"),
                 store_id=store.id,
             )
+            admin_user.roles.append(admin_role)
             db.session.add(admin_user)
 
             db.session.commit()
             flash("Store and admin user created.", "success")
             return redirect(url_for("operator.store_index"))
 
-        except Exception as exc:
+        except Exception:
             db.session.rollback()
-            flash(f"Failed to create store: {exc}", "danger")
+            logging.exception("Failed to create store")
+            flash("Failed to create store.", "danger")
             return redirect(url_for("operator.store_new"))
 
     return render_template("operator/store_form.html", title="Add Store", store=None)
@@ -161,30 +179,29 @@ def store_new():
 @login_required
 @operator_only
 def store_edit(store_id: int):
-    s = _get_store_or_404(store_id)
+    store = _get_store_or_404(store_id)
 
     if request.method == "POST":
-        s.name = (request.form.get("name") or "").strip()
-        s.environment = (request.form.get("environment") or s.environment).strip()
+        store.name = (request.form.get("name") or "").strip()
+        store.environment = (request.form.get("environment") or store.environment).strip()
 
-        new_status = (request.form.get("status") or s.status).strip()
-        # Prevent editing deleted from this screen (do it through lifecycle buttons)
-        if s.status != "deleted" and new_status in ("active", "archived"):
-            s.status = new_status
+        new_status = (request.form.get("status") or store.status).strip()
+        if store.status != "deleted" and new_status in ("active", "archived"):
+            store.status = new_status
 
-        s.url = (request.form.get("url") or "").strip()
-        s.admin_username = (request.form.get("admin_username") or "").strip()
-        s.notes = (request.form.get("notes") or "").strip() or None
+        store.url = (request.form.get("url") or "").strip()
+        store.admin_username = (request.form.get("admin_username") or "").strip()
+        store.notes = (request.form.get("notes") or "").strip() or None
 
-        new_pw = request.form.get("admin_password") or ""
-        if new_pw.strip():
-            s.set_admin_password(new_pw)
+        new_password = request.form.get("admin_password") or ""
+        if new_password.strip():
+            store.set_admin_password(new_password)
 
         db.session.commit()
         flash("Store updated.", "success")
         return redirect(url_for("operator.store_index"))
 
-    return render_template("operator/store_form.html", title="Edit Store", store=s)
+    return render_template("operator/store_form.html", title="Edit Store", store=store)
 
 
 @operator_bp.route("/stores/<int:store_id>/open", methods=["GET"])
@@ -197,15 +214,9 @@ def open_store(store_id: int):
         flash("Only active stores can be opened.", "warning")
         return redirect(url_for("operator.store_index"))
 
-    # IMPORTANT: destroy operator session (your intended behavior)
     logout_user()
-
     return redirect(store.url.rstrip("/") + "/login")
 
-
-# ---------------------------
-# Store lifecycle routes
-# ---------------------------
 
 @operator_bp.route("/stores/<int:store_id>/archive", methods=["POST"])
 @login_required
@@ -234,14 +245,11 @@ def store_restore(store_id: int):
     store.status = "active"
     store.archived_at = None
 
-    # If your model has deleted_at, clear it too
     if hasattr(store, "deleted_at"):
         store.deleted_at = None
 
     db.session.commit()
     flash("Store restored.", "success")
-
-    # restore might happen from deleted view
     return redirect(request.referrer or url_for("operator.store_index"))
 
 
@@ -249,10 +257,6 @@ def store_restore(store_id: int):
 @login_required
 @operator_only
 def store_soft_delete(store_id: int):
-    """
-    Soft delete: mark store deleted. (This replaces your old 'purge' which wasn't a purge.)
-    Recommended: require archived first.
-    """
     store = _get_store_or_404(store_id)
 
     if store.status == "active":
@@ -273,11 +277,6 @@ def store_soft_delete(store_id: int):
 @login_required
 @operator_only
 def store_purge(store_id: int):
-    """
-    Real purge: deletes store row + store users.
-    Dev-only by default (blocks prod).
-    Requires store already soft-deleted.
-    """
     store = _get_store_or_404(store_id)
 
     operator_password = request.form.get("operator_password") or ""
@@ -300,49 +299,35 @@ def store_purge(store_id: int):
         return redirect(request.referrer or url_for("operator.store_deleted_index"))
 
     try:
-        with db.session.begin():
-            # Delete store-owned users
-            User.query.filter(User.store_id == store.id).delete(synchronize_session=False)
-
-            # TODO: delete other store-owned tables here
-            # Example:
-            # Order.query.filter_by(store_id=store.id).delete(synchronize_session=False)
-
-            db.session.delete(store)
+        User.query.filter(User.store_id == store.id).delete(synchronize_session=False)
+        db.session.delete(store)
+        db.session.commit()
 
         flash("Store fully purged (store + users).", "danger")
         return redirect(url_for("operator.store_index"))
 
     except Exception:
         db.session.rollback()
+        logging.exception("Failed to purge store %s", store_id)
         flash("Purge failed. Nothing partially committed.", "danger")
         return redirect(request.referrer or url_for("operator.store_deleted_index"))
 
-
-# ---------------------------
-# Sensitive action: reveal store admin password
-# ---------------------------
 
 @operator_bp.route("/stores/<int:store_id>/reveal", methods=["POST"])
 @login_required
 @operator_only
 def store_reveal(store_id: int):
-    """
-    Reveal store admin password ONLY after re-confirming operator password.
-    Returns JSON: {password: "..."}.
-    """
     operator_password = request.form.get("operator_password") or ""
     if not _operator_pw_ok(operator_password):
         return jsonify({"error": "bad operator password"}), 401
 
-    s = _get_store_or_404(store_id)
+    store = _get_store_or_404(store_id)
 
-    # Optional: block revealing for deleted stores
-    if getattr(s, "status", None) == "deleted":
+    if getattr(store, "status", None) == "deleted":
         return jsonify({"error": "store deleted"}), 400
 
     try:
-        pw = s.get_admin_password()
-        return jsonify({"password": pw})
+        password = store.get_admin_password()
+        return jsonify({"password": password})
     except Exception:
         return jsonify({"error": "decrypt failed"}), 500
