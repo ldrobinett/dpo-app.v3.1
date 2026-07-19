@@ -78,3 +78,6 @@ Current-State Home Template Architecture
 14. Future MI Opportunities
 
 15. Current-State Conclusions
+
+**NOTE**
+The current Home Dashboard establishes the intended Management Intelligence user experience. However, its underlying recommendation logic remains primarily DPO-, pace-, WIP-, and rules-based. UVI, TSI, full scorecard execution intelligence, and outcome-based recommendation learning have not yet been implemented.
