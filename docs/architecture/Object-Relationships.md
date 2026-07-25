@@ -21,6 +21,11 @@ The relationship model is business-focused. It is not a database entity-relation
 6. **Correlation is not causation.** Relationship labels must not imply causal certainty unless evidence supports it.
 7. **Many-to-many relationships require context.** Shared responsibility, multiple payers, multiple technicians, and multiple related decisions require explicit association objects or metadata.
 8. **Historical truth is retained.** Current relationships must not erase prior relationships.
+9. **Management Decisions are first-class relationships.** Recommendations, execution, validation, and organizational learning must remain connected through a permanent Management Decision object.
+
+10. **Execution and Decision Quality are measured independently.** A poor outcome may result from poor execution rather than poor decision quality.
+
+11. **Every completed Management Decision contributes to Organizational Learning.** Historical decisions improve future recommendations through evidence rather than assumption.
 
 ## 3. Canonical Relationship Types
 
@@ -456,39 +461,67 @@ Source Object or Event
 
 A user must be able to move backward through the chain and understand why the system reached its conclusion.
 
-## 12. Decision and Learning Relationships
+## 12. Decision, Execution, Validation, and Learning Relationships
 
 ```text
 Recommendation Output
-  considered by -> Decision Owner
+    considered by -> Decision Owner
 
-Decision
-  documented in -> Decision Journal Entry
-  responds to -> Risk, Opportunity, Constraint, or Recommendation Output
-  creates -> Commitment and Action
-  expects -> Outcome
+Management Decision
+    documented in -> Decision Journal Entry
+    responds to -> Risk, Opportunity, Constraint, or Recommendation Output
+    creates -> Execution
+    expects -> Business Outcome
+    validated by -> Validation
+
+Execution
+    consists of -> Commitments
+    consists of -> Actions
+    consists of -> Coaching
+    consists of -> Training
+    consists of -> Meetings
+    consists of -> Process Changes
 
 Commitment
-  owned by -> Employee or Role
-  measured against -> Objective or Measurement
-  fulfilled through -> Action
+    owned by -> Employee or Role
+    measured against -> Objective or Measurement
 
-Outcome
-  compared with -> Expected Outcome
-  evaluates -> Decision and Action
-  produces -> Learning
+Validation
+    compares -> Expected Outcome
+    compares -> Actual Outcome
+    evaluates -> Management Decision
+    evaluates -> Execution
 
-Learning
-  informs -> Future Operating Review, Recommendation, Decision, and Standard
+Business Outcome
+    contributes to -> Organizational Learning
+
+Organizational Learning
+    informs -> Future Intelligence Findings
+    informs -> Recommendation Output
+    informs -> Future Management Decisions
 ```
 
-### 12.1 Conversation Layer and Decision Layer
+Execution and Validation are independent business objects.
 
-Meeting recordings, transcripts, emails, and notes are part of the conversation layer. They may provide evidence and context.
+Management Intelligence evaluates both the quality of the decision and the quality of execution.
 
-The Decision Journal is the decision layer. It captures what was decided, why, by whom, what must happen next, and whether the expected result occurred.
+Successful organizations improve both.
 
-A transcript may mention a commitment. It does not become an authoritative Commitment until extracted, confirmed, assigned, and recorded.
+The Management Decision is the authoritative operational object.
+
+Meetings create conversation.
+
+Conversation creates context.
+
+Context supports Decisions.
+
+Decisions drive Execution.
+
+Execution produces Outcomes.
+
+Validated Outcomes become Organizational Learning.
+
+The platform is designed to preserve this complete chain of evidence.
 
 ### 12.2 Institutional Management Memory
 
@@ -619,8 +652,33 @@ Enterprise Structure
             -> Observations, Signals, Insights, Risks, and Opportunities
               -> Recommendation Outputs
                 -> Management Decisions
-                  -> Commitments and Actions
-                    -> Outcomes and Learning
+        ↓
+Execution
+        ↓
+Commitments
+        ↓
+Actions
+        ↓
+Validation
+        ↓
+Business Outcomes
+        ↓
+Organizational Learning
 ```
 
-The relationship model is complete when Management Intelligence can connect a result to the behavior that produced it, the decision that attempted to change it, and the outcome that followed.
+The relationship model is complete when Management Intelligence can connect:
+
+- Operational activity
+- Financial impact
+- Intelligence
+- Management Decisions
+- Execution
+- Validation
+- Business Outcomes
+- Organizational Learning
+
+into a single evidence chain.
+
+The objective is not merely to understand dealership performance.
+
+The objective is to continuously improve management decision quality through validated organizational learning.
