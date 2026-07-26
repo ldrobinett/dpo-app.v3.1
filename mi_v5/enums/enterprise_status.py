@@ -1,9 +1,9 @@
 """Enterprise lifecycle states."""
 
-from enum import StrEnum
+from enum import Enum
 
 
-class EnterpriseStatus(StrEnum):
+class EnterpriseStatus(str, Enum):
     """Valid lifecycle states for an Enterprise tenant."""
 
     PROVISIONING = "provisioning"
