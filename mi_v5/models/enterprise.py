@@ -97,9 +97,9 @@ class Enterprise(SoftRetirementMixin, MIEntity):
     @validates("default_timezone")
     def validate_default_timezone(self, _key: str, value: str) -> str:
         normalized = value.strip()
-        if "/" not in normalized:
+        if normalized != "UTC" and "/" not in normalized:
             raise ValueError(
-                "Default timezone must be an IANA timezone such as America/Los_Angeles."
+                "Default timezone must be an IANA timezone such as America/Los_Angeles or UTC."
             )
         return normalized
 
