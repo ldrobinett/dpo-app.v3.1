@@ -6,7 +6,7 @@ This standard establishes one consistent naming convention for Management Intell
 
 ## Canonical Convention
 
-Use **Title-Case words separated by hyphens** for Markdown documentation.
+Use **Title-Case words separated by hyphens** for general Markdown documentation.
 
 ### Correct
 
@@ -24,13 +24,21 @@ Use **Title-Case words separated by hyphens** for Markdown documentation.
 
 ## Session Documents
 
-Session documents use a three-digit sequence:
+Session documents are the sole exception to the general hyphen convention. They use the prefix `Session_` followed by a zero-padded three-digit sequence:
 
-- `Session-001.md`
-- `Session-002.md`
-- `Session-013.md`
+- `Session_001.md`
+- `Session_002.md`
+- `Session_008.md`
+- `Session_013.md`
 
-Do not use underscores, inconsistent digit counts, or descriptive suffixes in the filename.
+Do not use a hyphen after `Session`, inconsistent digit counts, spaces, or descriptive suffixes in the filename.
+
+### Incorrect
+
+- `Session-008.md`
+- `Session_8.md`
+- `session_008.md`
+- `Session_008_Architecture.md`
 
 ## Versioning
 
