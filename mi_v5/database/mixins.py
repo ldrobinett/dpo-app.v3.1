@@ -13,13 +13,13 @@ from .types import UUID_TYPE, new_uuid
 
 
 class UUIDPrimaryKeyMixin:
-    """UUID identity with a canonical table-specific database column name."""
+    """UUID identity with an explicit, stable database column name."""
 
     @declared_attr
     def id(cls) -> Mapped[UUID]:
-        table_name = getattr(cls, "__tablename__", cls.__name__.lower())
+        column_name = getattr(cls, "__id_column_name__", f"{cls.__name__.lower()}_id")
         return mapped_column(
-            f"{table_name}_id",
+            column_name,
             UUID_TYPE,
             primary_key=True,
             default=new_uuid,
@@ -33,7 +33,7 @@ class TenantMixin:
     def enterprise_id(cls) -> Mapped[UUID]:
         return mapped_column(
             UUID_TYPE,
-            ForeignKey("enterprise.enterprise_id", ondelete="RESTRICT"),
+            ForeignKey("enterprises.enterprise_id", ondelete="RESTRICT"),
             nullable=False,
             index=True,
         )
@@ -78,8 +78,7 @@ class EffectiveDateMixin:
 class StatusMixin:
     """Readable string-backed lifecycle status.
 
-    Concrete models may narrow allowed values with model validation or a named
-    check constraint once their lifecycle is implemented.
+    Concrete models may override this column with a business enum.
     """
 
     status: Mapped[str] = mapped_column(
