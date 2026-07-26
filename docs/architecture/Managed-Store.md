@@ -36,17 +36,21 @@ A Managed Store provides the organizational context in which the platform:
 
 # 3. Organizational Identity Chain
 
-The canonical Phase 1B organizational chain is:
+The canonical Phase 1B organizational structure is:
 
 ```text
 Enterprise
-    ↓
-Market
-    ↓
-Managed Store
-    ↓
-Department
+    │
+    ├── Organizational Group (optional and recursive)
+    │       └── Managed Store
+    │
+    └── Managed Store
+            └── Department
 ```
+
+`Market` is not a required universal object. It is a valid Organizational Group type alongside Region, District, Platform, Division, Brand Group, Ownership Group, Operating Cluster, and Custom.
+
+This structure supports independent dealerships, flat dealer groups, regional operators, public automotive retailers, and multi-layer automotive organizations without imposing one company's vocabulary on the industry.
 
 Every MVP operational, management, intelligence, and decision object must resolve to a Managed Store directly or through a governed organizational relationship.
 
@@ -58,7 +62,6 @@ The minimum identity of a Managed Store includes:
 
 - Managed Store ID
 - Enterprise ID
-- Market ID
 - Source-system Store ID or external identifiers
 - Name
 - Brand or franchise
@@ -67,6 +70,8 @@ The minimum identity of a Managed Store includes:
 - Operating calendar
 - Active status
 - Effective dates
+
+Organizational Group membership is optional and effective dated. A Managed Store may belong directly to an Enterprise when no intermediate management structure exists.
 
 Additional attributes must demonstrate a direct MVP need before entering the frozen model.
 
@@ -89,7 +94,7 @@ A Managed Store may own or provide context for:
 - Validation and outcomes
 - Organizational learning
 
-These relationships are subject to Gate 3 relationship review.
+These relationships are governed by `Canonical-Object-Relationship-Model.md`.
 
 ---
 
@@ -119,15 +124,18 @@ A shortened display label does not create a separate domain object.
 
 During Gate 1 and Gate 2:
 
-1. `Business-Object-Model.md` must replace the canonical `Store` object with `Managed Store`.
-2. References to the organizational identity chain must use `Managed Store`.
+1. The frozen MVP model replaces the canonical `Store` object with `Managed Store`.
+2. `Market` is merged into `Organizational Group` as a group type.
 3. Existing code and database models named `Store` must receive a documented migration or mapping disposition.
 4. No new canonical object named `Store` may be introduced.
+5. No intermediate organizational layer is mandatory between Enterprise and Managed Store.
 
 ---
 
 # 8. Frozen Decision
 
-For the September 2026 MVP, the canonical object is **Managed Store**.
+For the September 2026 MVP, the canonical dealership accountability object is **Managed Store**.
 
-Reopening this decision requires Phase 1B change control and evidence that Managed Store cannot support the required MVP behavior.
+The optional hierarchy object is **Organizational Group**.
+
+Reopening either decision requires Phase 1B change control and evidence that the frozen model cannot support the required MVP behavior.
