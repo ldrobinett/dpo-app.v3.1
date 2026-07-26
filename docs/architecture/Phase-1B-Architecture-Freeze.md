@@ -1,239 +1,206 @@
 # Management Intelligence v5
 ## Phase 1B Architecture Freeze
 
-**Status:** Active
-**Branch:** `mi-v5`
-**Started:** 2026-07-25
+**Status:** Complete and Frozen  
+**Branch:** `mi-v5`  
+**Started:** 2026-07-25  
+**Completed:** 2026-07-25  
 **MVP Target:** September 2026
 
 ---
 
 # 1. Purpose
 
-Phase 1B converts the documented architecture into a controlled implementation baseline for the Management Intelligence v5 MVP.
+Phase 1B converted the documented architecture into a controlled implementation baseline for the Management Intelligence v5 MVP.
 
-The freeze does not prohibit learning or correction. It prevents uncontrolled expansion, duplicate concepts, shifting terminology, and implementation against unresolved architecture.
-
-The operating rule is:
+The freeze does not prohibit learning or correction. It prevents uncontrolled expansion, duplicate concepts, shifting terminology, and implementation against unresolved business architecture.
 
 > Build the smallest thing that proves the biggest idea.
 
-When a new idea does not directly support the September MVP, it is deferred to the post-MVP backlog rather than inserted into the frozen architecture.
+New ideas that do not directly support the September MVP move to the post-MVP backlog rather than entering the frozen baseline.
 
 ---
 
-# 2. Freeze Objective
+# 2. Freeze Outcome
 
-Phase 1B is complete when the repository contains one approved and internally consistent definition of:
+Phase 1B is complete because the repository now contains one approved and internally consistent definition of:
 
-1. Canonical terminology
-2. Canonical business objects
+1. Canonical terminology and business objects
+2. Business object lifecycles
 3. Canonical object relationships
-4. Canonical Management Intelligence decision pipeline
-5. MVP architectural boundaries
-6. Change-control rules
-7. The first implementation vertical slice
+4. Detailed relationship rules
+5. The canonical Management Intelligence decision pipeline
+6. Architecture invariants
+7. MVP boundaries and acceptance criteria
+8. Change-control rules
+9. The first implementation vertical slice
 
-The resulting architecture must be clear enough that engineering can implement the SQLAlchemy model without inventing business meaning in code.
+Engineering may begin SQLAlchemy and data architecture implementation without inventing unresolved business meaning in code.
 
 ---
 
-# 3. Frozen Architectural Principle
+# 3. Frozen Canonical Architecture
 
-Management Intelligence exists to improve management decisions rather than merely report operating results.
+## 3.1 Business Domain
 
-The canonical reasoning flow is:
+Governed by:
+
+- [Business-Domain-Freeze.md](Business-Domain-Freeze.md)
+- [Business-Object-Lifecycles.md](Business-Object-Lifecycles.md)
+- [Managed-Store.md](Managed-Store.md)
+
+The frozen organizational structure is:
 
 ```text
-Business Data
-      ↓
-Measurements
-      ↓
-Derived Metrics
-      ↓
-Health Evaluation
-      ↓
-Constraints
-      ↓
-Risk and Opportunity
-      ↓
-Recommendation
-      ↓
+Enterprise
+    │
+    ├── Organizational Group (optional and recursive)
+    │       └── Managed Store
+    │
+    └── Managed Store
+            └── Department
+```
+
+Managed Store is the canonical dealership accountability object. Market is an Organizational Group type, not a universal object.
+
+## 3.2 Relationships
+
+Governed by:
+
+- [Canonical-Object-Relationship-Model.md](Canonical-Object-Relationship-Model.md)
+- [Relationship-Rules.md](Relationship-Rules.md)
+
+Cardinality, ownership, effective dating, evidence lineage, referential behavior, deletion, and retention are frozen for the MVP.
+
+## 3.3 Decision Pipeline
+
+Governed by [Canonical-Decision-Pipeline.md](Canonical-Decision-Pipeline.md).
+
+```text
+Business Source Data
+        ↓
+Measurement
+        ↓
+Derived Metric
+        ↓
+Evaluation
+        ↓
+Constraint, Risk, or Opportunity
+        ↓
+Intelligence Finding
+        ↓
+Recommendation Output
+        ↓
 Management Decision
-      ↓
-Committed Action
-      ↓
-Execution and Validation
-      ↓
+        ↓
+Commitment and/or Action
+        ↓
+Execution Evidence
+        ↓
+Validation
+        ↓
 Outcome
-      ↓
-Organizational Learning
 ```
 
-Each stage must preserve evidence and explain how its output was produced.
+Every stage preserves traceability and explainability. Organizational Learning remains post-MVP while validated history is accumulated.
+
+## 3.4 Architecture Invariants
+
+Governed by [Architecture-Invariants.md](Architecture-Invariants.md).
+
+The invariants apply across database models, services, APIs, AI processes, workflows, interfaces, integrations, and later domain implementations.
+
+## 3.5 MVP Proof
+
+Governed by [MVP-Acceptance-Criteria.md](MVP-Acceptance-Criteria.md).
+
+The September MVP proves one complete automotive service decision loop from source facts through measured Outcome. It does not require every dealership domain, autonomous management, a complete DMS model, or autonomous organizational learning.
 
 ---
 
-# 4. Phase 1B Work Sequence
+# 4. Gate Completion
 
-The freeze will be completed in the following order.
+| Gate | Result | Canonical evidence |
+|---|---|---|
+| Gate 1: Canonical Terminology | Complete and Frozen | Business Domain Freeze |
+| Gate 2: Canonical Business Objects | Complete and Frozen | Business Domain Freeze and Object Lifecycles |
+| Gate 3: Canonical Relationships | Complete and Frozen | Canonical Relationship Model and Relationship Rules |
+| Gate 4: Pipeline Alignment | Complete and Frozen | Canonical Decision Pipeline |
+| Gate 5: MVP Boundary | Complete and Frozen | MVP Acceptance Criteria |
+| Gate 6: Implementation Readiness | Complete | Architecture Invariants, relationship contract, and acceptance criteria |
 
-## Gate 1: Canonical Terminology
-
-Confirm one approved definition for each MVP term.
-
-Initial terminology set:
-
-- Enterprise
-- Market
-- Store
-- Department
-- Employee
-- Role
-- Assignment
-- Financial Period
-- Measurement
-- Derived Metric
-- Health Metric
-- Constraint
-- Risk
-- Opportunity
-- Recommendation
-- Management Decision
-- Commitment
-- Action
-- Validation
-- Outcome
-- Learning
-- Evidence
-
-No synonym may become a competing object name in implementation.
-
-## Gate 2: Canonical Business Objects
-
-Review `Business-Object-Model.md` and classify every object as:
-
-- MVP Core
-- MVP Supporting
-- Post-MVP
-- Rejected or merged
-
-Objects are frozen only after their business meaning, identity, ownership, and minimum attributes are approved.
-
-## Gate 3: Canonical Relationships
-
-Review `Object-Relationships.md` against the approved business objects.
-
-For every MVP relationship, confirm:
-
-- Source object
-- Target object
-- Relationship meaning
-- Cardinality
-- Ownership
-- Effective-date behavior
-- Evidence requirements
-- Deletion and retention expectations
-
-## Gate 4: Pipeline Alignment
-
-Reconcile the following canonical documents so they describe one operating model:
-
-- `Management-Intelligence-Knowledge-Model.md`
-- `Management-Intelligence-Decision-Pipeline.md`
-- `Recommendation-Engine.md`
-- `Management-Decision-Architecture.md`
-- `Validation-Engine.md`
-
-No stage may bypass evidence, invent measurements, or silently convert inference into fact.
-
-## Gate 5: MVP Boundary
-
-Define the minimum vertical slice that proves Management Intelligence.
-
-The initial target is one end-to-end path:
-
-```text
-Store operational measurements
-      ↓
-Derived performance condition
-      ↓
-Constraint or risk
-      ↓
-Prioritized recommendation
-      ↓
-Manager decision and commitment
-      ↓
-Measured outcome
-```
-
-The MVP does not require every dealership domain, every intelligence model, or autonomous learning.
-
-## Gate 6: Implementation Readiness
-
-Before SQLAlchemy implementation begins, confirm:
-
-- Object names are frozen
-- Required attributes are frozen
-- Relationships are frozen
-- MVP and post-MVP scope are separated
-- Existing database models have a documented migration path
-- The first vertical slice has acceptance criteria
-- No unresolved architectural conflict requires an engineer to guess
+The former Gate 1 and Gate 2 work is collectively named the **Business Domain Freeze**.
 
 ---
 
-# 5. Freeze Rules
+# 5. Implementation Authority
 
-During Phase 1B:
+Phase 2 implementation may choose:
 
-1. Each architectural subject has one canonical document.
-2. New architecture requires a demonstrated MVP need.
-3. New terminology must reuse an existing canonical term unless the existing model cannot express the business meaning.
-4. UI language, code names, database names, and documentation should trace back to the same canonical object.
-5. Session records preserve reasoning but do not override canonical architecture.
-6. Post-MVP ideas are documented without expanding the MVP baseline.
-7. Implementation does not begin for an object whose identity or relationships remain unresolved.
+- SQLAlchemy structure
+- Technical identifiers
+- Association tables
+- Indexes and constraints
+- Repository and service patterns
+- API contracts
+- UI composition
+- Integration mechanics
+- Test strategy
+
+Those choices may not alter the frozen business meanings, lifecycles, relationships, pipeline, invariants, or MVP acceptance criteria.
+
+When implementation reveals a genuine architectural defect, the issue must follow change control rather than being quietly repaired in code and later declared intentional, a maneuver software has somehow survived despite repeated demonstrations of its stupidity.
 
 ---
 
 # 6. Change Control After Freeze
 
-After an item is marked Frozen, changes require:
+A frozen item may change only with:
 
-1. A clearly stated problem
-2. Evidence that the frozen model cannot support the required MVP behavior
-3. Identification of affected documents, objects, relationships, migrations, and tests
-4. A recorded decision
+1. A clearly stated business problem
+2. Evidence that the frozen model cannot support required behavior
+3. Identification of affected objects, relationships, migrations, services, APIs, tests, and documents
+4. A recorded architecture decision
 5. Updated canonical documentation before or with implementation
 
-A preference, interesting possibility, or newly discovered feature idea is not sufficient reason to reopen frozen architecture.
+A preference, framework convenience, interesting possibility, or newly discovered feature idea is not sufficient.
 
 ---
 
 # 7. Phase 1B Definition of Done
 
-Phase 1B is complete when:
+All completion conditions are satisfied:
 
-- The Architecture Index identifies all frozen canonical documents
-- The canonical terminology glossary is approved
-- MVP business objects are classified and frozen
-- MVP relationships are classified and frozen
-- The decision pipeline is internally consistent
-- The first vertical slice is explicitly defined
-- SQLAlchemy implementation can begin without unresolved business-model decisions
-- Deferred concepts are recorded outside the MVP baseline
+- The Architecture Index identifies the frozen canonical documents.
+- Canonical terminology is approved.
+- MVP business objects and lifecycles are frozen.
+- MVP relationships and retention rules are frozen.
+- The decision pipeline is internally consistent.
+- Architecture invariants are explicit.
+- The first vertical slice is defined and testable.
+- Deferred concepts remain outside the MVP baseline.
+- SQLAlchemy implementation can begin without unresolved business-model decisions.
 
 ---
 
-# 8. Immediate Next Action
+# 8. Next Phase
 
-Begin Gate 1 and Gate 2 together by reviewing the Business Object Model and producing the MVP object classification.
-
-The first required decision is the canonical organizational root:
+Phase 2 begins with implementation readiness translated into technical design:
 
 ```text
-Enterprise → Market → Store → Department
+Frozen Business Architecture
+        ↓
+SQLAlchemy Models
+        ↓
+Alembic Migrations
+        ↓
+Repositories and Services
+        ↓
+AI and Evaluation Services
+        ↓
+APIs
+        ↓
+User Workflows
 ```
 
-Once that identity chain is frozen, the remaining operational, management, intelligence, and decision objects can attach to a stable organizational context.
+Architecture is now a contract. The default activity is implementation, not another vocabulary exercise.
