@@ -3,7 +3,7 @@
 
 **Status:** Canonical navigation document  
 **Branch:** `mi-v5`  
-**Phase:** 1A - Repository Stabilization
+**Phase:** 1B - Architecture Freeze
 
 ---
 
@@ -17,7 +17,7 @@ Its purpose is to:
 - Identify the canonical document for each architectural subject
 - Prevent overlapping or duplicate architecture documents
 - Make missing architecture visible rather than quietly ignored
-- Support the Phase 1B architecture freeze
+- Govern the Phase 1B architecture freeze
 
 A new contributor should begin here before reading individual architecture documents.
 
@@ -57,6 +57,7 @@ The platform exists to improve management decisions, not merely produce more rep
 
 | Architectural Subject | Canonical Document | Status |
 |---|---|---|
+| Phase 1B Architecture Freeze | [Phase-1B-Architecture-Freeze.md](Phase-1B-Architecture-Freeze.md) | Active governing document |
 | Executive Overview | `Executive-Overview.md` | To verify or create |
 | Product Vision | `Product-Vision.md` | To verify or create |
 | Management Operating Model | `Management-Operating-Model.md` | To verify or create |
@@ -66,7 +67,7 @@ The platform exists to improve management decisions, not merely produce more rep
 
 | Architectural Subject | Canonical Document | Status |
 |---|---|---|
-| Business Object Model | `Business-Object-Model.md` | To verify or create |
+| Business Object Model | [Business-Object-Model.md](Business-Object-Model.md) | Gate 1 and Gate 2 review active |
 | Managed Store | `Managed-Store.md` | Canonical object review pending |
 | Business Measurement | `Business-Measurement.md` | To verify or create |
 | Signal | `Signal-Architecture.md` | To verify or create |
@@ -154,6 +155,8 @@ A document is not canonical merely because it is older, longer, or written with 
 | Status | Meaning |
 |---|---|
 | Existing canonical document | Confirmed file and current source of truth |
+| Active governing document | Controls the current architecture phase |
+| Gate review active | Under explicit Phase 1B review and not yet frozen |
 | Canonical object review pending | Existing concepts or implementations require reconciliation |
 | To verify or create | Expected architectural subject, but the canonical file has not yet been confirmed |
 | Superseded | Retained temporarily while content is merged, then removed |
@@ -161,22 +164,28 @@ A document is not canonical merely because it is older, longer, or written with 
 
 ---
 
-# 7. Phase 1A Completion Criteria for This Index
+# 7. Phase 1A Completion
 
-The Architecture Index is considered complete for Phase 1A when:
+Phase 1A is complete.
 
-- Every architecture document in the repository is represented here
-- Every represented link points to a real canonical file
-- Duplicate or superseded architecture documents are identified
-- Missing subjects are explicitly marked rather than assumed complete
-- Session documents are separated from canonical architecture
-- Naming follows `Documentation-Naming-Standard.md`
+Completed work includes:
 
-This initial index establishes the structure. The repository audit will replace every `To verify or create` status with a confirmed disposition.
+- Architecture inventory and audit
+- Canonical documentation naming
+- Session audit and restoration of Session 009
+- Duplicate-principles consolidation
+- Source and template backup removal
+- Legacy archive removal
+- Browser-download contamination removal
+- Repository sanitation automation
+
+Repository sanitation was completed in commit `bf454db`.
 
 ---
 
 # 8. Phase 1B Architecture Freeze
+
+Phase 1B is governed by [Phase-1B-Architecture-Freeze.md](Phase-1B-Architecture-Freeze.md).
 
 During Phase 1B:
 
@@ -190,19 +199,17 @@ After the freeze, the default response to new architecture ideas is implementati
 
 ---
 
-# 9. Current Architecture Priorities
+# 9. Current Architecture Priority
 
-The next architecture subjects requiring confirmation are:
+The active work is Gate 1 and Gate 2:
 
-1. Managed Store canonical object
-2. Management Decision architecture
-3. Action and Commitment architecture
-4. Validation Engine
-5. Organizational Learning
-6. Executive Workspace
-7. Data Architecture
+1. Freeze canonical terminology
+2. Review and classify every Business Object Model object as MVP Core, MVP Supporting, Post-MVP, or merged/rejected
+3. Freeze the organizational identity chain: Enterprise → Market → Store → Department
+4. Reconcile the Managed Store concept with the canonical Store object
+5. Prepare the approved MVP object set for relationship review
 
-These subjects define the minimum vertical slice required to prove the Management Intelligence operating model.
+These decisions establish the minimum stable ontology required before SQLAlchemy implementation.
 
 ---
 
