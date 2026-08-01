@@ -8,6 +8,7 @@ from .organizational_group import (
     OrganizationalGroup,
     OrganizationalGroupHierarchy,
 )
+from .position import Position
 
 __all__ = [
     "Department",
@@ -17,4 +18,5 @@ __all__ = [
     "ManagedStoreGroupMembership",
     "OrganizationalGroup",
     "OrganizationalGroupHierarchy",
+    "Position",
 ]
