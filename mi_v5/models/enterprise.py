@@ -8,7 +8,8 @@ from datetime import datetime
 from sqlalchemy import CheckConstraint, DateTime, Enum, Index, String, func, inspect
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
-from mi_v5.database import MIEntity, SoftRetirementMixin
+from mi_v5.database.entities import MIEntity
+from mi_v5.database.mixins import SoftRetirementMixin
 from mi_v5.enums import EnterpriseStatus
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -103,14 +104,20 @@ class Enterprise(SoftRetirementMixin, MIEntity):
             )
         return normalized
 
-    def _assert_immutable(self, attribute_name: str, new_value: str) -> None:
-        state = inspect(self)
-        current_value = self.__dict__.get(attribute_name)
-        if state.persistent and current_value is not None and current_value != new_value:
-            raise ValueError(
-                f"Enterprise {attribute_name} is immutable after creation."
-            )
+def _assert_immutable(self, attribute_name: str, new_value: str) -> None:
+    state = inspect(self)
 
+    if not state.persistent:
+        return
+
+    # getattr() reloads an expired value from the database when necessary.
+    current_value = getattr(self, attribute_name, None)
+
+    if current_value is not None and current_value != new_value:
+        raise ValueError(
+            f"Enterprise {attribute_name} is immutable after creation."
+        )
+    
     def __repr__(self) -> str:
         return (
             f"<Enterprise enterprise_id={self.id} "
