@@ -2,6 +2,7 @@
 
 from .department_status import DepartmentStatus
 from .department_type import DepartmentType
+from .employee_status import EmployeeStatus
 from .enterprise_status import EnterpriseStatus
 from .managed_store_status import ManagedStoreStatus
 from .organizational_group_status import OrganizationalGroupStatus
@@ -10,6 +11,7 @@ from .organizational_group_type import OrganizationalGroupType
 __all__ = [
     "DepartmentStatus",
     "DepartmentType",
+    "EmployeeStatus",
     "EnterpriseStatus",
     "ManagedStoreStatus",
     "OrganizationalGroupStatus",
