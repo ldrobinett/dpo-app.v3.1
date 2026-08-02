@@ -11,6 +11,8 @@ from .organizational_group_status import OrganizationalGroupStatus
 from .organizational_group_type import OrganizationalGroupType
 from .position_status import PositionStatus
 from .role_status import RoleStatus
+from .team_status import TeamStatus
+from .team_type import TeamType
 
 __all__ = [
     "CapabilityStatus",
@@ -24,4 +26,6 @@ __all__ = [
     "OrganizationalGroupType",
     "PositionStatus",
     "RoleStatus",
+    "TeamStatus",
+    "TeamType",
 ]
