@@ -1,5 +1,6 @@
 """Business-language enumerations for Management Intelligence v5."""
 
+from .capability_status import CapabilityStatus
 from .department_status import DepartmentStatus
 from .department_type import DepartmentType
 from .employee_assignment_status import EmployeeAssignmentStatus
@@ -12,6 +13,7 @@ from .position_status import PositionStatus
 from .role_status import RoleStatus
 
 __all__ = [
+    "CapabilityStatus",
     "DepartmentStatus",
     "DepartmentType",
     "EmployeeAssignmentStatus",
