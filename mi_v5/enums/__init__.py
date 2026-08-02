@@ -9,6 +9,7 @@ from .managed_store_status import ManagedStoreStatus
 from .organizational_group_status import OrganizationalGroupStatus
 from .organizational_group_type import OrganizationalGroupType
 from .position_status import PositionStatus
+from .role_status import RoleStatus
 
 __all__ = [
     "DepartmentStatus",
@@ -20,4 +21,5 @@ __all__ = [
     "OrganizationalGroupStatus",
     "OrganizationalGroupType",
     "PositionStatus",
+    "RoleStatus",
 ]
