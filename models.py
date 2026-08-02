@@ -73,7 +73,7 @@ class Role(db.Model):
         db.Index("ix_role_store_id", "store_id"),
     )
     capabilities = db.relationship(
-        "Capability",
+        "models.Capability",
         secondary=role_capabilities,
         backref="roles",
         lazy="subquery"
@@ -103,7 +103,7 @@ class User(db.Model, UserMixin):
         db.Index("ix_user_store_id", "store_id"),
     )
     roles = db.relationship(
-        "Role",
+        "models.Role",
         secondary=user_roles,
         backref="users",
         lazy="subquery"
