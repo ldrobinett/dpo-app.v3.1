@@ -12,6 +12,7 @@ from .organizational_group import (
 )
 from .position import Position
 from .role import Role
+from .role_capability import RoleCapability
 
 __all__ = [
     "Capability",
@@ -25,4 +26,5 @@ __all__ = [
     "OrganizationalGroupHierarchy",
     "Position",
     "Role",
+    "RoleCapability",
 ]
