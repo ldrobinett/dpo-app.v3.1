@@ -14,6 +14,7 @@ from .position import Position
 from .role import Role
 from .role_capability import RoleCapability
 from .team import Team
+from .team_membership import TeamMembership
 
 __all__ = [
     "Capability",
@@ -29,4 +30,5 @@ __all__ = [
     "Role",
     "RoleCapability",
     "Team",
+    "TeamMembership",
 ]
