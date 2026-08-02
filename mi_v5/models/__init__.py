@@ -2,6 +2,7 @@
 
 from .department import Department
 from .employee import Employee
+from .employee_assignment import EmployeeAssignment
 from .enterprise import Enterprise
 from .managed_store import ManagedStore, ManagedStoreGroupMembership
 from .organizational_group import (
@@ -13,6 +14,7 @@ from .position import Position
 __all__ = [
     "Department",
     "Employee",
+    "EmployeeAssignment",
     "Enterprise",
     "ManagedStore",
     "ManagedStoreGroupMembership",
