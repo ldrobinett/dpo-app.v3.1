@@ -1,5 +1,6 @@
 """Management Intelligence v5 persisted business entities."""
 
+from .capability import Capability
 from .department import Department
 from .employee import Employee
 from .employee_assignment import EmployeeAssignment
@@ -13,6 +14,7 @@ from .position import Position
 from .role import Role
 
 __all__ = [
+    "Capability",
     "Department",
     "Employee",
     "EmployeeAssignment",
