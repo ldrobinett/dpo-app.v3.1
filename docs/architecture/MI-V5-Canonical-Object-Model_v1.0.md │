@@ -1,0 +1,269 @@
+MI V5 Canonical Object Model v1.0
+
+Version: 1.0
+Date: 2026-08-15
+Status: FROZEN / PASS
+
+Architecture Rule
+
+One Object Model, Multiple Intelligence Domains.
+
+The twelve Management Intelligence™ domains apply specialized reasoning
+over one shared canonical representation of business reality.
+
+The 11 Canonical Object Families
+
+1. Entity
+
+An identifiable business, organizational, operational, human, customer,
+asset, transaction, or other object about which MI can hold governed
+evidence and reason.
+
+2. Relationship
+
+A governed, potentially effective-dated connection between two or more
+Entities that gives evidence organizational, operational, causal,
+ownership, responsibility, or contextual meaning.
+
+3. Event
+
+An occurrence at a defined point or interval in time that may create,
+alter, resolve, or materially contextualize one or more Entities,
+Relationships, Conditions, Outcomes, or reasoning states.
+
+Boundary: Evidence tells MI what it knows. Event represents what
+happened. Condition represents the state that exists.
+
+4. Evidence
+
+A governed observation, measurement, record, declaration, external fact,
+or other supported information available to MI for reasoning.
+
+Evidence retains source, provenance, timestamp/effective period, tenant,
+relevant Entity/Relationship, freshness, confidence where applicable,
+entitlement/permission restrictions, and lineage.
+
+5. Condition
+
+An evidence-supported state, pattern, constraint, strength, opportunity,
+risk, dependency, or other meaningful operating circumstance inferred or
+directly established from Evidence.
+
+Opportunity, Risk, Constraint, Strength, Dependency, Value Leakage,
+Value Erosion, Promise Risk, Strategic Unknown, Early Warning, Emerging
+Opportunity, and similar concepts are primarily Condition types rather
+than additional foundational objects.
+
+6. Outcome
+
+An observed, desired, expected, forecast, scenario, budget, or target
+result produced or influenced by Conditions, Decisions, Interventions,
+and external factors.
+
+Canonical states include Actual/Observed, Desired, Expected, Forecast,
+Scenario, Budget, and Target. They must never silently substitute for
+one another.
+
+7. Assumption
+
+An explicit proposition treated as true for a defined reasoning purpose
+despite not being established as an observed fact.
+
+Material Assumptions retain source, provenance, supporting evidence,
+confidence, effective period, validation status, dependent reasoning
+objects, and change history.
+
+8. Decision
+
+A governed management choice to act, not act, allocate resources, accept
+risk, select an alternative, establish direction, or otherwise influence
+the business.
+
+Possible lifecycle states include Proposed, Evaluated, Selected,
+Rejected, Deferred, and Superseded.
+
+A No-Action Decision is legitimate.
+
+9. Intervention
+
+A specific management action taken to alter an evidence-supported
+Condition or influence an Outcome.
+
+Possible lifecycle states include Recommended, Accepted, Scheduled,
+Executed, Completed, and Evaluated.
+
+A Recommended Intervention is not an Executed Intervention.
+
+10. Pattern
+
+A recurring evidence-supported relationship among Entities, Events,
+Conditions, Decisions, Interventions, or Outcomes observed across time
+or context and retained because it may improve future reasoning.
+
+Operational Wisdom is a mature Pattern state supported by sufficient
+persistence, replication, applicability, relevance, and known
+boundaries.
+
+11. Intelligence Object
+
+A governed, evidence-linked management conclusion produced by MI that
+explains a material Condition, relationship, implication, opportunity,
+risk, pathway, forecast, recommendation, or decision-relevant insight.
+
+Material Intelligence Objects retain supporting Evidence, Conditions,
+reasoning lineage, confidence, applicable Entities/Relationships,
+management role/altitude, materiality, horizon, revalidation state, and
+superseding intelligence where applicable.
+
+Canonical Reasoning Flow
+
+Entities exist and relate.
+Events happen to them.
+Evidence tells MI what is known about them.
+Evidence supports Conditions and Outcomes.
+Relationships establish context and responsibility.
+Patterns emerge across Evidence, Events, Conditions, Decisions,
+Interventions, and Outcomes.
+Assumptions permit governed reasoning where observed evidence ends.
+MI produces Intelligence Objects.
+Management makes Decisions.
+Decisions produce Interventions or deliberate No-Action.
+Interventions and Events alter Conditions.
+Conditions influence Outcomes.
+Outcomes test Decisions, Interventions, Assumptions, and
+Intelligence.
+Repeated validated relationships become Patterns.
+Patterns improve future Intelligence.
+
+Provenance Classes
+
+Observed
+
+Created from an authoritative or governed source. Observed means
+recorded by a governed source; it does not guarantee correctness.
+
+Declared
+
+Explicitly provided by an authorized human or tenant.
+
+Derived
+
+Produced deterministically from governed inputs.
+
+Inferred
+
+Produced through MI reasoning.
+
+Epistemic Status
+
+Epistemic status is distinct from Confidence. Applicable statuses may
+include Recorded, Corroborated, Contested, Unverified, Superseded,
+Invalidated, and Inferred.
+
+Confidence
+
+Confidence is a governed attribute/dimension, not a canonical object.
+Evidence Confidence, Causal Confidence, Forecast Confidence, Scenario
+Confidence, Pathway Confidence, and Comparison Sufficiency are
+contextual confidence dimensions.
+
+Historical Integrity
+
+Canonical MI objects that materially contributed to prior reasoning,
+decisions, interventions, or outcomes must retain their historical
+state and lineage when subsequently corrected, superseded,
+invalidated, or reinterpreted.
+
+MI does not overwrite prior intelligence merely because better evidence
+later becomes available.
+
+Temporal Evidence Lineage
+
+If MI observes X on Tuesday and a source corrects X to Y on Wednesday,
+MI preserves the evidence state available Tuesday for reconstruction of
+Tuesday's reasoning and management decisions while recording the later
+correction and superseding intelligence.
+
+Human vs MI Authority
+
+MI may observe, derive, infer, compare, diagnose, forecast, model
+scenarios, identify alternatives, recommend, challenge, evaluate, and
+learn.
+
+Authorized humans retain management Decision authority, including
+hiring, termination, promotion, compensation, discipline, succession
+selection, capital authorization, strategic direction, risk acceptance,
+and tenant configuration.
+
+Decision Authority Principle
+
+MI may identify, evaluate, recommend, and learn from management
+alternatives, but a management Decision becomes authoritative only
+through an appropriately authorized human or governed external decision
+process.
+
+Canonical vs Tenant Ownership
+
+Canonical Semantics + Tenant Configuration
+
+Canonical MI owns semantic meaning. The tenant owns/configures permitted
+tenant-specific values, policies, terminology, strategic intent,
+mappings, roles, assumptions, and purchased capabilities.
+
+Tenant configuration does not redefine the canonical foundation.
+
+Entitlement, Permission, Evidence, and Display
+
+These are separate questions:
+
+Can MI know it?
+
+Can MI use it?
+
+Can this user see it?
+
+Has this tenant purchased this intelligence capability?
+
+Canonical chain:
+
+Capability → Tenant Entitlement → Role Permission → Evidence
+Availability → Relevant & Valuable Display
+
+Concepts Consolidated Without New Foundational Objects
+
+Condition types: Opportunity, Risk, Constraint, Strength,
+Dependency, Value Leakage, Value Erosion, Promise Risk, Strategic
+Unknown, Systemic Condition, Early Warning, Emerging Opportunity.
+
+Outcome states: Actual, Desired, Expected, Forecast, Scenario,
+Budget, Target.
+
+Confidence dimensions: Evidence, Causal, Forecast, Scenario,
+Pathway, Comparison.
+
+Reasoning methods/constructs: Root-Cause Compression, Scenario,
+Management Pathway, ODI, OCI, MI Effectiveness, Intervention
+Effectiveness.
+
+Mature Pattern state: Operational Wisdom.
+
+Event classifications: Economic Event, Structural Change Event.
+
+Scale Neutrality
+
+The same eleven objects support one rooftop, owner/operator, GM-led
+dealership, small group, multi-store organization, region, and
+enterprise.
+
+Scale changes scope, Relationships, comparison context, management
+altitude, entitlement, permission, and display compression. Scale does
+not change the underlying object model.
+
+Final Architecture Rule
+
+MI V5 is one governed management reasoning system operating over one
+canonical model of business reality. The twelve intelligence domains
+are specialized reasoning lenses, not separate applications or
+separate truths.
+
+Status: FROZEN / PASS
