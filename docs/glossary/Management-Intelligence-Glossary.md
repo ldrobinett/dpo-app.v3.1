@@ -1974,3 +1974,155 @@ Outcome Quality, Pattern maturity, transferability, Wisdom Decay, MI
 self-correction, cross-domain arbitration, Intelligence Unification, and
 the complete Observe → Understand → Diagnose → Focus → Advise → Decide →
 Act → Measure → Evaluate → Learn → Adapt loop.
+
+MI v5 --- Session 030 Vocabulary
+
+Date: September 5, 2026
+
+Word / Term             Pronunciation                  Plain-English
+Definition
+
+Signal              SIG-nuhl                   An observation
+suggesting something
+meaningful may be
+happening and deserves
+evaluation. It is not
+yet proof of a
+Condition or cause.
+
+Integrity           in-TEG-rih-tee             Whether data,
+assumptions or governed
+inputs are complete,
+accurate, current and
+maintained according to
+the required method.
+
+Hypothesis          high-PAH-thuh-sis          A possible explanation
+that can be tested
+against evidence.
+
+Inference           IN-fer-ens                 A conclusion reasonably
+supported by known
+facts even though it
+was not directly
+observed.
+
+Disconfirming       dis-kuhn-FUR-ming          Evidence that weakens,
+contradicts or shows an
+explanation may be
+wrong.
+
+Experimental        ek-SPER-uh-MEN-tuhl        An intervention tried
+with a defined expected
+result so its
+effectiveness can be
+evaluated, but which is
+not yet sufficiently
+proven by validated
+outcome history.
+
+Counterfactual      counter-FAK-choo-ul        A statement about what
+would have happened if
+a different action had
+been taken. An untested
+counterfactual is not
+fact.
+
+Progressive         pruh-GRES-iv               In explanation design,
+revealing additional
+detail as needed
+instead of dumping
+every supporting fact
+on the user at once.
+
+Traceability        tray-suh-BIL-ih-tee        The ability to follow a
+conclusion backward
+through the formulas,
+inputs, evidence and
+sources that produced
+it.
+
+Epistemic           ep-ih-STEE-mik             Relating to what we
+know, how we know it
+and how certain that
+knowledge is.
+
+Materiality         muh-teer-ee-AL-ih-tee      How significant a
+Condition is relative
+to its magnitude,
+consequence and
+competing management
+priorities.
+
+Actionability       AK-shuh-nuh-BIL-ih-tee     The degree to which
+management can
+practically do
+something meaningful
+about a Condition
+within the relevant
+horizon.
+
+Recoverability      ree-KUV-er-uh-BIL-ih-tee   The degree to which a
+performance gap or
+adverse Condition can
+still reasonably be
+corrected within the
+available time and
+circumstances.
+
+Feasibility         fee-zuh-BIL-ih-tee         Whether an intervention
+can realistically be
+executed given
+authority, time,
+capacity, dependencies
+and operating
+circumstances.
+
+Durability          dur-uh-BIL-ih-tee          Whether an improvement
+is likely to persist
+instead of disappearing
+when temporary
+intervention stops.
+
+Critical            KRIT-ih-kuhl               Action that must occur
+within the immediate
+horizon because delay
+creates material
+consequence, reduces
+recoverability or
+closes an important
+action window.
+
+Need                NEED                       Action that should
+occur in the near term
+because delay is likely
+to increase Concern,
+reduce recoverability
+or cause the issue to
+become Critical.
+
+Nice                NICE                       An action with
+supported value that
+can currently be
+deferred without
+material consequence.
+Useful, but not now.
+
+Fact vs. Conjecture Ladder
+
+Classification                      Meaning
+
+Fact                            Directly supported by validated
+evidence.
+
+Supported Inference             A conclusion strongly supported by
+facts although not directly
+observed.
+
+Hypothesis                      A plausible explanation still
+requiring testing.
+
+Unknown                         Available evidence is insufficient
+for a supported conclusion.
+
+Session memory phrase: MI uses facts, not conjectur
