@@ -167,7 +167,15 @@ def build_evidence_pack(
         "verified"
         if technician_snapshots
         and all(item["authority_status"] == "verified" for item in technician_snapshots)
-        else "unverified_legacy"
+        else (
+            "provisional"
+            if technician_snapshots
+            and all(
+                item["authority_status"] in {"verified", "provisional"}
+                for item in technician_snapshots
+            )
+            else "unverified_legacy"
+        )
     )
     limitations = [
         "Supported demand cannot be reproduced from the available legacy sources.",

@@ -110,6 +110,18 @@ class DPOGovernanceTests(unittest.TestCase):
         self.assertEqual(rows[0], ("2026-10-01", "2026-10-31", 8.0))
         self.assertEqual(rows[1], ("2026-11-01", None, 8.5))
 
+    def test_incomplete_identity_and_dpo_block_apply(self) -> None:
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute(
+                "UPDATE team_member SET tech_number = '', daily_production_objective = 0 "
+                "WHERE id = 10"
+            )
+            connection.commit()
+        plan = self._plan(date(2026, 10, 1))
+        self.assertTrue(plan["blocking_issues"])
+        with self.assertRaisesRegex(ValueError, "DPO plan is blocked"):
+            apply_current_dpo_plan(self.database, plan)
+
 
 if __name__ == "__main__":
     unittest.main()

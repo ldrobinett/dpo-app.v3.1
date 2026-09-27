@@ -25,6 +25,11 @@ def main() -> int:
     parser.add_argument("--effective-from", type=date.fromisoformat, required=True)
     parser.add_argument("--authorized-by-id", required=True)
     parser.add_argument("--reason", required=True)
+    parser.add_argument(
+        "--authority-status",
+        choices=("provisional", "verified"),
+        default="provisional",
+    )
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
 
@@ -33,17 +38,22 @@ def main() -> int:
         args.effective_from,
         args.authorized_by_id,
         args.reason,
-        args.store_id,
+        legacy_store_id=args.store_id,
+        authority_status=args.authority_status,
     )
     output = {
         "mode": "apply" if args.apply else "dry_run",
         "effective_from": plan["effective_from"],
         "authorized_by_id": plan["authorized_by_id"],
+        "authority_status": plan["authority_status"],
         "technician_count": len(plan["technicians"]),
         "manual_override_count": sum(
             1 for item in plan["technicians"] if item["is_override"]
         ),
         "technicians": plan["technicians"],
+        "blocked": bool(plan["blocking_issues"]),
+        "blocking_issues": plan["blocking_issues"],
+        "limitations": plan["limitations"],
     }
     if args.apply:
         output.update(apply_current_dpo_plan(args.database, plan))

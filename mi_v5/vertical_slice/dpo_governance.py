@@ -28,12 +28,15 @@ def build_current_dpo_plan(
     authorized_by_id: str,
     authorization_reason: str,
     legacy_store_id: int = 1,
+    authority_status: str = "provisional",
 ) -> dict[str, object]:
     """Build a read-only prospective plan from active legacy technician rows."""
 
     reason = authorization_reason.strip()
     if not reason:
         raise ValueError("authorization_reason is required")
+    if authority_status not in {"provisional", "verified"}:
+        raise ValueError("authority_status must be provisional or verified")
     path = Path(database_path)
     with closing(sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True)) as connection:
         connection.row_factory = sqlite3.Row
@@ -69,7 +72,7 @@ def build_current_dpo_plan(
             raise ValueError("authorized_by_id must identify an Employee in this Enterprise")
         rows = connection.execute(
             """
-            SELECT tm.id, tm.tech_number, tm.daily_production_objective,
+            SELECT tm.id, tm.name, tm.tech_number, tm.daily_production_objective,
                    tm.dpo_calculation_mode, tm.hist_frh_total,
                    tm.hist_days_in_period, tm.hist_training_days,
                    tm.hist_vacation_days, tm.expected_lift_percent
@@ -82,14 +85,32 @@ def build_current_dpo_plan(
         ).fetchall()
 
     technicians = []
+    blocking_issues = []
+    limitations = []
     for row in rows:
         mode = str(row["dpo_calculation_mode"] or "manual")
         calculated = _calculated_dpo(row)
+        member_id = int(row["id"])
+        tech_number = str(row["tech_number"] or "").strip()
+        dpo_value = float(row["daily_production_objective"] or 0.0)
+        if not tech_number:
+            blocking_issues.append(
+                f"Team member {member_id} ({row['name']}) has no technician number."
+            )
+        if dpo_value <= 0:
+            blocking_issues.append(
+                f"Team member {member_id} ({row['name']}) has a non-positive DPO."
+            )
+        if calculated <= 0:
+            limitations.append(
+                f"Team member {member_id} ({row['name']}) lacks usable calculation history."
+            )
         technicians.append(
             {
-                "legacy_team_member_id": int(row["id"]),
-                "tech_number": row["tech_number"],
-                "dpo_value": float(row["daily_production_objective"] or 0.0),
+                "legacy_team_member_id": member_id,
+                "name": row["name"],
+                "tech_number": tech_number,
+                "dpo_value": dpo_value,
                 "calculation_mode": mode,
                 "calculated_dpo": calculated,
                 "is_override": mode != "calculated",
@@ -102,6 +123,10 @@ def build_current_dpo_plan(
                 },
             }
         )
+    if authority_status == "verified" and limitations:
+        blocking_issues.append(
+            "Verified authority requires usable calculation history for every included technician."
+        )
     return {
         "enterprise_id": str(scope["enterprise_id"]),
         "managed_store_id": str(scope["managed_store_id"]),
@@ -110,7 +135,10 @@ def build_current_dpo_plan(
         "effective_from": effective_from.isoformat(),
         "authorized_by_id": authorized_by_id,
         "authorization_reason": reason,
+        "authority_status": authority_status,
         "technicians": technicians,
+        "blocking_issues": blocking_issues,
+        "limitations": limitations,
     }
 
 
@@ -120,6 +148,10 @@ def apply_current_dpo_plan(
     """Atomically close prior records and insert the governed prospective set."""
 
     effective_from = date.fromisoformat(str(plan["effective_from"]))
+    if plan.get("blocking_issues"):
+        raise ValueError(
+            "DPO plan is blocked: " + " ".join(str(item) for item in plan["blocking_issues"])
+        )
     close_at = (effective_from - timedelta(days=1)).isoformat()
     inserted = closed = unchanged = 0
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -146,6 +178,7 @@ def apply_current_dpo_plan(
                         and current["calculation_mode"] == technician["calculation_mode"]
                         and current["authorized_by_id"] == plan["authorized_by_id"]
                         and current["authorization_reason"] == plan["authorization_reason"]
+                        and current["authority_status"] == plan["authority_status"]
                         and current["calculation_inputs_json"] == inputs_json
                     )
                     if not same:
@@ -177,8 +210,8 @@ def apply_current_dpo_plan(
                         authorization_reason, calculation_inputs_json,
                         source_reference, created_at, created_by_id, updated_at,
                         updated_by_id, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'verified',
-                              ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                              ?, ?, ?, ?, 1)
                     """,
                     (
                         uuid4().hex,
@@ -191,6 +224,7 @@ def apply_current_dpo_plan(
                         technician["calculation_mode"],
                         technician["calculated_dpo"],
                         int(technician["is_override"]),
+                        plan["authority_status"],
                         plan["authorized_by_id"],
                         plan["authorization_reason"],
                         inputs_json,

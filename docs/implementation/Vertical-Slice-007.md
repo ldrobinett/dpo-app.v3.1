@@ -15,6 +15,8 @@ architecture.
   rewriting it;
 - idempotent preview/apply CLI for prospectively authorizing the current active
   technician set;
+- provisional authority by default, with apply blocked for missing technician
+  identity, non-positive DPO, or an unsupported request for verified status;
 - period loading and evidence packs prefer a verified DPO record only when it
   covers the complete requested period;
 - technician removal is now retirement, preserving schedules, work logs, and
