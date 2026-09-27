@@ -4,6 +4,8 @@ from .capability_status import CapabilityStatus
 from .department_status import DepartmentStatus
 from .department_type import DepartmentType
 from .decision_disposition import DecisionDisposition
+from .demand_evidence_status import DemandEvidenceStatus
+from .dpo_governance_status import DPOGovernanceStatus
 from .employee_assignment_status import EmployeeAssignmentStatus
 from .employee_status import EmployeeStatus
 from .enterprise_status import EnterpriseStatus
@@ -27,6 +29,8 @@ __all__ = [
     "DepartmentStatus",
     "DepartmentType",
     "DecisionDisposition",
+    "DemandEvidenceStatus",
+    "DPOGovernanceStatus",
     "EmployeeAssignmentStatus",
     "EmployeeStatus",
     "EnterpriseStatus",
