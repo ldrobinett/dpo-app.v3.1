@@ -49,7 +49,10 @@ def analyze_period_drivers(
                 )
                 SELECT ROUND(AVG(frh), 4) AS average_frh_per_ro,
                        ROUND(MIN(frh), 4) AS minimum_frh_per_ro,
-                       ROUND(MAX(frh), 4) AS maximum_frh_per_ro
+                       ROUND(MAX(frh), 4) AS maximum_frh_per_ro,
+                       SUM(CASE WHEN frh < 0 THEN 1 ELSE 0 END) AS negative_frh_ros,
+                       SUM(CASE WHEN frh = 0 THEN 1 ELSE 0 END) AS zero_frh_ros,
+                       SUM(CASE WHEN frh > 0 THEN 1 ELSE 0 END) AS positive_frh_ros
                 FROM ro_totals
                 """,
                 (legacy_store_id, period_start.isoformat(), period_end.isoformat()),
@@ -114,7 +117,9 @@ def analyze_period_drivers(
     configured_gp_per_frh = None
     if None not in (elr, parts_ratio, labor_margin, parts_margin):
         configured_gp_per_frh = round(
-            elr * labor_margin + (elr * parts_ratio) * parts_margin, 4
+            elr * (labor_margin / 100.0)
+            + (elr * parts_ratio) * (parts_margin / 100.0),
+            4,
         )
 
     observed_total_gross = float(metrics["total_gross"] or 0.0) if metrics else None
@@ -155,6 +160,7 @@ def analyze_period_drivers(
             "parts_to_labor_ratio": parts_ratio,
             "labor_margin": labor_margin,
             "parts_margin": parts_margin,
+            "margin_unit": "percent",
             "estimated_gp_per_frh": configured_gp_per_frh,
         },
         "causal_boundary": {

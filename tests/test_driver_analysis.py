@@ -49,7 +49,7 @@ class DriverAnalysisTests(unittest.TestCase):
                 );
                 INSERT INTO user VALUES (1, 1);
                 INSERT INTO financial_inputs VALUES (
-                    1, 1, 100.0, NULL, 1.0, NULL, 0.5, NULL, 0.4, NULL
+                    1, 1, 100.0, NULL, 1.0, NULL, 50.0, NULL, 40.0, NULL
                 );
                 """
             )
@@ -64,10 +64,14 @@ class DriverAnalysisTests(unittest.TestCase):
         self.assertEqual(result["production"]["actual_frh"], 8.0)
         self.assertEqual(result["production"]["ro_count"], 2)
         self.assertEqual(result["production"]["frh_per_ro"], 4.0)
+        self.assertEqual(result["production"]["negative_frh_ros"], 0)
         self.assertEqual(result["observed_economics"]["gross_per_cp_ro"], 500.0)
         self.assertEqual(
             result["configured_economic_assumptions"]["estimated_gp_per_frh"],
             90.0,
+        )
+        self.assertEqual(
+            result["configured_economic_assumptions"]["margin_unit"], "percent"
         )
         self.assertFalse(result["causal_boundary"]["correction_allowed"])
 
