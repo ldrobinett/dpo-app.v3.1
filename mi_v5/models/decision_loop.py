@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,6 +36,9 @@ class RecommendationOutput(TenantEntity):
 
     managed_store_id: Mapped[UUID] = mapped_column(UUID_TYPE, nullable=False)
     department_id: Mapped[UUID] = mapped_column(UUID_TYPE, nullable=False)
+    supersedes_recommendation_output_id: Mapped[UUID | None] = mapped_column(
+        UUID_TYPE, nullable=True
+    )
     case_id: Mapped[str] = mapped_column(String(180), nullable=False)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -86,10 +90,24 @@ class RecommendationOutput(TenantEntity):
             name="uq_recommendation_outputs_tenant_identity",
         ),
         Index(
+            "uq_recommendation_outputs_supersedes_once",
+            "enterprise_id",
+            "supersedes_recommendation_output_id",
+            unique=True,
+        ),
+        Index(
             "ix_recommendation_outputs_case",
             "enterprise_id",
             "case_id",
             "generated_at",
+        ),
+        Index(
+            "uq_recommendation_outputs_active_case",
+            "enterprise_id",
+            "case_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active'"),
         ),
     )
 

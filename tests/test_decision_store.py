@@ -4,6 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -32,6 +33,7 @@ CREATE TABLE recommendation_outputs (
     enterprise_id TEXT NOT NULL,
     managed_store_id TEXT NOT NULL,
     department_id TEXT NOT NULL,
+    supersedes_recommendation_output_id TEXT,
     case_id TEXT NOT NULL,
     generated_at TEXT NOT NULL,
     proposed_response TEXT NOT NULL,
@@ -47,6 +49,9 @@ CREATE TABLE recommendation_outputs (
     version INTEGER NOT NULL,
     UNIQUE (enterprise_id, content_hash)
 );
+CREATE UNIQUE INDEX uq_recommendation_outputs_active_case
+ON recommendation_outputs (enterprise_id, case_id)
+WHERE status = 'active';
 CREATE TABLE management_decisions (
     management_decision_id TEXT PRIMARY KEY,
     enterprise_id TEXT NOT NULL,
@@ -215,6 +220,9 @@ class DecisionStoreTests(unittest.TestCase):
             "Source reconciliation already established complete coverage.",
         )
 
+        recommendation = self.store.get_recommendation(recommendation_id)
+        self.assertEqual(recommendation["status"], "resolved")
+
         with self.assertRaisesRegex(
             DecisionStoreError, "rejected or deferred"
         ):
@@ -248,6 +256,54 @@ class DecisionStoreTests(unittest.TestCase):
                 "Proceed with correction.",
                 "The evidence is now considered sufficient.",
             )
+
+    def test_evidence_refresh_supersedes_prior_recommendation(self) -> None:
+        first_id = self.store.record_recommendation(self.evidence, self.result)
+        self.store.record_decision(
+            first_id,
+            "accept",
+            "manager-1",
+            "Reconcile the uncovered dates.",
+            "Evidence continuity must be restored first.",
+        )
+        refreshed_evidence = replace(
+            self.evidence,
+            production_dates=self.evidence.scheduled_operating_dates,
+            actual_frh=24.0,
+        )
+        refreshed_result = evaluate_case(refreshed_evidence)
+        second_id = self.store.record_recommendation(
+            refreshed_evidence, refreshed_result
+        )
+
+        self.assertNotEqual(first_id, second_id)
+        with closing(sqlite3.connect(self.database)) as connection:
+            first = connection.execute(
+                """
+                SELECT status FROM recommendation_outputs
+                WHERE recommendation_output_id = ?
+                """,
+                (first_id,),
+            ).fetchone()
+            second = connection.execute(
+                """
+                SELECT status, supersedes_recommendation_output_id
+                FROM recommendation_outputs
+                WHERE recommendation_output_id = ?
+                """,
+                (second_id,),
+            ).fetchone()
+            active_count = connection.execute(
+                """
+                SELECT COUNT(*) FROM recommendation_outputs
+                WHERE enterprise_id = 'enterprise-1'
+                  AND case_id = ? AND status = 'active'
+                """,
+                (self.result.case_id,),
+            ).fetchone()[0]
+        self.assertEqual(first, ("superseded",))
+        self.assertEqual(second, ("active", first_id))
+        self.assertEqual(active_count, 1)
 
     def test_accepted_decision_creates_planned_action(self) -> None:
         recommendation_id = self.store.record_recommendation(

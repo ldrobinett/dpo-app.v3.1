@@ -118,21 +118,47 @@ class SQLiteDecisionStore:
                 if existing:
                     return str(existing["recommendation_output_id"])
 
+                prior = connection.execute(
+                    """
+                    SELECT recommendation_output_id
+                    FROM recommendation_outputs
+                    WHERE enterprise_id = ? AND case_id = ?
+                    ORDER BY generated_at DESC, created_at DESC
+                    LIMIT 1
+                    """,
+                    (evidence.enterprise_id, result.case_id),
+                ).fetchone()
+                supersedes_id = (
+                    str(prior["recommendation_output_id"]) if prior else None
+                )
+                if supersedes_id:
+                    connection.execute(
+                        """
+                        UPDATE recommendation_outputs
+                        SET status = 'superseded', updated_at = ?, version = version + 1
+                        WHERE enterprise_id = ?
+                          AND recommendation_output_id = ?
+                        """,
+                        (timestamp, evidence.enterprise_id, supersedes_id),
+                    )
+
                 connection.execute(
                     """
                     INSERT INTO recommendation_outputs (
                         recommendation_output_id, enterprise_id, managed_store_id,
-                        department_id, case_id, generated_at, proposed_response,
+                        department_id, supersedes_recommendation_output_id,
+                        case_id, generated_at, proposed_response,
                         expected_effect, attention_class, assumptions_json,
                         evidence_trace_json, snapshot_json, content_hash, status,
                         created_at, updated_at, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 1)
                     """,
                     (
                         recommendation_id,
                         evidence.enterprise_id,
                         evidence.managed_store_id,
                         evidence.department_id,
+                        supersedes_id,
                         result.case_id,
                         timestamp,
                         result.management_position.recommended_intervention,
@@ -173,12 +199,12 @@ class SQLiteDecisionStore:
                 recommendation = connection.execute(
                     """
                     SELECT * FROM recommendation_outputs
-                    WHERE recommendation_output_id = ? AND status = 'active'
+                    WHERE recommendation_output_id = ?
                     """,
                     (recommendation_id,),
                 ).fetchone()
                 if recommendation is None:
-                    raise DecisionStoreError("active recommendation was not found")
+                    raise DecisionStoreError("recommendation was not found")
                 prior_decision = connection.execute(
                     """
                     SELECT management_decision_id
@@ -190,6 +216,10 @@ class SQLiteDecisionStore:
                 if prior_decision is not None:
                     raise DecisionStoreError(
                         "this Recommendation Output already has a Management Decision"
+                    )
+                if recommendation["status"] != "active":
+                    raise DecisionStoreError(
+                        "only an active Recommendation Output may receive a Decision"
                     )
                 owner = connection.execute(
                     """
@@ -234,6 +264,14 @@ class SQLiteDecisionStore:
                         timestamp,
                         timestamp,
                     ),
+                )
+                connection.execute(
+                    """
+                    UPDATE recommendation_outputs
+                    SET status = 'resolved', updated_at = ?, version = version + 1
+                    WHERE enterprise_id = ? AND recommendation_output_id = ?
+                    """,
+                    (timestamp, recommendation["enterprise_id"], recommendation_id),
                 )
         return decision_id
 

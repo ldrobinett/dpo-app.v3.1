@@ -167,10 +167,15 @@ def main() -> int:
         )
         result = evaluate_case(evidence)
         recommendation_id = store.record_recommendation(evidence, result)
+        recommendation = store.get_recommendation(recommendation_id)
         print(
             json.dumps(
                 {
                     "recommendation_output_id": recommendation_id,
+                    "status": recommendation["status"],
+                    "supersedes_recommendation_output_id": recommendation[
+                        "supersedes_recommendation_output_id"
+                    ],
                     "case_id": result.case_id,
                     "attention": result.management_position.attention.value,
                     "position": result.management_position.position,
