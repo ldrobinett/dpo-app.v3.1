@@ -320,6 +320,11 @@ def evaluate_case(
             ),
         )
     else:
+        frh_per_ro = (
+            evidence.actual_frh / evidence.repair_order_count
+            if evidence.repair_order_count > 0
+            else None
+        )
         material_gap = (
             potential.realization_rate is not None
             and potential.realization_rate < policy.material_realization_rate
@@ -354,20 +359,33 @@ def evaluate_case(
         )
         diagnosis = CausalDiagnosis(
             hypothesis=(
-                "The available MVI evidence does not discriminate among demand, "
-                "work-content, rate, margin, and Process causes."
+                "Observed production is decomposed into repair-order volume and "
+                "FRH per RO, but the available evidence does not benchmark those "
+                "drivers or discriminate among demand, rate, margin, and Process causes."
             ),
             confidence=DiagnosticConfidence.UNRESOLVED,
-            supporting_evidence=(
-                "The economic location of the gap is known only at aggregate capacity level.",
+            supporting_evidence=tuple(
+                item
+                for item in (
+                    (
+                        f"{evidence.repair_order_count:,} observed repair orders produced "
+                        f"{evidence.actual_frh:,.1f} FRH "
+                        f"({frh_per_ro:,.4f} FRH per RO)."
+                        if frh_per_ro is not None
+                        else None
+                    ),
+                    "The economic location of the gap is known only at aggregate capacity level.",
+                )
+                if item is not None
             ),
             weakened_explanations=(
                 "No detailed Process cause is supported.",
+                "Observed volume or FRH per RO cannot be labeled unfavorable without a governed benchmark.",
             ),
             unresolved_explanations=(
                 "Demand sufficiency",
-                "Work-content execution",
-                "Rate and margin realization",
+                "Volume and FRH-per-RO benchmark variance",
+                "Transaction-level rate and margin realization",
             ),
             correction_allowed=False,
         )
@@ -376,25 +394,26 @@ def evaluate_case(
                 AttentionClass.NEED if material_gap else AttentionClass.NICE
             ),
             what_matters=(
-                "The capacity gap is measurable, but the causal basis is not yet "
-                "sufficient for corrective action."
+                "April production is decomposed at the observed volume and work-content "
+                "level, but the capacity gap is still not a validated opportunity."
             ),
             why_it_matters=(
                 "A targeted diagnostic is safer than an unsupported operating prescription."
             ),
             position=(
-                "Preserve the capacity finding and gather the minimum evidence needed "
-                "to discriminate among causes."
+                "Close April as an evidence-limited baseline and do not prescribe "
+                "performance correction from the capacity gap."
             ),
             recommended_intervention=(
-                "Validate supported demand and DPO governance, then decompose GP/RO "
-                "into volume, Hrs/RO, ELR, and margin evidence."
+                "Retain the reconciled April baseline and require supported demand, "
+                "effective-dated DPO, governed driver benchmarks, and transaction-level "
+                "economics before a future causal correction."
             ),
             owner_id=evidence.accountable_owner_id,
             owner_position_id=evidence.accountable_position_id,
             expected_outcome=(
-                "A supported or explicitly unresolved diagnosis with no invented "
-                "Process conclusion."
+                "A closed historical baseline with explicit limitations and no invented "
+                "lost-production or Process conclusion."
             ),
             review_horizon="At the next completed evidence refresh",
             decision_required=material_gap,

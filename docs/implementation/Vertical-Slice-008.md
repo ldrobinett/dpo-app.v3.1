@@ -21,5 +21,10 @@ The analysis is read-only and reproducible. It does not convert capacity into
 True Potential, treat a configured economic input as observed economics, or
 claim that an aggregate relationship caused the result.
 
+Once the decomposition is available, the Management Position closes the period
+as an evidence-limited baseline rather than repeatedly recommending the same
+decomposition. A later period must bring new governed demand, benchmark, DPO,
+and transaction-economic evidence before correction is allowed.
+
 Legacy margin inputs are stored as percentage points and are normalized by 100
 before estimating configured gross per FRH.

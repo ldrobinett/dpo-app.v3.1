@@ -115,7 +115,11 @@ class VerticalSliceTests(unittest.TestCase):
         result = evaluate_case(evidence)
 
         self.assertFalse(result.diagnosis.correction_allowed)
-        self.assertIn("does not discriminate", result.diagnosis.hypothesis)
+        self.assertIn("does not benchmark", result.diagnosis.hypothesis)
+        self.assertIn(
+            "2.0000 FRH per RO", result.diagnosis.supporting_evidence[0]
+        )
+        self.assertIn("Close April", result.management_position.position)
         self.assertIn("process", result.evidence_profile.missing_domains)
 
 
