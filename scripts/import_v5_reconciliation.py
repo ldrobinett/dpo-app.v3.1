@@ -8,6 +8,7 @@ import hashlib
 import json
 import sqlite3
 from collections import Counter, defaultdict
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -207,8 +208,9 @@ def apply_plan(
     timestamp = datetime.now(timezone.utc).isoformat()
     connection = sqlite3.connect(database_path)
     try:
-        with sqlite3.connect(backup_path) as backup:
-            connection.backup(backup)
+        with closing(sqlite3.connect(backup_path)) as backup:
+            with backup:
+                connection.backup(backup)
         with connection:
             connection.executemany(
                 """
