@@ -51,8 +51,8 @@
                         <td class="text-end">
                             <a href="{{ url_for('teams.edit_team_member', member_id=member.id) }}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
                             
-                            <form action="{{ url_for('teams.delete_team_member', member_id=member.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete {{ member.name }}? This will remove them from all schedules and reports.');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            <form action="{{ url_for('teams.delete_team_member', member_id=member.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Retire {{ member.name }}? They will be removed from current choices while historical records remain available.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Retire</button>
                             </form>
                         </td>
                     </tr>

@@ -22,7 +22,14 @@ def reconcile_logs():
         csv_input = csv.reader(stream)
         
         # Mapping: Tech Number -> Member Object
-        store_techs = TeamMember.query.join(Team).filter(Team.store_id == current_user.store_id).all()
+        store_techs = (
+            TeamMember.query.join(Team)
+            .filter(
+                Team.store_id == current_user.store_id,
+                TeamMember.retired_at.is_(None),
+            )
+            .all()
+        )
         tech_map = {t.tech_number: t for t in store_techs if t.tech_number}
         
         # Skip Header (Row 0)

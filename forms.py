@@ -16,7 +16,12 @@ def team_query():
     return Team.query.order_by(Team.name).all()
 
 def team_member_query():
-    return TeamMember.query.order_by(TeamMember.name).all()
+    return (
+        TeamMember.query
+        .filter(TeamMember.retired_at.is_(None))
+        .order_by(TeamMember.name)
+        .all()
+    )
 
 def asm_query():
     return ASM.query.order_by(ASM.name).all()

@@ -121,7 +121,15 @@ def count_workdays(start_date, end_date, holidays):
 
 def get_team_member_choices(store_id):
     """Helper to fetch member objects for QuerySelectField choices."""
-    return TeamMember.query.join(Team).filter(Team.store_id == store_id).order_by(TeamMember.name).all()
+    return (
+        TeamMember.query.join(Team)
+        .filter(
+            Team.store_id == store_id,
+            TeamMember.retired_at.is_(None),
+        )
+        .order_by(TeamMember.name)
+        .all()
+    )
 
 # --- ROUTES ---
 

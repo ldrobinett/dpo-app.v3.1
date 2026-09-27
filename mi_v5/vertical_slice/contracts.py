@@ -60,6 +60,7 @@ class TechnicianPotentialInput:
     history_frh: float | None
     history_days: int | None
     expected_lift_percent: float | None
+    governance_status: str | None = None
 
 
 @dataclass(frozen=True)

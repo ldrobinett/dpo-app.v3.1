@@ -17,6 +17,7 @@ from .role import Role
 from .role_capability import RoleCapability
 from .team import Team
 from .team_membership import TeamMembership
+from .technician_dpo import TechnicianDPORecord
 from .true_potential_evidence import TruePotentialEvidencePack
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "RoleCapability",
     "Team",
     "TeamMembership",
+    "TechnicianDPORecord",
     "TruePotentialEvidencePack",
     "Validation",
 ]

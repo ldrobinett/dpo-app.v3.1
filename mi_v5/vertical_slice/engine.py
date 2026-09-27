@@ -86,7 +86,12 @@ def evaluate_case(
     )
 
     missing_dpo_governance = any(
-        technician.dpo_mode != "calculated" or technician.dpo <= 0
+        (
+            technician.governance_status != "verified"
+            if technician.governance_status is not None
+            else technician.dpo_mode != "calculated"
+        )
+        or technician.dpo <= 0
         for technician in evidence.technicians
     )
     missing_economics = _gp_per_frh(evidence) is None

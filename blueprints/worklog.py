@@ -84,7 +84,10 @@ def new_work_log():
     form.team_member.query = (
         TeamMember.query
         .join(Team)
-        .filter(Team.store_id == current_user.store_id)
+        .filter(
+            Team.store_id == current_user.store_id,
+            TeamMember.retired_at.is_(None),
+        )
         .order_by(TeamMember.name)
     )
 
@@ -129,7 +132,10 @@ def edit_work_log(log_id):
     form.team_member.query = (
         TeamMember.query
         .join(Team)
-        .filter(Team.store_id == current_user.store_id)
+        .filter(
+            Team.store_id == current_user.store_id,
+            TeamMember.retired_at.is_(None),
+        )
         .order_by(TeamMember.name)
     )
 

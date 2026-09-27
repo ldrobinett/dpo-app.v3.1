@@ -344,6 +344,7 @@ class TeamMember(db.Model):
     hist_training_days = db.Column(db.Integer, default=0)
     hist_vacation_days = db.Column(db.Integer, default=0)
     expected_lift_percent = db.Column(db.Float, default=100.0)
+    retired_at = db.Column(db.DateTime, nullable=True, index=True)
 
     schedule_entries = db.relationship("ScheduleEntry", backref="team_member", lazy=True, cascade="all, delete-orphan")
     work_logs = db.relationship("WorkLog", backref="team_member", lazy=True, cascade="all, delete-orphan")

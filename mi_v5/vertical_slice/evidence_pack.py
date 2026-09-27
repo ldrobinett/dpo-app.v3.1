@@ -39,6 +39,13 @@ def build_evidence_pack(
         if scope is None:
             raise ValueError("V5 Enterprise, Managed Store, and Service Department required")
 
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+
         technicians = [
             dict(row)
             for row in connection.execute(
@@ -63,6 +70,27 @@ def build_evidence_pack(
         memo_count = connection.execute(
             "SELECT COUNT(*) FROM production_objective_memo"
         ).fetchone()[0]
+        governed_dpo: dict[int, dict[str, object]] = {}
+        if "technician_dpo_records" in tables:
+            for row in connection.execute(
+                """
+                SELECT legacy_team_member_id, dpo_value, calculation_mode,
+                       calculated_dpo, is_override, authority_status,
+                       authorized_by_id, authorization_reason,
+                       effective_from, effective_to, source_reference
+                FROM technician_dpo_records
+                WHERE enterprise_id = ? AND managed_store_id = ?
+                  AND department_id = ? AND effective_from <= ?
+                  AND (effective_to IS NULL OR effective_to >= ?)
+                ORDER BY legacy_team_member_id, effective_from DESC
+                """,
+                (
+                    scope["enterprise_id"], scope["managed_store_id"],
+                    scope["department_id"], period_start.isoformat(),
+                    period_end.isoformat(),
+                ),
+            ):
+                governed_dpo.setdefault(int(row["legacy_team_member_id"]), dict(row))
         daily_metrics = [
             dict(row)
             for row in connection.execute(
@@ -104,26 +132,55 @@ def build_evidence_pack(
             ).fetchone()
         )
 
-    technician_snapshots = [
-        {
-            **row,
-            "effective_period_start": period_start.isoformat(),
-            "effective_period_end": period_end.isoformat(),
-            "authority_status": "unverified_legacy",
-            "authority_employee_id": None,
-            "authority_reason": None,
-            "observation_basis": "retrospective current-row snapshot",
-        }
-        for row in technicians
-    ]
+    technician_snapshots = []
+    for row in technicians:
+        governed = governed_dpo.get(int(row["legacy_team_member_id"]))
+        technician_snapshots.append(
+            {
+                **row,
+                "dpo": governed["dpo_value"] if governed else row["dpo"],
+                "dpo_mode": (
+                    governed["calculation_mode"] if governed else row["dpo_mode"]
+                ),
+                "effective_period_start": (
+                    governed["effective_from"] if governed else period_start.isoformat()
+                ),
+                "effective_period_end": (
+                    governed["effective_to"] if governed else period_end.isoformat()
+                ),
+                "authority_status": (
+                    governed["authority_status"] if governed else "unverified_legacy"
+                ),
+                "authority_employee_id": (
+                    governed["authorized_by_id"] if governed else None
+                ),
+                "authority_reason": (
+                    governed["authorization_reason"] if governed else None
+                ),
+                "observation_basis": (
+                    "effective-dated governed DPO"
+                    if governed else "retrospective current-row snapshot"
+                ),
+            }
+        )
+    dpo_governance_status = (
+        "verified"
+        if technician_snapshots
+        and all(item["authority_status"] == "verified" for item in technician_snapshots)
+        else "unverified_legacy"
+    )
     limitations = [
         "Supported demand cannot be reproduced from the available legacy sources.",
         "Appointment counts are two point-in-time snapshots without conversion, mix, or FRH support.",
         "Route-sheet Repair Orders are partial workflow records, not a governed demand ledger.",
         "Produced CDK lines demonstrate realized work, not total supported demand.",
-        "DPO values are current manual rows without historical effective dates, authority, or override reasons.",
         "Departed-technician deletion prevents complete historical capacity and production attribution.",
     ]
+    if dpo_governance_status != "verified":
+        limitations.insert(
+            4,
+            "One or more DPO values lack an effective-dated, verified authority record covering the full period.",
+        )
     stable = {
         "enterprise_id": str(scope["enterprise_id"]),
         "managed_store_id": str(scope["managed_store_id"]),
@@ -133,13 +190,14 @@ def build_evidence_pack(
         "period_end": period_end.isoformat(),
         "demand_status": "unavailable",
         "supported_demand_frh": None,
-        "dpo_governance_status": "unverified_legacy",
+        "dpo_governance_status": dpo_governance_status,
         "technicians": technician_snapshots,
         "sources_checked": {
             "daily_metrics": daily_metrics,
             "route_sheet_repair_orders": route_sheet,
             "realized_production": production,
             "production_objective_memo_rows": memo_count,
+            "governed_dpo_rows": len(governed_dpo),
         },
         "limitations": limitations,
     }

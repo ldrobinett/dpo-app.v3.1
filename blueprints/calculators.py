@@ -119,7 +119,14 @@ def get_shop_stats(store_id: int) -> dict:
         stats["parts_margin"] = safe_float(inputs.parts_margin)
         stats["unapplied"] = safe_float(inputs.unapplied_time_cost)
 
-    techs = TeamMember.query.join(Team).filter(Team.store_id == store_id).all()
+    techs = (
+        TeamMember.query.join(Team)
+        .filter(
+            Team.store_id == store_id,
+            TeamMember.retired_at.is_(None),
+        )
+        .all()
+    )
     stats["tech_count"] = len(techs)
 
     if techs:

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Blueprint, render_template, url_for, flash, redirect
 from flask_login import login_required, current_user
 from utils.permissions import require_capability
@@ -107,7 +109,10 @@ def team_members():
     members = (
         TeamMember.query
         .join(Team)
-        .filter(Team.store_id == current_user.store_id)
+        .filter(
+            Team.store_id == current_user.store_id,
+            TeamMember.retired_at.is_(None),
+        )
         .order_by(Team.name, TeamMember.name)
         .all()
     )
@@ -207,9 +212,13 @@ def delete_team_member(member_id):
         flash("Unauthorized access.", "danger")
         return redirect(url_for("teams.team_members"))
 
-    db.session.delete(member)
+    if member.retired_at is not None:
+        flash("Team member is already retired.", "info")
+        return redirect(url_for("teams.team_members"))
+
+    member.retired_at = datetime.utcnow()
     db.session.commit()
-    flash("Team member deleted successfully!", "success")
+    flash("Team member retired; historical records were retained.", "success")
     return redirect(url_for("teams.team_members"))
 
 # =====================================================

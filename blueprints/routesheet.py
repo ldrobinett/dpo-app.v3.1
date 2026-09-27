@@ -79,7 +79,10 @@ def view_sheet():
     all_techs = (
         TeamMember.query
         .join(Team)
-        .filter(Team.store_id == store_id)
+        .filter(
+            Team.store_id == store_id,
+            TeamMember.retired_at.is_(None),
+        )
         .order_by(TeamMember.name)
         .all()
     )

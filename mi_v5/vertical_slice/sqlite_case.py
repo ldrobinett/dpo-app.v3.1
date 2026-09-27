@@ -79,6 +79,32 @@ def load_store_period(
             (legacy_store_id,),
         ).fetchall()
 
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        governed_dpo: dict[int, sqlite3.Row] = {}
+        if "technician_dpo_records" in tables:
+            for row in connection.execute(
+                """
+                SELECT legacy_team_member_id, dpo_value, calculation_mode,
+                       authority_status, effective_from, effective_to
+                FROM technician_dpo_records
+                WHERE enterprise_id = ? AND managed_store_id = ?
+                  AND department_id = ? AND effective_from <= ?
+                  AND (effective_to IS NULL OR effective_to >= ?)
+                ORDER BY legacy_team_member_id, effective_from DESC
+                """,
+                (
+                    scope["enterprise_id"], scope["managed_store_id"],
+                    scope["department_id"], period_start.isoformat(),
+                    period_end.isoformat(),
+                ),
+            ):
+                governed_dpo.setdefault(int(row["legacy_team_member_id"]), row)
+
         schedule_rows = connection.execute(
             """
             SELECT se.team_member_id, se.date
@@ -101,8 +127,16 @@ def load_store_period(
         technicians = tuple(
             TechnicianPotentialInput(
                 technician_id=int(row["id"]),
-                dpo=float(row["daily_production_objective"] or 0.0),
-                dpo_mode=str(row["dpo_calculation_mode"] or "unknown"),
+                dpo=float(
+                    governed_dpo[int(row["id"])]["dpo_value"]
+                    if int(row["id"]) in governed_dpo
+                    else row["daily_production_objective"] or 0.0
+                ),
+                dpo_mode=str(
+                    governed_dpo[int(row["id"])]["calculation_mode"]
+                    if int(row["id"]) in governed_dpo
+                    else row["dpo_calculation_mode"] or "unknown"
+                ),
                 scheduled_dates=tuple(schedules.get(int(row["id"]), ())),
                 history_frh=(
                     float(row["hist_frh_total"])
@@ -118,6 +152,11 @@ def load_store_period(
                     float(row["expected_lift_percent"])
                     if row["expected_lift_percent"] is not None
                     else None
+                ),
+                governance_status=(
+                    str(governed_dpo[int(row["id"])]["authority_status"])
+                    if int(row["id"]) in governed_dpo
+                    else "unverified_legacy"
                 ),
             )
             for row in team_rows
@@ -259,11 +298,18 @@ def load_store_period(
                     latest_observed_date=max(scheduled_dates, default=None),
                 ),
                 SourceReference(
-                    source="team_member.dpo",
+                    source=(
+                        "technician_dpo_records"
+                        if governed_dpo else "team_member.dpo"
+                    ),
                     query_version=QUERY_VERSION,
-                    record_count=len(team_rows),
+                    record_count=(len(governed_dpo) if governed_dpo else len(team_rows)),
                     limitations=(
-                        "Legacy DPO records do not retain effective period, rank, multiplier, or override authority.",
+                        ()
+                        if len(governed_dpo) == len(team_rows)
+                        else (
+                            "One or more technician DPO values lack a verified record covering the full period.",
+                        )
                     ),
                 ),
                 SourceReference(
