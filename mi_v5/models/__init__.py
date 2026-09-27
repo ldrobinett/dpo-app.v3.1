@@ -6,6 +6,7 @@ from .decision_loop import ManagementAction, ManagementDecision, RecommendationO
 from .employee import Employee
 from .employee_assignment import EmployeeAssignment
 from .enterprise import Enterprise
+from .execution_loop import ExecutionEvidence, Outcome, Validation
 from .managed_store import ManagedStore, ManagedStoreGroupMembership
 from .organizational_group import (
     OrganizationalGroup,
@@ -25,14 +26,17 @@ __all__ = [
     "Employee",
     "EmployeeAssignment",
     "Enterprise",
+    "ExecutionEvidence",
     "ManagedStore",
     "ManagedStoreGroupMembership",
     "OrganizationalGroup",
     "OrganizationalGroupHierarchy",
+    "Outcome",
     "Position",
     "RecommendationOutput",
     "Role",
     "RoleCapability",
     "Team",
     "TeamMembership",
+    "Validation",
 ]

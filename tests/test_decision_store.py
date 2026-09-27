@@ -77,6 +77,61 @@ CREATE TABLE management_actions (
     updated_at TEXT NOT NULL,
     version INTEGER NOT NULL
 );
+CREATE TABLE execution_evidence (
+    execution_evidence_id TEXT PRIMARY KEY,
+    enterprise_id TEXT NOT NULL,
+    management_action_id TEXT NOT NULL,
+    recorded_by_id TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    evidence_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    claims_completion INTEGER NOT NULL,
+    prior_action_status TEXT NOT NULL,
+    resulting_action_status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL
+);
+CREATE TABLE validations (
+    validation_id TEXT PRIMARY KEY,
+    enterprise_id TEXT NOT NULL,
+    management_action_id TEXT NOT NULL,
+    validator_id TEXT NOT NULL,
+    validated_at TEXT NOT NULL,
+    evaluation_target TEXT NOT NULL,
+    expected_result TEXT NOT NULL,
+    observed_result TEXT NOT NULL,
+    evaluation_period_start TEXT NOT NULL,
+    evaluation_period_end TEXT NOT NULL,
+    method TEXT NOT NULL,
+    result TEXT NOT NULL,
+    confidence TEXT NOT NULL,
+    supporting_evidence_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL
+);
+CREATE TABLE outcomes (
+    outcome_id TEXT PRIMARY KEY,
+    enterprise_id TEXT NOT NULL,
+    management_decision_id TEXT NOT NULL,
+    management_action_id TEXT NOT NULL,
+    validation_id TEXT NOT NULL,
+    recorded_by_id TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    observed_result TEXT NOT NULL,
+    expected_actual_variance TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    supporting_evidence_json TEXT NOT NULL,
+    association_only INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL
+);
 """
 
 
@@ -220,6 +275,93 @@ class DecisionStoreTests(unittest.TestCase):
                 (action_id,),
             ).fetchone()
         self.assertEqual(row, ("planned", "manager-1"))
+
+    def _planned_action(self) -> str:
+        recommendation_id = self.store.record_recommendation(
+            self.evidence, self.result
+        )
+        decision_id = self.store.record_decision(
+            recommendation_id,
+            "accept",
+            "manager-1",
+            "Reconcile the uncovered dates.",
+            "The evidence gap blocks a fair performance judgment.",
+        )
+        return self.store.record_action(
+            decision_id,
+            None,
+            "Reconcile production evidence with the source system.",
+            "Every scheduled date has production or governed zero evidence.",
+            datetime(2026, 4, 5, tzinfo=timezone.utc),
+        )
+
+    def test_validation_rejects_status_without_execution_evidence(self) -> None:
+        action_id = self._planned_action()
+
+        with self.assertRaisesRegex(
+            DecisionStoreError, "completed Action with Execution Evidence"
+        ):
+            self.store.record_validation(
+                action_id,
+                "manager-1",
+                "Evidence continuity",
+                "All scheduled dates reconciled.",
+                "No reconciliation evidence recorded.",
+                date(2026, 4, 27),
+                date(2026, 4, 30),
+                "Source-date coverage comparison",
+                "inconclusive",
+                "low",
+                ["missing-evidence"],
+            )
+
+    def test_execution_evidence_validation_and_outcome_are_traceable(self) -> None:
+        action_id = self._planned_action()
+        evidence_id = self.store.record_execution_evidence(
+            action_id,
+            "manager-1",
+            "source_reconciliation",
+            "Compared April 27-30 against the source export.",
+            "source-export:2026-04-30:v1",
+            datetime(2026, 4, 30, 17, 0, tzinfo=timezone.utc),
+            {"covered_dates": ["2026-04-27", "2026-04-30"]},
+            claims_completion=True,
+        )
+        validation_id = self.store.record_validation(
+            action_id,
+            "manager-1",
+            "Evidence continuity",
+            "All scheduled dates have traceable production or governed zero evidence.",
+            "The source comparison accounts for every scheduled date.",
+            date(2026, 4, 27),
+            date(2026, 4, 30),
+            "Source-date coverage comparison",
+            "achieved",
+            "high",
+            [evidence_id],
+        )
+        outcome_id = self.store.record_outcome(
+            validation_id,
+            "manager-1",
+            "Evidence continuity was restored for the review window.",
+            "Expected and observed coverage both include every scheduled date.",
+            "favorable",
+            date(2026, 4, 27),
+            date(2026, 4, 30),
+            [evidence_id],
+        )
+
+        with closing(sqlite3.connect(self.database)) as connection:
+            action_status = connection.execute(
+                "SELECT status FROM management_actions WHERE management_action_id = ?",
+                (action_id,),
+            ).fetchone()[0]
+            outcome = connection.execute(
+                "SELECT association_only, validation_id FROM outcomes WHERE outcome_id = ?",
+                (outcome_id,),
+            ).fetchone()
+        self.assertEqual(action_status, "completed")
+        self.assertEqual(outcome, (1, validation_id))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Persist an advisory MI result, explicit human Decision, and Action."""
+"""Operate the governed MI path from Recommendation through observed Outcome."""
 
 from __future__ import annotations
 
@@ -73,6 +73,84 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="ISO timestamp including timezone, for example 2026-09-27T12:00:00-07:00",
     )
+
+    evidence = subparsers.add_parser(
+        "evidence", help="Append proof of Action execution"
+    )
+    _database_argument(evidence)
+    evidence.add_argument("--action-id", required=True)
+    evidence.add_argument(
+        "--recorded-by-id",
+        default="owner",
+        help="Employee UUID or 'owner' to use the Action owner",
+    )
+    evidence.add_argument(
+        "--type",
+        required=True,
+        choices=(
+            "source_reconciliation",
+            "system_record",
+            "document",
+            "observation",
+            "approved_exception",
+        ),
+    )
+    evidence.add_argument("--description", required=True)
+    evidence.add_argument("--source-reference", required=True)
+    evidence.add_argument(
+        "--occurred-at", type=datetime.fromisoformat, required=True
+    )
+    evidence.add_argument("--payload-json", default="{}")
+    evidence.add_argument("--completes-action", action="store_true")
+
+    validate = subparsers.add_parser(
+        "validate", help="Compare an Action's expected and observed result"
+    )
+    _database_argument(validate)
+    validate.add_argument("--action-id", required=True)
+    validate.add_argument(
+        "--validator-id",
+        default="owner",
+        help="Employee UUID or 'owner' to use the Action owner",
+    )
+    validate.add_argument("--evaluation-target", required=True)
+    validate.add_argument("--expected-result", required=True)
+    validate.add_argument("--observed-result", required=True)
+    validate.add_argument("--period-start", type=date.fromisoformat, required=True)
+    validate.add_argument("--period-end", type=date.fromisoformat, required=True)
+    validate.add_argument("--method", required=True)
+    validate.add_argument(
+        "--result",
+        required=True,
+        choices=(
+            "achieved",
+            "partially_achieved",
+            "not_achieved",
+            "inconclusive",
+            "invalidated",
+        ),
+    )
+    validate.add_argument(
+        "--confidence", required=True, choices=("low", "medium", "high")
+    )
+    validate.add_argument("--evidence-id", action="append", required=True)
+
+    outcome = subparsers.add_parser(
+        "outcome", help="Record an observed, non-causal Outcome"
+    )
+    _database_argument(outcome)
+    outcome.add_argument("--validation-id", required=True)
+    outcome.add_argument("--recorded-by-id", required=True)
+    outcome.add_argument("--observed-result", required=True)
+    outcome.add_argument("--expected-actual-variance", required=True)
+    outcome.add_argument(
+        "--classification",
+        required=True,
+        choices=("favorable", "neutral", "unfavorable", "inconclusive"),
+    )
+    outcome.add_argument("--period-start", type=date.fromisoformat, required=True)
+    outcome.add_argument("--period-end", type=date.fromisoformat, required=True)
+    outcome.add_argument("--evidence-id", action="append", required=True)
     return parser.parse_args()
 
 
@@ -135,22 +213,109 @@ def main() -> int:
         )
         return 0
 
-    decision = store.get_decision(args.decision_id)
-    action_id = store.record_action(
-        decision_id=args.decision_id,
-        owner_id=args.owner_id,
-        action_text=args.action,
-        completion_condition=args.completion_condition,
-        due_at=args.due_at,
+    if args.command == "action":
+        decision = store.get_decision(args.decision_id)
+        action_id = store.record_action(
+            decision_id=args.decision_id,
+            owner_id=args.owner_id,
+            action_text=args.action,
+            completion_condition=args.completion_condition,
+            due_at=args.due_at,
+        )
+        print(
+            json.dumps(
+                {
+                    "management_action_id": action_id,
+                    "management_decision_id": args.decision_id,
+                    "owner_id": args.owner_id or decision["accountable_owner_id"],
+                    "status": "planned",
+                    "due_at": args.due_at.isoformat(),
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.command == "evidence":
+        action = store.get_action(args.action_id)
+        recorder = (
+            action["owner_id"]
+            if args.recorded_by_id == "owner"
+            else args.recorded_by_id
+        )
+        evidence_id = store.record_execution_evidence(
+            action_id=args.action_id,
+            recorded_by_id=str(recorder),
+            evidence_type=args.type,
+            description=args.description,
+            source_reference=args.source_reference,
+            occurred_at=args.occurred_at,
+            payload=json.loads(args.payload_json),
+            claims_completion=args.completes_action,
+        )
+        resulting_action = store.get_action(args.action_id)
+        print(
+            json.dumps(
+                {
+                    "execution_evidence_id": evidence_id,
+                    "management_action_id": args.action_id,
+                    "action_status": resulting_action["status"],
+                    "claims_completion": args.completes_action,
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.command == "validate":
+        action = store.get_action(args.action_id)
+        validator = (
+            action["owner_id"] if args.validator_id == "owner" else args.validator_id
+        )
+        validation_id = store.record_validation(
+            action_id=args.action_id,
+            validator_id=str(validator),
+            evaluation_target=args.evaluation_target,
+            expected_result=args.expected_result,
+            observed_result=args.observed_result,
+            period_start=args.period_start,
+            period_end=args.period_end,
+            method=args.method,
+            result=args.result,
+            confidence=args.confidence,
+            supporting_evidence_ids=args.evidence_id,
+        )
+        print(
+            json.dumps(
+                {
+                    "validation_id": validation_id,
+                    "management_action_id": args.action_id,
+                    "result": args.result,
+                    "confidence": args.confidence,
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    outcome_id = store.record_outcome(
+        validation_id=args.validation_id,
+        recorded_by_id=args.recorded_by_id,
+        observed_result=args.observed_result,
+        expected_actual_variance=args.expected_actual_variance,
+        classification=args.classification,
+        period_start=args.period_start,
+        period_end=args.period_end,
+        supporting_evidence_ids=args.evidence_id,
     )
     print(
         json.dumps(
             {
-                "management_action_id": action_id,
-                "management_decision_id": args.decision_id,
-                "owner_id": args.owner_id or decision["accountable_owner_id"],
-                "status": "planned",
-                "due_at": args.due_at.isoformat(),
+                "outcome_id": outcome_id,
+                "validation_id": args.validation_id,
+                "classification": args.classification,
+                "association_only": True,
+                "organizational_learning_claimed": False,
             },
             indent=2,
         )

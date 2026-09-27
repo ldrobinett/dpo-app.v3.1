@@ -6,19 +6,42 @@ import hashlib
 import json
 import sqlite3
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 from .contracts import StorePeriodEvidence, VerticalSliceResult
 
 REQUIRED_TABLES = {
+    "execution_evidence",
     "recommendation_outputs",
     "management_decisions",
     "management_actions",
+    "outcomes",
+    "validations",
 }
 DECISION_DISPOSITIONS = {"accept", "modify", "reject", "defer"}
 ACTIONABLE_DISPOSITIONS = {"accept", "modify"}
+EVIDENCE_TYPES = {
+    "approved_exception",
+    "document",
+    "observation",
+    "source_reconciliation",
+    "system_record",
+}
+VALIDATION_RESULTS = {
+    "achieved",
+    "partially_achieved",
+    "not_achieved",
+    "inconclusive",
+    "invalidated",
+}
+OUTCOME_CLASSIFICATIONS = {
+    "favorable",
+    "neutral",
+    "unfavorable",
+    "inconclusive",
+}
 
 
 class DecisionStoreError(ValueError):
@@ -306,3 +329,303 @@ class SQLiteDecisionStore:
         if row is None:
             raise DecisionStoreError("management decision was not found")
         return dict(row)
+
+    def get_action(self, action_id: str) -> dict[str, object]:
+        self.assert_schema()
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT * FROM management_actions WHERE management_action_id = ?",
+                (action_id,),
+            ).fetchone()
+        if row is None:
+            raise DecisionStoreError("management action was not found")
+        return dict(row)
+
+    def record_execution_evidence(
+        self,
+        action_id: str,
+        recorded_by_id: str,
+        evidence_type: str,
+        description: str,
+        source_reference: str,
+        occurred_at: datetime,
+        payload: dict[str, object] | None = None,
+        claims_completion: bool = False,
+    ) -> str:
+        """Append proof and audit the resulting Action status transition."""
+
+        self.assert_schema()
+        if evidence_type not in EVIDENCE_TYPES:
+            allowed = ", ".join(sorted(EVIDENCE_TYPES))
+            raise DecisionStoreError(f"evidence_type must be one of: {allowed}")
+        if occurred_at.tzinfo is None:
+            raise DecisionStoreError("occurred_at must include a timezone")
+        recorder = _required_text(recorded_by_id, "recorded_by_id")
+        detail = _required_text(description, "description")
+        source = _required_text(source_reference, "source_reference")
+        evidence_id = uuid4().hex
+        timestamp = _now()
+
+        with closing(self._connect()) as connection:
+            with connection:
+                action = connection.execute(
+                    "SELECT * FROM management_actions WHERE management_action_id = ?",
+                    (action_id,),
+                ).fetchone()
+                if action is None:
+                    raise DecisionStoreError("management action was not found")
+                if action["status"] == "cancelled":
+                    raise DecisionStoreError("a cancelled Action cannot receive execution evidence")
+                employee = connection.execute(
+                    "SELECT 1 FROM employees WHERE enterprise_id = ? AND employee_id = ?",
+                    (action["enterprise_id"], recorder),
+                ).fetchone()
+                if employee is None:
+                    raise DecisionStoreError(
+                        "evidence recorder is not an Employee in the Action's Enterprise"
+                    )
+
+                prior_status = str(action["status"])
+                if claims_completion:
+                    resulting_status = "completed"
+                elif prior_status == "planned":
+                    resulting_status = "in_progress"
+                else:
+                    resulting_status = prior_status
+
+                connection.execute(
+                    """
+                    INSERT INTO execution_evidence (
+                        execution_evidence_id, enterprise_id,
+                        management_action_id, recorded_by_id, occurred_at,
+                        evidence_type, description, source_reference,
+                        payload_json, claims_completion, prior_action_status,
+                        resulting_action_status, created_at, updated_at, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    """,
+                    (
+                        evidence_id,
+                        action["enterprise_id"],
+                        action_id,
+                        recorder,
+                        occurred_at.isoformat(),
+                        evidence_type,
+                        detail,
+                        source,
+                        json.dumps(payload or {}, sort_keys=True),
+                        int(claims_completion),
+                        prior_status,
+                        resulting_status,
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+                if resulting_status != prior_status:
+                    connection.execute(
+                        """
+                        UPDATE management_actions
+                        SET status = ?, updated_at = ?, version = version + 1
+                        WHERE management_action_id = ?
+                        """,
+                        (resulting_status, timestamp, action_id),
+                    )
+        return evidence_id
+
+    def record_validation(
+        self,
+        action_id: str,
+        validator_id: str,
+        evaluation_target: str,
+        expected_result: str,
+        observed_result: str,
+        period_start: date,
+        period_end: date,
+        method: str,
+        result: str,
+        confidence: str,
+        supporting_evidence_ids: list[str],
+    ) -> str:
+        """Append a governed comparison only after execution is evidenced."""
+
+        self.assert_schema()
+        if result not in VALIDATION_RESULTS:
+            allowed = ", ".join(sorted(VALIDATION_RESULTS))
+            raise DecisionStoreError(f"validation result must be one of: {allowed}")
+        if period_end < period_start:
+            raise DecisionStoreError("validation period end cannot precede its start")
+        if not supporting_evidence_ids:
+            raise DecisionStoreError("Validation requires supporting Execution Evidence")
+        validator = _required_text(validator_id, "validator_id")
+        target = _required_text(evaluation_target, "evaluation_target")
+        expected = _required_text(expected_result, "expected_result")
+        observed = _required_text(observed_result, "observed_result")
+        validation_method = _required_text(method, "method")
+        confidence_value = _required_text(confidence, "confidence").lower()
+        if confidence_value not in {"low", "medium", "high"}:
+            raise DecisionStoreError("confidence must be low, medium, or high")
+        validation_id = uuid4().hex
+        timestamp = _now()
+
+        with closing(self._connect()) as connection:
+            with connection:
+                action = connection.execute(
+                    "SELECT * FROM management_actions WHERE management_action_id = ?",
+                    (action_id,),
+                ).fetchone()
+                if action is None:
+                    raise DecisionStoreError("management action was not found")
+                if action["status"] != "completed":
+                    raise DecisionStoreError(
+                        "Validation requires a completed Action with Execution Evidence"
+                    )
+                employee = connection.execute(
+                    "SELECT 1 FROM employees WHERE enterprise_id = ? AND employee_id = ?",
+                    (action["enterprise_id"], validator),
+                ).fetchone()
+                if employee is None:
+                    raise DecisionStoreError(
+                        "validator is not an Employee in the Action's Enterprise"
+                    )
+                evidence_rows = connection.execute(
+                    f"""
+                    SELECT execution_evidence_id FROM execution_evidence
+                    WHERE enterprise_id = ? AND management_action_id = ?
+                      AND execution_evidence_id IN ({','.join('?' for _ in supporting_evidence_ids)})
+                    """,
+                    (action["enterprise_id"], action_id, *supporting_evidence_ids),
+                ).fetchall()
+                found_ids = {str(row["execution_evidence_id"]) for row in evidence_rows}
+                if found_ids != set(supporting_evidence_ids):
+                    raise DecisionStoreError(
+                        "all supporting evidence must belong to the validated Action"
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO validations (
+                        validation_id, enterprise_id, management_action_id,
+                        validator_id, validated_at, evaluation_target,
+                        expected_result, observed_result, evaluation_period_start,
+                        evaluation_period_end, method, result, confidence,
+                        supporting_evidence_json, created_at, updated_at, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    """,
+                    (
+                        validation_id,
+                        action["enterprise_id"],
+                        action_id,
+                        validator,
+                        timestamp,
+                        target,
+                        expected,
+                        observed,
+                        period_start.isoformat(),
+                        period_end.isoformat(),
+                        validation_method,
+                        result,
+                        confidence_value,
+                        json.dumps(sorted(found_ids)),
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+        return validation_id
+
+    def record_outcome(
+        self,
+        validation_id: str,
+        recorded_by_id: str,
+        observed_result: str,
+        expected_actual_variance: str,
+        classification: str,
+        period_start: date,
+        period_end: date,
+        supporting_evidence_ids: list[str],
+    ) -> str:
+        """Append an observed Outcome without making a causal claim."""
+
+        self.assert_schema()
+        if classification not in OUTCOME_CLASSIFICATIONS:
+            allowed = ", ".join(sorted(OUTCOME_CLASSIFICATIONS))
+            raise DecisionStoreError(f"classification must be one of: {allowed}")
+        if period_end < period_start:
+            raise DecisionStoreError("Outcome period end cannot precede its start")
+        if not supporting_evidence_ids:
+            raise DecisionStoreError("Outcome requires supporting Execution Evidence")
+        recorder = _required_text(recorded_by_id, "recorded_by_id")
+        observed = _required_text(observed_result, "observed_result")
+        variance = _required_text(expected_actual_variance, "expected_actual_variance")
+        outcome_id = uuid4().hex
+        timestamp = _now()
+
+        with closing(self._connect()) as connection:
+            with connection:
+                validation = connection.execute(
+                    """
+                    SELECT v.*, a.management_decision_id
+                    FROM validations v
+                    JOIN management_actions a
+                      ON a.enterprise_id = v.enterprise_id
+                     AND a.management_action_id = v.management_action_id
+                    WHERE v.validation_id = ?
+                    """,
+                    (validation_id,),
+                ).fetchone()
+                if validation is None:
+                    raise DecisionStoreError("Validation was not found")
+                employee = connection.execute(
+                    "SELECT 1 FROM employees WHERE enterprise_id = ? AND employee_id = ?",
+                    (validation["enterprise_id"], recorder),
+                ).fetchone()
+                if employee is None:
+                    raise DecisionStoreError(
+                        "Outcome recorder is not an Employee in the Validation's Enterprise"
+                    )
+                evidence_rows = connection.execute(
+                    f"""
+                    SELECT execution_evidence_id FROM execution_evidence
+                    WHERE enterprise_id = ? AND management_action_id = ?
+                      AND execution_evidence_id IN ({','.join('?' for _ in supporting_evidence_ids)})
+                    """,
+                    (
+                        validation["enterprise_id"],
+                        validation["management_action_id"],
+                        *supporting_evidence_ids,
+                    ),
+                ).fetchall()
+                found_ids = {str(row["execution_evidence_id"]) for row in evidence_rows}
+                if found_ids != set(supporting_evidence_ids):
+                    raise DecisionStoreError(
+                        "all supporting evidence must belong to the validated Action"
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO outcomes (
+                        outcome_id, enterprise_id, management_decision_id,
+                        management_action_id, validation_id, recorded_by_id,
+                        observed_at, period_start, period_end, observed_result,
+                        expected_actual_variance, classification,
+                        supporting_evidence_json, association_only,
+                        created_at, updated_at, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 1)
+                    """,
+                    (
+                        outcome_id,
+                        validation["enterprise_id"],
+                        validation["management_decision_id"],
+                        validation["management_action_id"],
+                        validation_id,
+                        recorder,
+                        timestamp,
+                        period_start.isoformat(),
+                        period_end.isoformat(),
+                        observed,
+                        variance,
+                        classification,
+                        json.dumps(sorted(found_ids)),
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+        return outcome_id
