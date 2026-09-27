@@ -36,7 +36,8 @@ class DPOGovernanceTests(unittest.TestCase):
                 );
                 CREATE TABLE team (id INTEGER PRIMARY KEY, store_id INTEGER);
                 CREATE TABLE team_member (
-                    id INTEGER PRIMARY KEY, team_id INTEGER, tech_number TEXT,
+                    id INTEGER PRIMARY KEY, name TEXT, team_id INTEGER,
+                    tech_number TEXT,
                     daily_production_objective REAL, dpo_calculation_mode TEXT,
                     hist_frh_total REAL, hist_days_in_period INTEGER,
                     hist_training_days INTEGER, hist_vacation_days INTEGER,
@@ -64,11 +65,12 @@ class DPOGovernanceTests(unittest.TestCase):
                 INSERT INTO employees VALUES ('manager-1', 'enterprise-1');
                 INSERT INTO team VALUES (1, 1);
                 INSERT INTO team_member VALUES (
-                    10, 1, '100', 8.0, 'manual', 80.0, 10, 0, 0, 100.0, NULL
+                    10, 'Active Tech', 1, '100', 8.0, 'manual', 80.0, 10, 0, 0,
+                    100.0, NULL
                 );
                 INSERT INTO team_member VALUES (
-                    11, 1, '101', 9.0, 'manual', 90.0, 10, 0, 0, 100.0,
-                    '2026-09-01'
+                    11, 'Retired Tech', 1, '101', 9.0, 'manual', 90.0, 10, 0,
+                    0, 100.0, '2026-09-01'
                 );
                 """
             )
