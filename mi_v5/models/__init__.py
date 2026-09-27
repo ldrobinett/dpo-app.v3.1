@@ -2,6 +2,7 @@
 
 from .capability import Capability
 from .department import Department
+from .decision_loop import ManagementAction, ManagementDecision, RecommendationOutput
 from .employee import Employee
 from .employee_assignment import EmployeeAssignment
 from .enterprise import Enterprise
@@ -19,6 +20,8 @@ from .team_membership import TeamMembership
 __all__ = [
     "Capability",
     "Department",
+    "ManagementAction",
+    "ManagementDecision",
     "Employee",
     "EmployeeAssignment",
     "Enterprise",
@@ -27,6 +30,7 @@ __all__ = [
     "OrganizationalGroup",
     "OrganizationalGroupHierarchy",
     "Position",
+    "RecommendationOutput",
     "Role",
     "RoleCapability",
     "Team",

@@ -3,13 +3,16 @@
 from .capability_status import CapabilityStatus
 from .department_status import DepartmentStatus
 from .department_type import DepartmentType
+from .decision_disposition import DecisionDisposition
 from .employee_assignment_status import EmployeeAssignmentStatus
 from .employee_status import EmployeeStatus
 from .enterprise_status import EnterpriseStatus
 from .managed_store_status import ManagedStoreStatus
+from .management_action_status import ManagementActionStatus
 from .organizational_group_status import OrganizationalGroupStatus
 from .organizational_group_type import OrganizationalGroupType
 from .position_status import PositionStatus
+from .recommendation_status import RecommendationStatus
 from .role_status import RoleStatus
 from .team_membership_status import TeamMembershipStatus
 from .team_membership_type import TeamMembershipType
@@ -20,13 +23,16 @@ __all__ = [
     "CapabilityStatus",
     "DepartmentStatus",
     "DepartmentType",
+    "DecisionDisposition",
     "EmployeeAssignmentStatus",
     "EmployeeStatus",
     "EnterpriseStatus",
     "ManagedStoreStatus",
+    "ManagementActionStatus",
     "OrganizationalGroupStatus",
     "OrganizationalGroupType",
     "PositionStatus",
+    "RecommendationStatus",
     "RoleStatus",
     "TeamMembershipStatus",
     "TeamMembershipType",
