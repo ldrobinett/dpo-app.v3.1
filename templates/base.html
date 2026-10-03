@@ -84,6 +84,10 @@
                         </li>
                         {% endif %}
 
+                        {% if can("routesheet.view") %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('team_performance.team_performance') }}">Team Performance</a></li>
+                        {% endif %}
+
                         {% if can("production.view") %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('finance.production_display') }}">

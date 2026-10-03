@@ -129,6 +129,7 @@ def create_app():
     from blueprints.auth import auth_bp
     from blueprints.teams import teams_bp
     from blueprints.schedule import schedule_bp
+    from blueprints.team_performance import team_performance_bp
     from blueprints.finance import finance_bp
     from blueprints.worklog import worklog_bp
     from blueprints.labor_matrix import labor_matrix_bp
@@ -143,6 +144,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(schedule_bp)
+    app.register_blueprint(team_performance_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(worklog_bp)
     app.register_blueprint(labor_matrix_bp)
