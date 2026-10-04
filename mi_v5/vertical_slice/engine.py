@@ -320,6 +320,7 @@ def evaluate_case(
             ),
         )
     else:
+        period_label = f"{evidence.period_start:%B %Y}"
         frh_per_ro = (
             evidence.actual_frh / evidence.repair_order_count
             if evidence.repair_order_count > 0
@@ -394,18 +395,18 @@ def evaluate_case(
                 AttentionClass.NEED if material_gap else AttentionClass.NICE
             ),
             what_matters=(
-                "April production is decomposed at the observed volume and work-content "
+                f"{period_label} production is decomposed at the observed volume and work-content "
                 "level, but the capacity gap is still not a validated opportunity."
             ),
             why_it_matters=(
                 "A targeted diagnostic is safer than an unsupported operating prescription."
             ),
             position=(
-                "Close April as an evidence-limited baseline and do not prescribe "
+                f"Close {period_label} as an evidence-limited baseline and do not prescribe "
                 "performance correction from the capacity gap."
             ),
             recommended_intervention=(
-                "Retain the reconciled April baseline and require supported demand, "
+                f"Retain the reconciled {period_label} baseline and require supported demand, "
                 "effective-dated DPO, governed driver benchmarks, and transaction-level "
                 "economics before a future causal correction."
             ),
