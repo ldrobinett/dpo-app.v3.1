@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from mi_v5.vertical_slice.contracts import (
@@ -122,6 +123,32 @@ class VerticalSliceTests(unittest.TestCase):
         self.assertIn("Close April", result.management_position.position)
         self.assertIn("process", result.evidence_profile.missing_domains)
 
+
+    def test_evidence_limited_position_names_evaluated_period(self) -> None:
+        april = build_evidence(
+            production_dates=tuple(date(2026, 4, day) for day in range(1, 6))
+        )
+        may_dates = tuple(date(2026, 5, day) for day in range(1, 6))
+        may = replace(
+            april,
+            period_start=date(2026, 5, 1),
+            period_end=date(2026, 5, 5),
+            production_dates=may_dates,
+            scheduled_operating_dates=may_dates,
+            technicians=(
+                replace(april.technicians[0], scheduled_dates=may_dates),
+            ),
+        )
+
+        result = evaluate_case(may)
+
+        self.assertIn("Close May 2026", result.management_position.position)
+        self.assertIn("May 2026 production", result.management_position.what_matters)
+        self.assertIn(
+            "reconciled May 2026 baseline",
+            result.management_position.recommended_intervention,
+        )
+        self.assertNotIn("April", result.management_position.position)
 
 if __name__ == "__main__":
     unittest.main()
