@@ -57,9 +57,16 @@ def bootstrap(
             raise ValueError("The legacy store identity is not Honda Renton")
 
         external_reference = f"legacy_managed_store:{legacy_store_id}"
+        mapped_elsewhere = db.session.query(ManagedStore).filter_by(
+            external_reference=external_reference
+        ).one_or_none()
         enterprise = db.session.query(Enterprise).filter_by(
             enterprise_code=enterprise_code.upper()
         ).one_or_none()
+        if mapped_elsewhere and (
+            enterprise is None or mapped_elsewhere.enterprise_id != enterprise.id
+        ):
+            raise ValueError("Legacy store is already mapped in another Enterprise")
         if enterprise and (
             enterprise.name != enterprise_name.strip()
             or enterprise.slug != enterprise_slug.lower()
@@ -84,6 +91,8 @@ def bootstrap(
                     managed_store_id=store.id,
                     code="SERVICE",
                 ).one_or_none()
+                if department and department.department_type.value != "service":
+                    raise ValueError("Existing SERVICE department has a different type")
 
         result = {
             "mode": "apply" if apply else "preview",
