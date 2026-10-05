@@ -85,3 +85,13 @@ isolated branch checkout before running `flask db upgrade` on the copy.
 Canonical Enterprise, Managed Store, and Service Department rows require
 explicit seeding after migration; migration creates schema, not authority.
 The beta web app remains connected to `dpo_beta`.
+
+## PostgreSQL migration compatibility finding
+
+The first online upgrade on isolated `dpo_v5_beta` stopped while creating
+`outcomes`: PostgreSQL rejected `association_only = 1` because that column is
+boolean. The migration and mapped model now use `association_only IS TRUE`,
+which preserves the frozen association-only invariant across PostgreSQL and
+SQLite. This is an implementation portability correction, not an architecture
+reopen. The failed transaction's resulting Alembic revision and table state
+must be verified before retrying the updated branch.
