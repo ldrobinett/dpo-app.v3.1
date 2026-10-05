@@ -6,7 +6,9 @@
 from the deployed PostgreSQL schema through a read-only transaction. It emits
 aggregate source counts, dates, legacy DPO capacity, realized FRH, RO identifiers,
 DPO modes, daily metric snapshot coverage, and economic input presence. It
-requires `DATABASE_URL` in the environment and prints no connection secrets,
+uses `DATABASE_URL` when available or libpq host/port/database/user settings
+(with credentials from the account's existing PostgreSQL authentication),
+and prints no connection secrets,
 customer names, technician names, or RO numbers. It does not construct a
 canonical V5 case or mark True Potential validated.
 
