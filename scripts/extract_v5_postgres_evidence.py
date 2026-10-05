@@ -31,10 +31,15 @@ def extract_period(
     if store_id <= 0:
         raise ValueError("store_id must be positive")
 
-    if database_url:
-        connection = psycopg2.connect(database_url)
+    if connection_options:
+        connection = psycopg2.connect(**connection_options)
+    elif database_url:
+        # Flask-SQLAlchemy URLs include a dialect suffix not accepted by libpq.
+        connection = psycopg2.connect(
+            database_url.replace('postgresql+psycopg2://', 'postgresql://', 1)
+        )
     else:
-        connection = psycopg2.connect(**(connection_options or {}))
+        raise ValueError('PostgreSQL connection settings are required')
     with closing(connection) as connection:
         connection.set_session(readonly=True, autocommit=False)
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -194,11 +199,18 @@ def main() -> int:
     parser.add_argument("--user", help="PostgreSQL user")
     args = parser.parse_args()
     database_url = os.environ.get("DATABASE_URL")
-    options = None
-    if not database_url:
-        if not all((args.host, args.port, args.dbname, args.user)):
-            parser.error("Set DATABASE_URL or provide --host, --port, --dbname, and --user")
-        options = dict(host=args.host, port=args.port, dbname=args.dbname, user=args.user)
+    explicit = (args.host, args.port, args.dbname, args.user)
+    if any(value is not None for value in explicit) and not all(
+        value is not None for value in explicit
+    ):
+        parser.error("Provide all of --host, --port, --dbname, and --user")
+    options = (
+        dict(host=args.host, port=args.port, dbname=args.dbname, user=args.user)
+        if all(value is not None for value in explicit)
+        else None
+    )
+    if not options and not database_url:
+        parser.error("Set DATABASE_URL or provide explicit connection settings")
     result = extract_period(
         database_url, args.store_id, args.period_start, args.period_end, options
     )
