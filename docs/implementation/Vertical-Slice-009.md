@@ -69,3 +69,18 @@ Then deploy/migrate the V5 identity and governance tables, map legacy store 2
 to canonical scope, authorize DPO prospectively, and integrate a governed
 supported-demand source. Only after those inputs exist should the case enter
 validated True Potential and a corrective management decision path.
+
+## Isolated migration preparation
+
+The user created `dpo_v5_beta` and restored the `dpo4db` plain SQL export
+into it without changing the operational or existing beta databases. Restore
+returned without a reported error; table counts and revision on the copy are
+pending independent verification.
+
+The repository migration graph is a single chain from the exported revision
+`3c0ba172b4a0` through the V5 Enterprise migration `52c97fb4ecad` to
+head `e82cd3516d34`. Generate and inspect offline upgrade SQL from an
+isolated branch checkout before running `flask db upgrade` on the copy.
+Canonical Enterprise, Managed Store, and Service Department rows require
+explicit seeding after migration; migration creates schema, not authority.
+The beta web app remains connected to `dpo_beta`.
