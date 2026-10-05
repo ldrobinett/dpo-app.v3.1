@@ -104,20 +104,16 @@ class Enterprise(SoftRetirementMixin, MIEntity):
             )
         return normalized
 
-def _assert_immutable(self, attribute_name: str, new_value: str) -> None:
-    state = inspect(self)
+    def _assert_immutable(self, attribute_name: str, new_value: str) -> None:
+        state = inspect(self)
+        if not state.persistent:
+            return
+        current_value = getattr(self, attribute_name, None)
+        if current_value is not None and current_value != new_value:
+            raise ValueError(
+                f"Enterprise {attribute_name} is immutable after creation."
+            )
 
-    if not state.persistent:
-        return
-
-    # getattr() reloads an expired value from the database when necessary.
-    current_value = getattr(self, attribute_name, None)
-
-    if current_value is not None and current_value != new_value:
-        raise ValueError(
-            f"Enterprise {attribute_name} is immutable after creation."
-        )
-    
     def __repr__(self) -> str:
         return (
             f"<Enterprise enterprise_id={self.id} "
