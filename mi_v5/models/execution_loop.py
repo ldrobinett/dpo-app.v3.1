@@ -215,7 +215,7 @@ class Outcome(TenantEntity):
             ondelete="RESTRICT",
         ),
         CheckConstraint("period_end >= period_start", name="period_valid"),
-        CheckConstraint("association_only = 1", name="association_only_required"),
+        CheckConstraint("association_only IS TRUE", name="association_only_required"),
         UniqueConstraint(
             "enterprise_id", "outcome_id", name="uq_outcomes_tenant_identity"
         ),
