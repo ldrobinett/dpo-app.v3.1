@@ -47,10 +47,22 @@ the frozen architecture.
 
 ## Verification and next gate
 
-The new extraction module compiled locally. It has not been executed against
-the live PostgreSQL connection in this session. Its aggregate query results
-must be compared with the September export counts above before accepting it
-as a verified source bridge.
+The extraction module compiled locally and was executed read-only against
+PythonAnywhere `dpo4db` for store 2, September 1–30. Its output matched the
+independently parsed SQL export: 317 schedule rows, 25 scheduled dates,
+19 scheduled technicians, 8,992 work-log rows, 25 production dates,
+19 producing technicians, 1,511 distinct RO identifiers, 2,184.74 realized
+FRH, 3,020 positive / 5,968 zero / 4 negative FRH rows, and no uncovered
+scheduled operating dates. The live output also confirmed 20 current manual
+DPO rows, no governed DPO table, two daily snapshot rows, no complete CP
+economic inputs, and null supported demand. This verifies the aggregate
+PostgreSQL source bridge for this store and period, not a V5 governed case.
+
+The exported database is at Alembic revision `3c0ba172b4a0`; the first V5
+Enterprise migration follows that revision. The Bash `DATABASE_URL` selects
+`dpo_beta`, while the recent work logs are in `dpo4db`. Determine which
+connection the web process uses before any migration or prospective authority
+records.
 
 Then deploy/migrate the V5 identity and governance tables, map legacy store 2
 to canonical scope, authorize DPO prospectively, and integrate a governed
