@@ -119,8 +119,15 @@ and Service Department. No Employee or DPO authority record was created.
 `scripts/preview_v5_postgres_dpo.py` reads the isolated PostgreSQL scope,
 active legacy technicians, current DPO values, calculation inputs, existing
 authority count, and canonical Employee count. It requires a prospective
-effective date and writes nothing. Local syntax compilation passed; the live
-preview and human review of override reasons remain pending. The source export
-contains 20 Honda Renton technicians with nonempty technician numbers,
-positive current DPO values, and usable calculation history, but current
-manual DPO must not be treated as historical verified authority.
+effective date and writes nothing. Local syntax compilation passed. The live read-only preview on isolated
+`dpo_v5_beta` for October 5, 2026 returned the expected canonical scope,
+20 active technician candidates, zero governed DPO records, and zero canonical
+Employees. Every candidate is in manual calculation mode and requires an
+override review. All 20 calculated comparisons equal 8.0 FRH/day, while the
+manual values range from 5.2 to 10.4; 12 differ by more than 1.0 FRH/day.
+The uniform comparison requires source-history review before relying on it.
+The only structural blocker reported is absence of a canonical Employee who
+can authorize DPO; human review of each proposed value and reason remains a
+governance gate. Current manual values are candidates, not historical verified
+authority. The preview created no records and did not change `dpo4db` or the
+beta website's `dpo_beta` database.
