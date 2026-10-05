@@ -19,13 +19,23 @@ from psycopg2.extras import RealDictCursor
 QUERY_VERSION = "legacy-postgres-evidence-v1"
 
 
-def extract_period(database_url: str, store_id: int, start: date, end: date) -> dict:
+def extract_period(
+    database_url: str | None,
+    store_id: int,
+    start: date,
+    end: date,
+    connection_options: dict | None = None,
+) -> dict:
     if end < start:
         raise ValueError("period_end must be on or after period_start")
     if store_id <= 0:
         raise ValueError("store_id must be positive")
 
-    with closing(psycopg2.connect(database_url)) as connection:
+    if database_url:
+        connection = psycopg2.connect(database_url)
+    else:
+        connection = psycopg2.connect(**(connection_options or {}))
+    with closing(connection) as connection:
         connection.set_session(readonly=True, autocommit=False)
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
@@ -178,12 +188,19 @@ def main() -> int:
     parser.add_argument("--store-id", type=int, required=True)
     parser.add_argument("--period-start", type=date.fromisoformat, required=True)
     parser.add_argument("--period-end", type=date.fromisoformat, required=True)
+    parser.add_argument("--host", help="PostgreSQL host; libpq may use ~/.pgpass")
+    parser.add_argument("--port", type=int, help="PostgreSQL port")
+    parser.add_argument("--dbname", help="PostgreSQL database name")
+    parser.add_argument("--user", help="PostgreSQL user")
     args = parser.parse_args()
     database_url = os.environ.get("DATABASE_URL")
+    options = None
     if not database_url:
-        parser.error("DATABASE_URL is required; do not pass credentials on the command line")
+        if not all((args.host, args.port, args.dbname, args.user)):
+            parser.error("Set DATABASE_URL or provide --host, --port, --dbname, and --user")
+        options = dict(host=args.host, port=args.port, dbname=args.dbname, user=args.user)
     result = extract_period(
-        database_url, args.store_id, args.period_start, args.period_end
+        database_url, args.store_id, args.period_start, args.period_end, options
     )
     print(json.dumps(result, indent=2))
     return 0
