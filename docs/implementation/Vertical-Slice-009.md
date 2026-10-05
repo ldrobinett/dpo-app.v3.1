@@ -109,3 +109,18 @@ canonical Enterprise/Managed Store/Service Department scope for legacy Honda
 Renton store 2, with an explicit database-name guard. The canonical identity
 labels and codes require human review before apply. It does not create an
 approving Employee or DPO authority record.
+
+## Canonical scope and prospective DPO preview
+
+The guarded scope bootstrap applied to isolated `dpo_v5_beta`, creating an
+AutoNation Enterprise, Honda Renton Managed Store mapped to legacy store 2,
+and Service Department. No Employee or DPO authority record was created.
+
+`scripts/preview_v5_postgres_dpo.py` reads the isolated PostgreSQL scope,
+active legacy technicians, current DPO values, calculation inputs, existing
+authority count, and canonical Employee count. It requires a prospective
+effective date and writes nothing. Local syntax compilation passed; the live
+preview and human review of override reasons remain pending. The source export
+contains 20 Honda Renton technicians with nonempty technician numbers,
+positive current DPO values, and usable calculation history, but current
+manual DPO must not be treated as historical verified authority.
