@@ -31,15 +31,18 @@ def extract_period(
     if store_id <= 0:
         raise ValueError("store_id must be positive")
 
-    if connection_options:
-        connection = psycopg2.connect(**connection_options)
-    elif database_url:
-        # Flask-SQLAlchemy URLs include a dialect suffix not accepted by libpq.
-        connection = psycopg2.connect(
-            database_url.replace('postgresql+psycopg2://', 'postgresql://', 1)
-        )
-    else:
-        raise ValueError('PostgreSQL connection settings are required')
+    try:
+        if connection_options:
+            connection = psycopg2.connect(**connection_options)
+        elif database_url:
+            # Flask-SQLAlchemy URLs include a dialect suffix not accepted by libpq.
+            connection = psycopg2.connect(
+                database_url.replace('postgresql+psycopg2://', 'postgresql://', 1)
+            )
+        else:
+            raise ValueError('PostgreSQL connection settings are required')
+    except psycopg2.Error:
+        raise RuntimeError('PostgreSQL connection failed; verify the target and credentials') from None
     with closing(connection) as connection:
         connection.set_session(readonly=True, autocommit=False)
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
