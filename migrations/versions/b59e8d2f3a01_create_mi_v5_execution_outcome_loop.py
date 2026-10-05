@@ -235,7 +235,7 @@ def upgrade():
             "period_end >= period_start", name=op.f("ck_outcomes_period_valid")
         ),
         sa.CheckConstraint(
-            "association_only = 1",
+            "association_only IS TRUE",
             name=op.f("ck_outcomes_association_only_required"),
         ),
         sa.ForeignKeyConstraint(
