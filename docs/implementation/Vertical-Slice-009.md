@@ -95,3 +95,17 @@ which preserves the frozen association-only invariant across PostgreSQL and
 SQLite. This is an implementation portability correction, not an architecture
 reopen. The failed transaction's resulting Alembic revision and table state
 must be verified before retrying the updated branch.
+
+## Isolated V5 migration verified
+
+After the portable boolean correction, `flask db upgrade` completed on the
+isolated `dpo_v5_beta` clone. A read-only verification returned Alembic head
+`e82cd3516d34`, 26,528 work-log rows, 1,922 schedule entries, and the
+`enterprises`, `managed_stores`, `departments`, and
+`technician_dpo_records` tables. The beta website still uses `dpo_beta`.
+
+`scripts/bootstrap_v5_honda_scope.py` now previews or idempotently creates
+canonical Enterprise/Managed Store/Service Department scope for legacy Honda
+Renton store 2, with an explicit database-name guard. The canonical identity
+labels and codes require human review before apply. It does not create an
+approving Employee or DPO authority record.
