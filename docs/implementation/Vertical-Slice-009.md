@@ -74,8 +74,9 @@ validated True Potential and a corrective management decision path.
 
 The user created `dpo_v5_beta` and restored the `dpo4db` plain SQL export
 into it without changing the operational or existing beta databases. Restore
-returned without a reported error; table counts and revision on the copy are
-pending independent verification.
+returned without a reported error. A read-only query on the copy verified
+revision `3c0ba172b4a0`, 26,528 work-log rows, 1,922 schedule entries, and
+latest production date October 2, 2026, matching the source export.
 
 The repository migration graph is a single chain from the exported revision
 `3c0ba172b4a0` through the V5 Enterprise migration `52c97fb4ecad` to
