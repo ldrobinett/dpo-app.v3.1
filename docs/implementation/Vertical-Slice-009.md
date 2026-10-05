@@ -59,10 +59,11 @@ economic inputs, and null supported demand. This verifies the aggregate
 PostgreSQL source bridge for this store and period, not a V5 governed case.
 
 The exported database is at Alembic revision `3c0ba172b4a0`; the first V5
-Enterprise migration follows that revision. The Bash `DATABASE_URL` selects
-`dpo_beta`, while the recent work logs are in `dpo4db`. Determine which
-connection the web process uses before any migration or prospective authority
-records.
+Enterprise migration follows that revision. The beta web process and Bash `DATABASE_URL` both select `dpo_beta`,
+while the recent work logs are in `dpo4db`. Keep `dpo4db` read-only for V5
+source proof. Prepare an isolated database copy from current source data for
+migration and prospective authority records; do not point the beta app at the
+current operational database.
 
 Then deploy/migrate the V5 identity and governance tables, map legacy store 2
 to canonical scope, authorize DPO prospectively, and integrate a governed
