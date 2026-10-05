@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from contextlib import closing
 from datetime import date, datetime, timezone
 
 import psycopg2
@@ -24,8 +25,8 @@ def extract_period(database_url: str, store_id: int, start: date, end: date) -> 
     if store_id <= 0:
         raise ValueError("store_id must be positive")
 
-    with psycopg2.connect(database_url) as connection:
-        connection.set_session(readonly=True)
+    with closing(psycopg2.connect(database_url)) as connection:
+        connection.set_session(readonly=True, autocommit=False)
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 "SELECT id, name FROM managed_store WHERE id = %s",
