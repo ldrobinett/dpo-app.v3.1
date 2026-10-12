@@ -100,6 +100,20 @@ def preview(host: str, port: int, dbname: str, user: str,
             if productive_days > 0 else 0.0
         )
         current = float(row["daily_production_objective"] or 0)
+        calculation_inputs = {
+            "hist_frh_total": row["hist_frh_total"],
+            "hist_days_in_period": row["hist_days_in_period"],
+            "hist_training_days": row["hist_training_days"],
+            "hist_vacation_days": row["hist_vacation_days"],
+            "expected_lift_percent": row["expected_lift_percent"],
+        }
+        calculation_warnings = []
+        if tuple(calculation_inputs.values()) == (80.0, 10, 0, 0, 100.0):
+            calculation_warnings.append(
+                "Calculation inputs match legacy defaults (80/10/0/0/100); "
+                "history provenance is unverified. This match alone does not "
+                "prove fabricated history."
+            )
         if not (row["tech_number"] or "").strip():
             issues.append(f"Technician {member_id} lacks a technician number")
         if current <= 0:
@@ -111,6 +125,10 @@ def preview(host: str, port: int, dbname: str, user: str,
             "tech_number": row["tech_number"],
             "current_manual_dpo": current,
             "calculated_comparison": calculated,
+            "calculation_inputs": calculation_inputs,
+            "productive_days": productive_days,
+            "manual_minus_calculated": round(current - calculated, 4),
+            "calculation_warnings": calculation_warnings,
             "calculation_mode": row["dpo_calculation_mode"],
             "requires_override_review": row["dpo_calculation_mode"] != "calculated",
         })
