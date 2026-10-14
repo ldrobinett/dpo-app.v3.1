@@ -22,6 +22,7 @@ from extensions import db
 from mi_v5.models.enterprise import Enterprise
 from mi_v5.models.managed_store import ManagedStore
 from mi_v5.models.department import Department
+from mi_v5.schema_versions import DPO_PREVIEW_REVISIONS
 
 
 def bootstrap(
@@ -44,7 +45,7 @@ def bootstrap(
         revision = db.session.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        if revision != "e82cd3516d34":
+        if revision not in DPO_PREVIEW_REVISIONS:
             raise ValueError(f"V5 migration head required; found {revision}")
 
         legacy = db.session.execute(

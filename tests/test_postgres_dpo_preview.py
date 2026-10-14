@@ -45,7 +45,7 @@ class PostgresDPOPreviewTests(unittest.TestCase):
 
     def _preview(
         self, *, rows=None, database="dpo_v5_beta", revision="e82cd3516d34",
-        missing_scope=False, employees=0, records=0,
+        missing_scope=False, ambiguous_scope=False, employees=0, records=0,
         effective_from=date(2026, 10, 13),
     ):
         self.connection = MagicMock()
@@ -56,17 +56,18 @@ class PostgresDPOPreviewTests(unittest.TestCase):
         self.cursor.fetchone.side_effect = [
             {"name": database},
             {"version_num": revision},
-            None if missing_scope else {
-                "enterprise_id": "enterprise-1",
-                "managed_store_id": "store-1",
-                "department_id": "department-1",
-            },
             {"n": employees},
             {"n": records},
         ]
-        self.cursor.fetchall.return_value = (
-            [technician_row()] if rows is None else rows
-        )
+        scope = {
+            "enterprise_id": "enterprise-1",
+            "managed_store_id": "store-1",
+            "department_id": "department-1",
+        }
+        self.cursor.fetchall.side_effect = [
+            [] if missing_scope else [scope] * (2 if ambiguous_scope else 1),
+            [technician_row()] if rows is None else rows,
+        ]
         with patch.object(self.module, "datetime") as clock:
             clock.now.return_value = datetime(2026, 10, 12)
             return self.module.preview(
@@ -214,8 +215,19 @@ class PostgresDPOPreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Service scope is missing"):
             self._preview(missing_scope=True)
         self.assertEqual(self.cursor.execute.call_count, 3)
-        self.cursor.fetchall.assert_not_called()
+        self.cursor.fetchall.assert_called_once_with()
         self.connection.close.assert_called_once_with()
+
+    def test_ambiguous_service_scope_blocks_preview(self) -> None:
+        with self.assertRaisesRegex(ValueError, "scope is ambiguous"):
+            self._preview(ambiguous_scope=True)
+        self.assertEqual(self.cursor.execute.call_count, 3)
+        self.connection.close.assert_called_once_with()
+
+    def test_old_and_assignment_revisions_are_explicitly_supported(self) -> None:
+        for revision in ("e82cd3516d34", "f1d8c9a4b672"):
+            with self.subTest(revision=revision):
+                self.assertEqual(self._preview(revision=revision)["mode"], "preview_only")
 
     def test_past_effective_date_never_calls_driver(self) -> None:
         with self.assertRaisesRegex(ValueError, "must be prospective"):

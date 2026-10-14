@@ -1,5 +1,6 @@
 """Management Intelligence v5 persisted business entities."""
 
+from .assignment import Assignment
 from .capability import Capability
 from .department import Department
 from .decision_loop import ManagementAction, ManagementDecision, RecommendationOutput
@@ -21,6 +22,7 @@ from .technician_dpo import TechnicianDPORecord
 from .true_potential_evidence import TruePotentialEvidencePack
 
 __all__ = [
+    "Assignment",
     "Capability",
     "Department",
     "ManagementAction",

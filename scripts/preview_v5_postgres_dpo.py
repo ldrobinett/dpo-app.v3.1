@@ -10,6 +10,14 @@ import json
 from contextlib import closing
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from mi_v5.schema_versions import DPO_PREVIEW_REVISIONS
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -34,7 +42,7 @@ def preview(host: str, port: int, dbname: str, user: str,
                 )
             cursor.execute("SELECT version_num FROM alembic_version")
             revision = cursor.fetchone()["version_num"]
-            if revision != "e82cd3516d34":
+            if revision not in DPO_PREVIEW_REVISIONS:
                 raise ValueError(f"V5 migration head required; found {revision}")
             cursor.execute(
                 """
@@ -49,9 +57,12 @@ def preview(host: str, port: int, dbname: str, user: str,
                 """,
                 (f"legacy_managed_store:{legacy_store_id}",),
             )
-            scope = cursor.fetchone()
-            if scope is None:
+            scopes = cursor.fetchall()
+            if not scopes:
                 raise ValueError("Canonical Honda Renton Service scope is missing")
+            if len(scopes) != 1:
+                raise ValueError("Canonical Honda Renton Service scope is ambiguous")
+            scope = scopes[0]
             cursor.execute(
                 """
                 SELECT tm.id, tm.tech_number, tm.daily_production_objective,
