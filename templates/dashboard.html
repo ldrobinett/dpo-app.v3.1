@@ -107,8 +107,30 @@
                         <div class="form-text">This is the sum of all DPOs for all scheduled days this month.</div>
                     </div>
                 </fieldset>
+                {% if not shared_inputs %}
+                <div class="alert alert-warning">
+                    No shared store inputs have been saved yet. Existing personal inputs are preserved.
+                    Review the sources below, select one to preview, and explicitly save the reviewed values.
+                    Until then, this page is a preview and does not change the saved monthly forecast.
+                </div>
+                {% for candidate, username in legacy_candidates %}
+                <details class="mb-2">
+                    <summary>{{ username }}: saved personal inputs</summary>
+                    <dl>{% for field in input_fields %}<dt>{{ field|replace('_', ' ') }}</dt><dd>{{ candidate|attr(field) }}</dd>{% endfor %}</dl>
+                    <a href="{{ url_for('finance.dashboard', source=candidate.user_id) }}">Preview these values</a>
+                </details>
+                {% endfor %}
+                {% endif %}
                 <form method="POST" action="{{ url_for('finance.dashboard') }}">
                     {{ financial_form.hidden_tag() }}
+                    <input type="hidden" name="input_version" value="{{ input_version }}">
+                    {% for field, errors in financial_form.errors.items() %}
+                    <div class="alert alert-danger">{{ field }}: {{ errors|join(', ') }}</div>
+                    {% endfor %}
+                    {% if not shared_inputs %}
+                    <label class="mb-3"><input type="checkbox" name="confirm_shared_inputs" value="yes" required>
+                    I reviewed the existing inputs and want to use the values below for everyone in this store.</label>
+                    {% endif %}
                     
                     <fieldset class="row g-3 mb-4">
                         <legend class="fs-5 border-bottom pb-2">Core Rates & Margins</legend>

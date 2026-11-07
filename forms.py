@@ -243,14 +243,24 @@ class RecurringScheduleForm(FlaskForm):
         widget=widgets.ListWidget(prefix_label=False),
         option_widget=widgets.CheckboxInput(),
         coerce=int,
-        validators=[Optional()]
+        validators=[DataRequired(message='Select at least one weekday.')]
     )
     start_time = TimeField('Start Time', validators=[DataRequired()])
     end_time = TimeField('End Time', validators=[DataRequired()])
     lunch_start = TimeField('Lunch Start (Optional)', validators=[Optional()])
     lunch_end = TimeField('Lunch End (Optional)', validators=[Optional()])
     notes = TextAreaField('Notes (Optional)')
-    submit = SubmitField('Generate Schedule')
+    operation = SelectField(
+        'Schedule Action',
+        choices=[('add', 'Add missing days'), ('replace', 'Replace work schedule in this date range')],
+        default='add',
+        validators=[DataRequired()],
+    )
+    confirm_replace = BooleanField(
+        'I confirm replacing WORK entries in this range, including removing weekdays '
+        'that are not selected. Past dates can change historical capacity.'
+    )
+    submit = SubmitField('Save Schedule')
 
     def validate(self, **kwargs):
         if not super().validate(**kwargs): return False
@@ -258,6 +268,26 @@ class RecurringScheduleForm(FlaskForm):
             msg = 'Either Team or Team Member must be selected.'
             self.team.errors.append(msg)
             self.team_member.errors.append(msg)
+            return False
+        if self.team.data and self.team_member.data and self.team_member.data.team_id != self.team.data.id:
+            self.team_member.errors.append('The technician must belong to the selected team.')
+            return False
+        if self.end_date.data < self.start_date.data:
+            self.end_date.errors.append('End date must be on or after start date.')
+            return False
+        if self.end_time.data <= self.start_time.data:
+            self.end_time.errors.append('End time must be after start time on the same day.')
+            return False
+        if bool(self.lunch_start.data) != bool(self.lunch_end.data):
+            self.lunch_end.errors.append('Provide both lunch times, or leave both blank.')
+            return False
+        if self.lunch_start.data and not (
+            self.start_time.data <= self.lunch_start.data < self.lunch_end.data <= self.end_time.data
+        ):
+            self.lunch_end.errors.append('Lunch must fall within the shift, with end after start.')
+            return False
+        if self.operation.data == 'replace' and not self.confirm_replace.data:
+            self.confirm_replace.errors.append('Confirm replacement before saving.')
             return False
         return True
 

@@ -1,4 +1,5 @@
 import csv
+from wtforms.validators import Optional
 import io
 import time
 from datetime import datetime, date, timedelta
@@ -6,7 +7,7 @@ import calendar
 from flask import Blueprint, render_template, url_for, flash, redirect, request, make_response
 from flask_login import login_required, current_user
 from extensions import db, bcrypt
-from models import OnboardingTicket, User, FinancialInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability, ManagedStore
+from models import OnboardingTicket, User, FinancialInputs, StoreForecastInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability, ManagedStore
 from forms import OnboardingForm, StoreSettingsForm, BulkTeamUploadForm
 
 onboarding_bp = Blueprint('onboarding', __name__)
@@ -159,6 +160,19 @@ def review_setup():
         user_id=current_user.id
     ).first()
 
+    shared_inputs = db.session.get(StoreForecastInputs, current_user.store_id)
+    forecast_fields = {
+        'elr': 'effective_labor_rate', 'parts_to_labor': 'parts_to_labor_ratio',
+        'labor_margin': 'labor_margin', 'parts_margin': 'parts_margin',
+        **{name: name for name in ('other_ro_gross', 'unapplied_time_cost',
+           'parts_retail_gross', 'wholesale_gross', 'parts_inventory_adjust',
+           'parts_allowance', 'purchase_discounts')},
+    }
+    if shared_inputs:
+        for field in forecast_fields:
+            form[field].render_kw = {'readonly': True}
+            form[field].validators = [Optional()]
+
     # =========================
     # GET – Pre-fill Form
     # =========================
@@ -188,6 +202,10 @@ def review_setup():
             form.parts_fill_rate.data = fin_inputs.parts_fill_rate
             form.parts_turn_rate.data = fin_inputs.parts_turn_rate
 
+    if request.method == 'GET' and shared_inputs:
+        for field, attribute in forecast_fields.items():
+            form[field].data = shared_inputs.values.get(attribute)
+
     # =========================
     # POST – Save Changes
     # =========================
@@ -204,23 +222,15 @@ def review_setup():
             fin_inputs = FinancialInputs(user_id=current_user.id)
             db.session.add(fin_inputs)
 
-        fin_inputs.effective_labor_rate = form.elr.data
-        fin_inputs.parts_to_labor_ratio = form.parts_to_labor.data
-        fin_inputs.labor_margin = form.labor_margin.data
-        fin_inputs.parts_margin = form.parts_margin.data
+        if not shared_inputs:
+            for field, attribute in forecast_fields.items():
+                setattr(fin_inputs, attribute, form[field].data)
         fin_inputs.cp_effective_labor_rate = form.cp_elr.data
         fin_inputs.cp_parts_to_labor_ratio = form.cp_parts_to_labor.data
         fin_inputs.cp_labor_margin = form.cp_labor_margin.data
         fin_inputs.cp_parts_margin = form.cp_parts_margin.data
         fin_inputs.bays_with_lifts = form.bays_with_lifts.data
         fin_inputs.bays_without_lifts = form.bays_without_lifts.data
-        fin_inputs.other_ro_gross = form.other_ro_gross.data
-        fin_inputs.unapplied_time_cost = form.unapplied_time_cost.data
-        fin_inputs.parts_retail_gross = form.parts_retail_gross.data
-        fin_inputs.wholesale_gross = form.wholesale_gross.data
-        fin_inputs.parts_inventory_adjust = form.parts_inventory_adjust.data
-        fin_inputs.parts_allowance = form.parts_allowance.data
-        fin_inputs.purchase_discounts = form.purchase_discounts.data
         fin_inputs.parts_fill_rate = form.parts_fill_rate.data
         fin_inputs.parts_turn_rate = form.parts_turn_rate.data
 
@@ -232,7 +242,8 @@ def review_setup():
     return render_template(
         'store_settings.html',
         form=form,
-        title='Initial Setup Review'
+        title='Initial Setup Review',
+        shared_forecast_inputs=bool(shared_inputs)
     )
 
 

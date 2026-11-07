@@ -3,13 +3,17 @@ from flask_login import login_required, current_user, AnonymousUserMixin
 from extensions import db
 from models import (
     ScheduleEntry, WorkLog, TeamSchedule, Team,
-    ProductionObjectiveMemo, FinancialForecast, FinancialInputs, TeamMember, User
+    ProductionObjectiveMemo, FinancialForecast, FinancialInputs, StoreForecastInputs, TeamMember, User
 )
 from forms import FinancialPerformanceForm
+from services.forecast_inputs import (
+    FIELDS, ForecastConflict, as_inputs, legacy_candidates, stage_inputs, values_from,
+)
 from datetime import date, time, timedelta, datetime
 import calendar
+import math
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.orm import joinedload
 import traceback # Import for logging
 from utils.permissions import require_capability
@@ -35,7 +39,7 @@ def apply_financial_adjustments(forecast_data, user_inputs):
     2. Parts Gross: Base Gross + ALL Parts Adjustments (Retail, Wholesale, Inventory, Discounts)
     3. Other Gross: Set to 0.
     """
-    from decimal import Decimal
+    from decimal import Decimal, InvalidOperation
 
     # Base Gross (from the daily forecast calculation)
     base_labor_gross = forecast_data.get('labor_gross', Decimal('0.00'))
@@ -238,42 +242,51 @@ def dashboard():
 
     store_id = current_user.store_id
 
-    # Query FinancialInputs solely by the user_id (Final robust retrieval)
-    user_inputs = FinancialInputs.query.filter(
-        FinancialInputs.user_id == current_user.id
-    ).first()
+    shared_inputs = db.session.get(StoreForecastInputs, store_id)
+    candidates = legacy_candidates(store_id) if not shared_inputs else []
+    user_inputs = as_inputs(shared_inputs)
+    # Legacy values are preview-only until an explicit reviewed Save.
+    selected_source = request.args.get('source', type=int)
+    if not shared_inputs:
+        selected = next((row for row, _ in candidates if row.user_id == selected_source), None)
+        if selected is None and len(candidates) == 1:
+            selected = candidates[0][0]
+        user_inputs = selected
 
-    if user_inputs:
-        financial_form = FinancialPerformanceForm(obj=user_inputs)
-    else:
-        financial_form = FinancialPerformanceForm()
+    financial_form = FinancialPerformanceForm(obj=user_inputs)
+    if request.method == 'GET' and user_inputs:
+        # Form field name differs from the database attribute.
+        financial_form.elr.data = user_inputs.effective_labor_rate
 
-    # --- POST Request ---
+    saving = False
     if request.method == 'POST':
         financial_form = FinancialPerformanceForm(request.form)
+        for field in FIELDS:
+            raw = request.form.get('elr' if field == 'effective_labor_rate' else field, '')
+            if raw.strip():
+                try:
+                    if not Decimal(raw).is_finite():
+                        return 'Financial inputs must be finite numbers. Nothing was saved.', 400
+                except InvalidOperation:
+                    pass  # Standard form validation will explain nonnumeric input.
         if financial_form.validate_on_submit():
-            if not user_inputs:
-                # Create new entry if none exists
-                user_inputs = FinancialInputs(user_id=current_user.id)
-                db.session.add(user_inputs)
-
-            # Explicitly map ALL fields from form to model (Fixes saving issue)
-            user_inputs.effective_labor_rate = financial_form.elr.data
-            user_inputs.parts_to_labor_ratio = financial_form.parts_to_labor_ratio.data
-            user_inputs.labor_margin = financial_form.labor_margin.data
-            user_inputs.parts_margin = financial_form.parts_margin.data
-            user_inputs.other_ro_gross = financial_form.other_ro_gross.data
-            user_inputs.unapplied_time_cost = financial_form.unapplied_time_cost.data
-            user_inputs.wholesale_gross = financial_form.wholesale_gross.data
-            user_inputs.parts_retail_gross = financial_form.parts_retail_gross.data
-            user_inputs.parts_inventory_adjust = financial_form.parts_inventory_adjust.data
-            user_inputs.parts_allowance = financial_form.parts_allowance.data
-            user_inputs.purchase_discounts = financial_form.purchase_discounts.data
-
-            db.session.commit()
-            flash('Financial inputs updated successfully!', 'success')
-            return redirect(url_for('finance.dashboard'))
-    # --- END POST Request ---
+            expected_version = request.form.get('input_version', type=int)
+            if expected_version is None or expected_version < 0:
+                return 'Missing input version. Reload the forecast before saving.', 409
+            if expected_version == 0 and request.form.get('confirm_shared_inputs') != 'yes':
+                return 'Review the legacy inputs and confirm the shared values before saving.', 409
+            values = {field: (float(financial_form[field if field != 'effective_labor_rate' else 'elr'].data)
+                              if financial_form[field if field != 'effective_labor_rate' else 'elr'].data is not None else None)
+                      for field in FIELDS}
+            if any(value is not None and not math.isfinite(value) for value in values.values()):
+                return 'Financial inputs must be finite numbers. Nothing was saved.', 400
+            try:
+                user_inputs = stage_inputs(store_id, current_user.id, expected_version, values)
+            except ForecastConflict as exc:
+                return str(exc), 409
+            saving = True
+        else:
+            flash('Inputs were not saved. Please correct the form errors.', 'danger')
 
     # --- GET Request & Calculations ---
 
@@ -371,7 +384,7 @@ def dashboard():
         full_month_financial_forecast = base_month_total
 
     # Save the forecast
-    if base_month_total['expected_frh'] > 0 or base_month_total['total_gross'] > 0:
+    if saving:
         forecast_entry = FinancialForecast.query.filter_by(
             month=today.month,
             year=today.year,
@@ -394,6 +407,8 @@ def dashboard():
         forecast_entry.date_updated = date.today()
 
         db.session.commit()
+        flash('Shared store inputs and monthly forecast saved successfully!', 'success')
+        return redirect(url_for('finance.dashboard'))
 
     # --- MTD Member Data (Includes Avg Hrs/RO) ---
     all_members = TeamMember.query.join(Team).filter(Team.store_id == store_id).all()
@@ -471,16 +486,15 @@ def dashboard():
         ro_count = len(mtd_member_data[member_id]['ros'])
         mtd_member_data[member_id]['avg_hrs_per_ro'] = (mtd_member_data[member_id]['actual'] / ro_count) if ro_count > 0 else 0.0
 
-    # Re-populate form if needed
-    if user_inputs:
-        financial_form = FinancialPerformanceForm(obj=user_inputs)
-        financial_form.elr.data = user_inputs.effective_labor_rate
-
     return render_template('dashboard.html',
                            title='Dashboard',
                            weekly_member_data=weekly_member_data,
                            mtd_member_data=mtd_member_data,
                            financial_form=financial_form,
+                           input_version=(request.form.get('input_version', '') if request.method == 'POST' else (shared_inputs.version if shared_inputs else 0)),
+                           legacy_candidates=candidates,
+                           input_fields=FIELDS,
+                           shared_inputs=shared_inputs,
                            expected_frh_mtd=total_mtd_expected_frh, # Use MTD total
                            # [NEW] Pass Full Month Expected FRH
                            full_month_expected_frh=float(full_month_financial_forecast['expected_frh']),
