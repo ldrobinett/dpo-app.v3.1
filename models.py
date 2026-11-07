@@ -259,6 +259,15 @@ class FinancialInputs(db.Model):
     bays_without_lifts = db.Column(db.Integer)
 
 
+class StoreForecastInputs(db.Model):
+    """One canonical input set per store; original user inputs remain intact."""
+    store_id = db.Column(db.Integer, db.ForeignKey("managed_store.id"), primary_key=True)
+    values = db.Column(db.JSON, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    version = db.Column(db.Integer, nullable=False, default=1)
+    updated_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+
 class FinancialForecast(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     month = db.Column(db.Integer, nullable=False)
@@ -269,7 +278,10 @@ class FinancialForecast(db.Model):
         nullable=False
     )
 
-    __table_args__ = (db.Index("ix_forecast_store_id", "store_id"),)
+    __table_args__ = (
+        db.Index("ix_forecast_store_id", "store_id"),
+        db.UniqueConstraint("store_id", "year", "month", name="uq_forecast_store_period"),
+    )
 
     labor_gross = db.Column(db.Float, default=0.0)
     parts_gross = db.Column(db.Float, default=0.0)

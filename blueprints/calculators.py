@@ -7,7 +7,7 @@ from extensions import db
 from models import (
     DailyMetrics,
     FinancialForecast,
-    FinancialInputs,
+    FinancialInputs, StoreForecastInputs,
     RepairOrder,
     ScheduleEntry,
     Team,
@@ -111,7 +111,9 @@ def get_shop_stats(store_id: int) -> dict:
         "work_days": 21.0,
     }
 
-    inputs = FinancialInputs.query.filter(FinancialInputs.user_id == current_user.id).first()
+    from services.forecast_inputs import as_inputs
+    shared = db.session.get(StoreForecastInputs, store_id)
+    inputs = as_inputs(shared) if shared else FinancialInputs.query.filter(FinancialInputs.user_id == current_user.id).first()
     if inputs:
         stats["elr"] = safe_float(inputs.effective_labor_rate)
         stats["labor_margin"] = safe_float(inputs.labor_margin)

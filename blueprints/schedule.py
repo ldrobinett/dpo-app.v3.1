@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, url_for, flash, redirect, request
+from flask import Blueprint, render_template, url_for, flash, redirect, request, abort, current_app
 from flask_login import login_required, current_user
 from extensions import db
 from models import ScheduleEntry, Team, TeamMember, TeamSchedule, Holiday
@@ -10,6 +10,9 @@ from datetime import date, time, timedelta, datetime
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import SQLAlchemyError
+from utils.permissions import require_capability
+from utils.schedule_generation import plan_recurring_schedule
 import calendar # Needed for dynamic calendar logic
 
 # Create the Blueprint
@@ -554,103 +557,112 @@ def delete_team_schedule(schedule_id):
 
 @schedule_bp.route("/generate_schedule", methods=['GET', 'POST'])
 @login_required
+@require_capability("schedule.manage")
 def generate_schedule():
+    store_id = getattr(current_user, "store_id", None)
+    if store_id is None:
+        abort(403)
     form = RecurringScheduleForm()
+    # QuerySelectField uses .query, not .choices, for selection and validation.
+    form.team.query = Team.query.filter_by(store_id=store_id).order_by(Team.name)
+    member_query = TeamMember.query.join(Team).filter(
+        Team.store_id == store_id,
+    )
+    form.team_member.query = member_query.order_by(TeamMember.name)
     created_schedules = None
 
     if form.validate_on_submit():
         start_date = form.start_date.data
         end_date = form.end_date.data
-        days_of_week = form.days_of_week.data
-
-        # Determine the year range for holiday calculation
-        start_year = start_date.year
-        end_year = end_date.year
-
-        # Calculate holiday dates for the period
-        holidays_in_period = set()
-        for year in range(start_year, end_year + 1):
-            # We only need to check the months covered by the start/end date
-            start_month = start_date.month if year == start_year else 1
-            end_month = end_date.month if year == end_year else 12
-
-            for month in range(start_month, end_month + 1):
-                 # Pass the month range to the helper
-                holidays_in_period.update(get_holiday_dates(year, month, month))
-
-        team_members_to_schedule = []
-        flash_message_target = ""
-
+        target_query = member_query
         if form.team_member.data:
-            member = TeamMember.query.options(joinedload(TeamMember.team)).get(form.team_member.data.id)
-            if member:
-                team_members_to_schedule.append(member)
-                flash_message_target = member.name
-        elif form.team.data:
-            selected_team = Team.query.options(joinedload(Team.members)).get(form.team.data.id)
-            if selected_team:
-                team_members_to_schedule = selected_team.members
-                flash_message_target = selected_team.name
+            target_query = target_query.filter(TeamMember.id == form.team_member.data.id)
+            if form.team.data:
+                target_query = target_query.filter(TeamMember.team_id == form.team.data.id)
+            target_name = form.team_member.data.name
         else:
-            flash('You must select either a team or a team member.', 'danger')
-            return render_template('generate_schedules.html', title='Generate Schedule', form=form)
+            target_query = target_query.filter(TeamMember.team_id == form.team.data.id)
+            target_name = form.team.data.name
 
-        member_ids = [m.id for m in team_members_to_schedule]
+        try:
+            # PostgreSQL locks include dates without existing entries by locking
+            # their technicians first. Keep acquisition order stable across teams.
+            members = target_query.order_by(TeamMember.id).with_for_update(of=TeamMember).all()
+            member_ids = [member.id for member in members]
+            if not member_ids:
+                raise ValueError('No technicians are available in the selected target.')
+            holidays = set()
+            for year in range(start_date.year, end_date.year + 1):
+                first_month = start_date.month if year == start_date.year else 1
+                last_month = end_date.month if year == end_date.year else 12
+                holidays.update(get_holiday_dates(year, first_month, last_month))
 
-        existing_schedules = ScheduleEntry.query.filter(
-            ScheduleEntry.team_member_id.in_(member_ids),
-            ScheduleEntry.date >= start_date,
-            ScheduleEntry.date <= end_date
-        ).all()
-
-        existing_set = {(entry.team_member_id, entry.date) for entry in existing_schedules}
-
-        new_entries_to_add = []
-        current_date = start_date
-
-        while current_date <= end_date:
-            current_weekday_int = current_date.weekday()
-            day_is_selected = current_weekday_int in days_of_week
-            is_holiday = current_date in holidays_in_period # Check against calculated holidays
-
-            if day_is_selected:
-                for member in team_members_to_schedule:
-                    if (member.id, current_date) not in existing_set:
-
-                        # Set default schedule type based on holiday status
-                        schedule_type_val = 'HOLIDAY' if is_holiday else 'WORK'
-
-                        new_entry = ScheduleEntry(
-                            team_member_id=member.id,
-                            date=current_date,
-                            # Clear times if it's a holiday
-                            start_time=form.start_time.data if not is_holiday else None,
-                            end_time=form.end_time.data if not is_holiday else None,
-                            lunch_start=form.lunch_start.data if not is_holiday else None,
-                            lunch_end=form.lunch_end.data if not is_holiday else None,
-                            notes=form.notes.data if not is_holiday else "Shop Holiday",
-                            schedule_type=schedule_type_val # Set HOLIDAY or WORK
-                        )
-                        new_entries_to_add.append(new_entry)
-
-            current_date += timedelta(days=1)
-
-        if new_entries_to_add:
-            db.session.add_all(new_entries_to_add)
+            existing = ScheduleEntry.query.filter(
+                ScheduleEntry.team_member_id.in_(member_ids),
+                ScheduleEntry.date >= start_date,
+                ScheduleEntry.date <= end_date,
+            ).order_by(ScheduleEntry.id).all()
+            plan = plan_recurring_schedule(
+                member_ids, existing, start_date, end_date, form.days_of_week.data,
+                holidays,
+                {key: getattr(form, key).data for key in (
+                    'start_time', 'end_time', 'lunch_start', 'lunch_end', 'notes',
+                )},
+                replace=form.operation.data == 'replace',
+            )
+            for entry in plan.deletes:
+                db.session.delete(entry)
+            for entry, values in plan.updates:
+                for key, value in values.items():
+                    setattr(entry, key, value)
+            db.session.add_all([ScheduleEntry(**values) for values in plan.creates])
             db.session.commit()
-            flash(f'Schedules for {flash_message_target} generated successfully!', 'success')
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception('Recurring schedule save failed')
+            flash('Schedules could not be saved. No changes were applied. Please try again.', 'danger')
         else:
-            flash(f'No new schedules needed for {flash_message_target} in that range.', 'info')
+            flash(
+                f'Schedules saved for {target_name}: {len(plan.creates)} added, '
+                f'{len(plan.updates)} updated, {len(plan.deletes)} removed, '
+                f'{plan.unchanged} unchanged, {plan.protected} protected exceptions.',
+                'success',
+            )
+            # POST/Redirect/GET prevents browser refresh from reapplying a save.
+            return redirect(url_for(
+                'schedule.generate_schedule', start=start_date.isoformat(),
+                end=end_date.isoformat(),
+                member=form.team_member.data.id if form.team_member.data else None,
+                team=form.team.data.id if form.team.data else None,
+            ))
 
-        created_schedules = ScheduleEntry.query.options(
-            joinedload(ScheduleEntry.team_member)
-        ).filter(
-            ScheduleEntry.team_member_id.in_(member_ids),
-            ScheduleEntry.date >= start_date,
-            ScheduleEntry.date <= end_date
-        ).order_by(ScheduleEntry.date, ScheduleEntry.team_member_id).all()
+    if request.method == 'GET' and request.args.get('start') and request.args.get('end'):
+        # Read-only result view after redirect; never trust query-string target IDs.
+        try:
+            result_start = date.fromisoformat(request.args['start'])
+            result_end = date.fromisoformat(request.args['end'])
+            result_members = member_query
+            member_id = request.args.get('member', type=int)
+            team_id = request.args.get('team', type=int)
+            if result_end < result_start or not (member_id or team_id):
+                raise ValueError('Invalid result range or target.')
+            if member_id:
+                result_members = result_members.filter(TeamMember.id == member_id)
+            if team_id:
+                result_members = result_members.filter(TeamMember.team_id == team_id)
+            result_ids = [member.id for member in result_members.all()]
+            created_schedules = ScheduleEntry.query.filter(
+                ScheduleEntry.team_member_id.in_(result_ids),
+                ScheduleEntry.date >= result_start,
+                ScheduleEntry.date <= result_end,
+            ).options(joinedload(ScheduleEntry.team_member)).order_by(
+                ScheduleEntry.date, ScheduleEntry.team_member_id,
+            ).all()
+        except ValueError:
+            flash('The saved schedule view has an invalid date range or target.', 'warning')
 
-    return render_template('generate_schedules.html',
-                             title='Generate Schedule',
-                             form=form,
-                             created_schedules=created_schedules)
+    return render_template('generate_schedules.html', title='Create/Modify Team Schedules',
+                           form=form, created_schedules=created_schedules)
