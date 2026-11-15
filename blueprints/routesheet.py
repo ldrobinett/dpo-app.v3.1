@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, url_for,
-    flash, redirect, request, jsonify
+    flash, redirect, request, jsonify, current_app, session, abort
 )
 from flask_login import login_required, current_user
 from extensions import db
@@ -8,23 +8,59 @@ from models import RepairOrder, TeamMember, Team, WorkLog, ASM, ManagedStore
 from forms import RouteSheetForm, QuickLogForm
 from datetime import date, datetime, timedelta
 from utils.permissions import require_capability
-from utils.audit import update_audit_timestamp
 import csv
-import io
-
-CDK_STATUS_MAP = {
-    "OPENED": "Dispatch",
-    "AUTH. HOLD": "Approval",
-    "PREASSIGNED": "Dispatch",
-    "VEH. DISABLED": "Parts",
-    "WORKING": "Service",
-    "READY TO POST": "Warranty",
-    "ALL LAB. POSTED": "Ready",
-    "PRE-INVOICED": "Ready",
-    "CLOSED": "Closed",
-}
+import hashlib
+import json
+from pathlib import Path
+from uuid import uuid4
+from flask_wtf import FlaskForm
+from sqlalchemy.exc import SQLAlchemyError
+from services.route_download import read_download, preview_download, plan_fingerprint
+from pytz import timezone
 
 routesheet_bp = Blueprint("routesheet", __name__)
+
+
+def route_status_color(status):
+    key = " ".join((status or "").upper().replace(".", "").replace("-", " ").split())
+    if key in {"VEH DISABLED", "VEHICLE DISABLED"} or "HOLD" in key.split():
+        return "red"
+    if key == "PRE INVOICED":
+        return "green"
+    if key in {"OPENED", "PREASSIGNED"}:
+        return "orange"
+    if key in {"READY TO POST", "ALL LAB POSTED", "ALL LABOR POSTED"}:
+        return "yellow"
+    return "neutral"
+
+
+def closed_hours_for_pilot(store_id, today):
+    pilot = current_app.config.get("MI_LOCAL_PILOT")
+    if not pilot or pilot["store_id"] != store_id:
+        return None, None
+    source = current_app.config.get("ROUTE_CLOSED_HOURS", {})
+    totals = source.get(today.isoformat())
+    latest = max(source, default=None)
+    if not totals:
+        return None, latest
+    ro_numbers = {ro for ro, _, _ in totals}
+    tech_numbers = {tech for _, tech, _ in totals}
+    orders = {order.ro_number: order for order in RepairOrder.query.filter(
+        RepairOrder.store_id == store_id, RepairOrder.ro_number.in_(ro_numbers),
+    )}
+    techs = {tech.tech_number: tech for tech in TeamMember.query.join(Team).filter(
+        Team.store_id == store_id, TeamMember.tech_number.in_(tech_numbers),
+    )}
+    rows = []
+    for ro, tech_number, hours in totals:
+        order = orders.get(ro)
+        tech = techs.get(tech_number)
+        asm = order.asm if order else None
+        team_id = tech.team_id if tech and tech.team_id is not None else (asm.team_id if asm else None)
+        rows.append(dict(asm=str(asm.id) if asm else "unassigned",
+                         team=str(team_id) if team_id is not None else "unassigned",
+                         tech=str(tech.id) if tech else "unassigned", hours=hours))
+    return rows, latest
 
 # =====================================================
 # MAIN ROUTE SHEET VIEW
@@ -66,11 +102,13 @@ def view_sheet():
     # -----------------------------
     # LOAD DATA
     # -----------------------------
-    active_jobs = (
+    show_closed = request.args.get("view") == "closed"
+    closed_status = db.func.upper(RepairOrder.status) == "CLOSED"
+    jobs = (
         RepairOrder.query
         .filter(
             RepairOrder.store_id == store_id,
-            RepairOrder.status != "Closed"
+            closed_status if show_closed else ~closed_status,
         )
         .order_by(RepairOrder.status, RepairOrder.created_at)
         .all()
@@ -93,16 +131,24 @@ def view_sheet():
         .order_by(ASM.name)
         .all()
     )
+    route_teams = Team.query.filter_by(store_id=store_id).order_by(Team.name).all()
 
+    now = datetime.now(timezone("America/Los_Angeles")).replace(tzinfo=None)
+    closed_hours, latest_close_date = closed_hours_for_pilot(store_id, now.date())
     return render_template(
         "route_sheet.html",
         title="Route Sheet",
         form=form,
         log_form=log_form,
-        jobs=active_jobs,
+        jobs=jobs,
+        show_closed=show_closed,
+        closed_hours=closed_hours,
+        latest_close_date=latest_close_date,
         all_techs=all_techs,
         all_asms=all_asms,
-        now=datetime.now(),
+        route_teams=route_teams,
+        status_color=route_status_color,
+        now=now,
         timedelta=timedelta,
     )
 
@@ -270,133 +316,100 @@ def mark_notes_read(ro_id):
 
 @routesheet_bp.route("/cdk_audit_upload", methods=["GET", "POST"])
 @login_required
+@require_capability("routesheet.edit")
 def cdk_audit_upload():
-
+    store = db.session.get(ManagedStore, current_user.store_id)
+    if store is None:
+        abort(403)
+    form = FlaskForm()
+    review = None
+    plan = []
     if request.method == "POST":
+        if not form.validate_on_submit():
+            flash("Reload the page before submitting the download.", "warning")
+        elif request.form.get("action") == "apply":
+            return apply_route_download(store, form)
+        else:
+            file = request.files.get("csv_file")
+            try:
+                if not file or not file.filename.lower().endswith(".csv"):
+                    raise ValueError("Choose a CDK Route Sheet CSV file.")
+                raw = file.stream.read(5_000_001)
+                if len(raw) > 5_000_000:
+                    raise ValueError("Choose a Route Sheet CSV under 5 MB.")
+                pilot = current_app.config.get("MI_LOCAL_PILOT")
+                rows = read_download(raw, hide_customer=bool(
+                    current_app.config.get("LOCAL_HIDE_ROUTE_CUSTOMERS") or (pilot and pilot["store_id"] == store.id)
+                ))
+                plan, _ = preview_download(store.id, rows)
+                review = {
+                    "id": uuid4().hex, "store_id": store.id, "user_id": current_user.get_id(),
+                    "name": Path(file.filename.replace("\\", "/")).name,
+                    "sha256": hashlib.sha256(raw).hexdigest(), "rows": rows,
+                    "plan": plan_fingerprint(plan),
+                }
+                folder = Path(current_app.instance_path) / "route-download-previews"
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / f"{review['id']}.json").write_text(json.dumps(review), encoding="utf-8")
+                prior = session.get("route_download_preview")
+                session["route_download_preview"] = review["id"]
+                if prior:
+                    (folder / f"{prior}.json").unlink(missing_ok=True)
+            except (ValueError, csv.Error) as error:
+                flash(str(error), "warning")
+    return render_template("cdk_upload.html", title="Load Route Sheet Download",
+                           form=form, store=store, review=review, plan=plan)
 
-        file = request.files.get("csv_file")
 
-        if not file or file.filename.strip() == "":
-            flash("No file selected.", "danger")
-            return redirect(request.url)
+def apply_route_download(store, form):
+    identifier = session.get("route_download_preview")
+    if not identifier or request.form.get("preview_id") != identifier:
+        flash("Preview the file again before applying changes.", "warning")
+        return redirect(url_for(".cdk_audit_upload"))
+    path = Path(current_app.instance_path) / "route-download-previews" / f"{identifier}.json"
+    try:
+        review = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        flash("Preview the file again before applying changes.", "warning")
+        return redirect(url_for(".cdk_audit_upload"))
+    if review["store_id"] != store.id or review["user_id"] != current_user.get_id():
+        abort(403)
+    plan, existing = preview_download(store.id, review["rows"])
+    if plan_fingerprint(plan) != review["plan"]:
+        flash("The Route Sheet changed since preview. Review the file again before applying.", "warning")
+        return redirect(url_for(".cdk_audit_upload"))
+    if not any(row["kind"] in {"New", "Updated", "No change"} for row in plan):
+        flash("No CDK rows are ready to apply.", "warning")
+        return redirect(url_for(".cdk_audit_upload"))
 
-        stream = io.TextIOWrapper(file.stream, encoding="utf-8", newline=None)
-        csv_reader = csv.DictReader(stream)
-
-        updated = 0
-        created = 0
-
-        imported_ro_numbers = set()   # ✅ TRACK IMPORTED ROs
-
-        for row in csv_reader:
-
-            ro_number = row.get("RO")
-            customer = row.get("Customer")
-            model = row.get("Model")
-            year = row.get("Year")
-            promise = row.get("Promise")
-            service = row.get("Service Request")
-            cdk_status = row.get("Status Code Desc")
-
-            if not ro_number:
-                continue
-
-            imported_ro_numbers.add(ro_number)  # ✅ ADD TO TRACKER
-
-            # ----------------------------------------
-            # Convert CDK Status → Internal Status
-            # ----------------------------------------
-            mapped_status = "Dispatch"
-
-            if cdk_status:
-                for status_piece in cdk_status.split(","):
-                    status_piece = status_piece.strip()
-                    if status_piece in CDK_STATUS_MAP:
-                        mapped_status = CDK_STATUS_MAP[status_piece]
-                        break
-
-            # ----------------------------------------
-            # Convert Promise Time
-            # ----------------------------------------
-            promised_time = None
-            if promise:
-                try:
-                    promised_time = datetime.strptime(promise, "%m/%d/%Y %H:%M")
-                except:
-                    pass
-
-            # ----------------------------------------
-            # Find Existing RO
-            # ----------------------------------------
-            ro = RepairOrder.query.filter_by(
-                ro_number=ro_number,
-                store_id=current_user.store_id
-            ).first()
-
-            if ro:
-                ro.customer_name = customer
-                ro.vehicle_info = f"{year} {model}" if model else ro.vehicle_info
-                ro.service_description = service
-                ro.promised_time = promised_time
-                ro.status = mapped_status
-
-                ro.audited = True
-                ro.audit_source = "CDK"
-                ro.audit_timestamp = datetime.utcnow()
-
-                updated += 1
-
-            else:
-                new_ro = RepairOrder(
-                    ro_number=ro_number,
-                    customer_name=customer,
-                    vehicle_info=f"{year} {model}" if model else "",
-                    service_description=service,
-                    promised_time=promised_time,
-                    status=mapped_status,
-                    store_id=current_user.store_id,
-                    audited=True,
-                    audit_source="CDK",
-                    audit_timestamp=datetime.utcnow()
-                )
-
-                db.session.add(new_ro)
-                created += 1
-
-        # ==================================================
-        # CLOSE ROs NOT PRESENT IN THE AUDIT FILE
-        # ==================================================
-        existing_ros = RepairOrder.query.filter_by(
-            store_id=current_user.store_id
-        ).all()
-
-        closed_count = 0
-
-        for ro in existing_ros:
-            if ro.ro_number not in imported_ro_numbers:
-                if ro.status != "Closed":
-                    ro.status = "Closed"
-                    ro.audit_source = "CDK"
-                    ro.audit_timestamp = datetime.utcnow()
-                    closed_count += 1
-
-        store = db.session.get(ManagedStore, current_user.store_id)
-
-        if store:
-            store.routesheet_audit_timestamp = datetime.utcnow()
-
+    timestamp = datetime.utcnow()
+    counts = {"New": 0, "Updated": 0}
+    for row in plan:
+        kind = row["kind"]
+        if kind not in counts:
+            continue
+        if kind == "New":
+            order = RepairOrder(store_id=store.id, ro_number=row["ro"], customer_name="Customer omitted")
+            db.session.add(order)
+        else:
+            order = existing[row["ro"]]
+        for field, value in row["changes"].items():
+            setattr(order, field, datetime.fromisoformat(value) if field == "promised_time" else value)
+        order.audited = True
+        order.audit_source = "CDK"
+        order.audit_timestamp = timestamp
+        counts[kind] += 1
+    store.routesheet_audit_timestamp = timestamp
+    try:
         db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("CDK Route Sheet apply failed")
+        flash("Nothing was applied. Preview the file again and retry.", "warning")
+        return redirect(url_for(".cdk_audit_upload"))
 
-        #Update store audit timestamp
-        #update_audit_timestamp(current_user.store_id)
-
-        flash(
-            f"Audit complete. {updated} updated, {created} created, {closed_count} closed.",
-            "success"
-        )
-
-        return redirect(url_for("routesheet.view_sheet"))
-
-    return render_template("cdk_upload.html")
-
-
+    path.unlink(missing_ok=True)
+    session.pop("route_download_preview", None)
+    flash(f"CDK Route Sheet applied. {counts['New']} new, {counts['Updated']} updated.", "success")
+    return render_template("cdk_upload.html", title="Load Route Sheet Download",
+                           form=form, store=store, review=review, plan=plan, applied=True)

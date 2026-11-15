@@ -3,19 +3,16 @@
 {% block container_class %}container-fluid px-4{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<header class="workspace-page-header">
   <div>
-    <h2 class="fw-bold text-dark mb-1">
-      Executive Summary — {{ metrics_date.strftime("%b %d, %Y") }}
-    </h2>
-    <div class="border-bottom pb-1 mb-2"></div>
+    <h1>Service Overview</h1>
+    <p class="workspace-page-date">Reporting day <strong>{{ metrics_date.strftime("%A, %b %d, %Y") }}</strong></p>
 
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <a
         href="{{ url_for('routesheet.view_sheet') }}"
         class="badge text-decoration-none {% if routesheet_sync.is_stale %}bg-danger{% else %}bg-success{% endif %} px-3 py-2"
       >
-        {% if routesheet_sync.is_stale %}🔴{% else %}🟢{% endif %}
         Route Sheet Sync: {{ routesheet_sync.label }}
       </a>
 
@@ -23,21 +20,20 @@
         href="{{ url_for('reconciliation.reconcile_logs') }}"
         class="badge text-decoration-none {% if tech_hours_sync.is_stale %}bg-danger{% else %}bg-success{% endif %} px-3 py-2"
       >
-        {% if tech_hours_sync.is_stale %}🔴{% else %}🟢{% endif %}
         Tech Hours Sync: {{ tech_hours_sync.label }}
       </a>
     </div>
   </div>
 
-  <div class="d-flex gap-2">
-    <a href="{{ url_for('main.input_metrics') }}" class="btn btn-outline-dark fw-bold shadow-sm">
-      <i class="fas fa-pen me-2"></i>Input MTD Metrics
-    </a>
-    <a href="{{ url_for('routesheet.view_sheet') }}" class="btn btn-primary fw-bold shadow-sm">
-      <i class="fas fa-columns me-2"></i>Go to Route Sheet
-    </a>
-  </div>
-</div>
+</header>
+
+{% set pilot = config.get('MI_LOCAL_PILOT') %}
+{% if pilot and current_user.store_id == pilot.store_id %}
+<aside class="workspace-evidence-note" aria-label="Local data coverage">
+  <strong>{{ pilot.store_name }} local snapshot</strong>
+  <span>Technician bookings cover {{ pilot.period_start.strftime("%b %d") }}–{{ pilot.period_end.strftime("%b %d, %Y") }}. Review data coverage before using the pace and forecast figures.</span>
+</aside>
+{% endif %}
 
 <div class="row g-4 mb-3">
   <div class="col-lg-6">
@@ -47,7 +43,9 @@
           <div>
             <h4 class="card-title mb-1">Today’s Focus</h4>
             <div class="small text-white-50">
-              {% if is_sunday %}
+              {% if show_mi_focus %}
+                Management Intelligence™ · {{ pilot.period_start.strftime("%b %d") }}–{{ pilot.period_end.strftime("%b %d, %Y") }}
+              {% elif is_sunday %}
                 Sunday readiness and Monday preparation
               {% else %}
                 Primary management priority right now
@@ -57,6 +55,17 @@
           <i class="fas fa-bolt fa-2x opacity-50"></i>
         </div>
 
+        {% if mi_focus %}
+        <p class="fs-5 fw-bold">{{ mi_focus.priority }}</p>
+        <p>{{ mi_focus.reason }}</p>
+        <div class="rounded bg-white bg-opacity-10 p-3">
+          <div class="small text-white-50 text-uppercase fw-bold mb-2">Recommended next step</div>
+          <p class="mb-0">{{ mi_focus.action }}</p>
+        </div>
+        <a href="{{ url_for('management_intelligence.overview') }}" class="btn btn-outline-light mt-3">Review evidence and decide</a>
+        {% elif show_mi_focus %}
+        <p class="mb-0">Management Intelligence™ could not evaluate this snapshot. Review data coverage before acting.</p>
+        {% else %}
         <div class="mb-3">
           <div class="text-uppercase small text-white-50 fw-bold mb-1">Primary Issue</div>
           <div class="fs-5 fw-bold">{{ today_focus.issue }}</div>
@@ -115,6 +124,7 @@
             </a>
           </div>
         {% endif %}
+        {% endif %}
       </div>
     </div>
   </div>
@@ -122,7 +132,7 @@
   <div class="col-lg-6">
     <div class="card shadow-sm h-100 border-start border-4 border-primary">
       <div class="card-body">
-        <h5 class="card-title">🎯 Daily Targets</h5>
+        <h5 class="card-title">Daily Targets</h5>
 
         {% set gross_forecast_gap = projected_month_end_gross - projected_gross %}
         {% set frh_goal_gap = projected_month_end_frh - monthly_frh_goal %}
@@ -390,153 +400,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-<div class="row g-4 mb-4">
-  <div class="col-12">
-    <a href="{{ url_for('routesheet.view_sheet') }}" class="text-decoration-none text-reset">
-      <div class="card shadow-sm h-100">
-        <div class="card-header bg-white fw-bold border-bottom d-flex justify-content-between align-items-center">
-          <span><i class="fas fa-stream me-2 text-primary"></i>Route Sheet Action Board</span>
-          <small class="text-muted">Open Route Sheet</small>
-        </div>
-
-        <div class="card-body">
-          {% set dispatch_risk = status_counts["Dispatch"] > status_counts["Service"] %}
-          {% set inspection_risk = status_counts["Inspection"] > (status_counts["Service"] * 2) and status_counts["Inspection"] > 0 %}
-          {% set approval_risk = status_counts["Approval"] > status_counts["Service"] and status_counts["Approval"] > 0 %}
-          {% set service_risk = status_counts["Service"] == 0 and status_counts["Dispatch"] > 0 %}
-          {% set parts_risk = status_counts["Parts"] > status_counts["Service"] and status_counts["Parts"] > 0 %}
-          {% set total_overdue = (critical_ros|length) + remaining_late_count %}
-
-          <div class="d-flex flex-wrap gap-2 mb-3">
-            {% if dispatch_risk %}
-              <span class="badge bg-warning text-dark">Dispatch Risk</span>
-            {% endif %}
-            {% if inspection_risk %}
-              <span class="badge bg-warning text-dark">Inspection Risk</span>
-            {% endif %}
-            {% if approval_risk %}
-              <span class="badge bg-warning text-dark">Approval Risk</span>
-            {% endif %}
-            {% if service_risk %}
-              <span class="badge bg-danger">No Active Service</span>
-            {% endif %}
-            {% if parts_risk %}
-              <span class="badge bg-secondary">Parts Constraint</span>
-            {% endif %}
-            {% if not dispatch_risk and not inspection_risk and not approval_risk and not service_risk and not parts_risk %}
-              <span class="badge bg-success">Workflow Stable</span>
-            {% endif %}
-          </div>
-
-          <div class="d-flex align-items-center justify-content-around flex-wrap mb-3">
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-secondary mb-0">{{ status_counts["Dispatch"] }}</div>
-              <div class="small text-muted text-uppercase">Dispatch</div>
-            </div>
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-primary mb-0">{{ status_counts["Inspection"] }}</div>
-              <div class="small text-muted text-uppercase">Insp</div>
-            </div>
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-info mb-0">{{ status_counts["Approval"] }}</div>
-              <div class="small text-muted text-uppercase">Appr</div>
-            </div>
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-warning mb-0">{{ status_counts["Parts"] }}</div>
-              <div class="small text-muted text-uppercase">Parts</div>
-            </div>
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-primary mb-0">{{ status_counts["Service"] }}</div>
-              <div class="small text-muted text-uppercase">Service</div>
-            </div>
-            <div class="text-center p-3">
-              <div class="h3 fw-bold text-dark mb-0">{{ status_counts["Warranty"] }}</div>
-              <div class="small text-muted text-uppercase">Warr</div>
-            </div>
-            <div class="text-center p-3 border-start">
-              <div class="h3 fw-bold text-success mb-0">{{ status_counts["Ready"] }}</div>
-              <div class="small text-success fw-bold text-uppercase">Ready</div>
-            </div>
-          </div>
-
-          {% if dispatch_risk %}
-            <div class="alert alert-warning py-2 mb-2">
-              Dispatch risk: work waiting > work moving.
-            </div>
-          {% endif %}
-
-          {% if inspection_risk %}
-            <div class="alert alert-warning py-2 mb-2">
-              Inspection backlog: inspections stacking up.
-            </div>
-          {% endif %}
-
-          {% if approval_risk %}
-            <div class="alert alert-warning py-2 mb-2">
-              Approval risk: approvals ahead of service flow.
-            </div>
-          {% endif %}
-
-          {% if service_risk %}
-            <div class="alert alert-danger py-2 mb-2">
-              No active service load.
-            </div>
-          {% endif %}
-
-          {% if parts_risk %}
-            <div class="alert alert-secondary py-2 mb-3">
-              Parts constraint: too much work waiting on parts.
-            </div>
-          {% endif %}
-
-          <hr>
-
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="mb-0 fw-bold text-danger d-flex align-items-center">
-              <i class="fas fa-fire me-2"></i>Oldest Overdue ROs
-              <span class="badge bg-danger ms-2">{{ total_overdue }}</span>
-            </h6>
-            <small class="text-muted">Oldest overdue first</small>
-          </div>
-
-          <div class="list-group list-group-flush overflow-auto" style="max-height: 220px;">
-            {% for ro in critical_ros %}
-              <div class="list-group-item px-0 py-2">
-                <div class="row align-items-center g-2">
-                  <div class="col-md-3 col-4">
-                    <strong>RO #{{ ro.ro_number }}</strong>
-                  </div>
-                  <div class="col-md-4 col-4 text-truncate">
-                    {{ ro.customer_name if ro.customer_name else "No Name" }}
-                  </div>
-                  <div class="col-md-2 col-2 text-md-end text-danger fw-bold">
-                    {% if ro.promised_time %}
-                      {{ ro.promised_time.strftime("%I:%M %p") }}
-                    {% else %}
-                      --
-                    {% endif %}
-                  </div>
-                  <div class="col-md-3 col-2 text-md-end text-danger small fw-bold">
-                    {{ ro.late_label }}
-                  </div>
-                </div>
-              </div>
-            {% else %}
-              <div class="text-muted text-center py-3">No overdue ROs found.</div>
-            {% endfor %}
-          </div>
-
-          {% if remaining_late_count > 0 %}
-            <div class="mt-2 text-muted small">
-              +{{ remaining_late_count }} more ROs behind promise time
-            </div>
-          {% endif %}
-        </div>
-      </div>
-    </a>
   </div>
 </div>
 

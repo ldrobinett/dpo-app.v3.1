@@ -1,0 +1,15 @@
+.focus-table { overflow: auto; border: 1px solid #dbe4ee; border-radius: 8px; max-height: 420px; }
+.focus-table table { min-width: 710px; font-size: .82rem; }
+.focus-table th { position: sticky; top: 0; z-index: 2; background: #17283f; color: white; white-space: nowrap; }
+.focus-table td { padding: .45rem .65rem; }
+.focus-table .btn { font-size: .75rem; white-space: nowrap; }
+.focus-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.focus-state { display: inline-block; padding: .15rem .45rem; border-radius: 5px; font-weight: 600; background: #eef2f7; color: #34455b; }
+.focus-state.overdue { background: #fce4e5; color: #8c1d28; }
+.focus-state.due, .focus-state.check { background: #fff1c4; color: #624700; }
+.focus-state.reviewed { background: #dff4e7; color: #185637; }
+.focus-form .form-label { font-size: .8rem; margin-bottom: 4px; }
+.focus-form textarea { min-height: 76px; }
+.focus-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: .75rem 1.25rem; }
+.focus-facts dt { font-size: .75rem; color: #506178; }
+.focus-facts dd { margin: 0; overflow-wrap: anywhere; }

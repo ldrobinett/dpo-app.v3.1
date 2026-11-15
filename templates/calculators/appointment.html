@@ -1,155 +1,83 @@
 {% extends "base.html" %}
+{% from "calculators/assumption_field.html" import assumption %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calculator-workspace.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="sticky-top bg-white border-bottom shadow-sm py-3 mb-4" style="z-index: 950;">
-    <div class="container-fluid text-center">
-        <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
-            {{ title }}
-        </h1>
-        <div class="alert alert-info py-2 mb-4">
-            <i class="fas fa-circle-info me-2"></i>
-            Values are prefilled from current store data when available. Review and adjust as needed before calculating.
-        </div>
+<header class="workspace-page-header">
+    <div>
+        <h1>RO &amp; Appointment Calculator</h1>
+        <p class="workspace-page-date mb-0">Estimate how many ROs and appointments the shop needs to support planned production.</p>
+    </div>
+</header>
+{% include "calculators/management_guidance.html" %}
+
+<div class="row g-3">
+    <div class="col-12 col-xl-5">
+        <section class="card" aria-labelledby="appointment-assumptions">
+            <div class="card-body">
+                <h2 id="appointment-assumptions" class="h5 mb-3">Planning assumptions</h2>
+                {% if form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+                <form method="post">
+                    {{ form.hidden_tag() }}
+                    <fieldset class="mb-3">
+                        <legend class="h6">Shop capacity</legend>
+                        <div class="calculator-fields">
+                            {{ assumption(form.num_techs, sources.num_techs, '') }}
+                            {{ assumption(form.hours_per_tech, sources.hours_per_tech, 'hrs') }}
+                            {{ assumption(form.proficiency, sources.proficiency, '%', 'Enter 110 for 110%') }}
+                            {{ assumption(form.days_in_month, sources.days_in_month, 'days') }}
+                        </div>
+                    </fieldset>
+                    <fieldset class="mb-3">
+                        <legend class="h6">Work mix and arrivals</legend>
+                        <div class="calculator-fields">
+                            {{ assumption(form.avg_hours_per_ro, sources.avg_hours_per_ro, 'FRH') }}
+                            {{ assumption(form.walk_in_percent, sources.walk_in_percent, '%', 'Share of daily ROs') }}
+                            {{ assumption(form.show_rate, sources.show_rate, '%', 'Enter 90 for 90%') }}
+                        </div>
+                    </fieldset>
+                    <div class="d-flex flex-wrap gap-2">
+                        {{ form.submit(class_="btn btn-primary") }}
+                        <a class="btn btn-outline-secondary" href="{{ url_for('calculators.appt_calculator') }}">Reset assumptions</a>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-xl-7">
+        <section class="card calculator-result mb-3" aria-labelledby="appointment-targets">
+            <div class="card-body">
+                <h2 id="appointment-targets" class="h5 mb-3">Estimated daily targets</h2>
+                {% if results %}
+                <div class="calculator-totals mb-3" aria-label="Estimated daily targets">
+                    <div><span class="small">Appointments to book</span><strong>{{ '{:,}'.format(results.daily_appt_goal) }}</strong></div>
+                    <div><span class="small">ROs needed</span><strong>{{ '{:,}'.format(results.daily_ro_goal) }}</strong></div>
+                    <div><span class="small">Sold-hour capacity</span><strong>{{ '{:,.1f}'.format(results.daily_capacity_hours) }} FRH</strong></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm calculator-breakdown mb-0" aria-label="How the targets were calculated">
+                        <tbody>
+                            <tr><th scope="row">Daily ROs expected from booked appointments</th><td>{{ '{:,.1f}'.format(results.appt_ros_needed) }}</td></tr>
+                            <tr><th scope="row">Monthly sold-hour capacity</th><td>{{ '{:,.1f}'.format(results.monthly_capacity_hours) }} FRH</td></tr>
+                            <tr><th scope="row">Monthly RO goal</th><td>{{ '{:,}'.format(results.monthly_ro_goal) }} ROs</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mt-2 mb-0">Daily ROs are rounded up from sold-hour capacity. Appointments cover those ROs after expected walk-ins and no-shows. Monthly totals use the shop days entered.</p>
+                {% else %}
+                <p class="text-muted mb-0">Enter the missing assumptions and calculate to see the daily appointment target and the volume needed to support it.</p>
+                {% endif %}
+            </div>
+        </section>
+        <section class="card" aria-labelledby="appointment-store-check">
+            <div class="card-body">
+                <h2 id="appointment-store-check" class="h6">Check before opening more slots</h2>
+                <p class="small mb-0">Confirm who is available, what kind of jobs are coming in, and what the shop can finish by the promised time. Compare appointments booked, arrivals, and ROs completed to see where the plan held up.</p>
+            </div>
+        </section>
     </div>
 </div>
-
-<div class="container-fluid px-4">
-    <div class="row g-4 justify-content-center">
-        <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-secondary h-100">
-                <div class="card-header bg-secondary text-white fw-bold">Current Shop Metrics</div>
-                <div class="card-body">
-                    <form method="POST">
-                        {{ form.hidden_tag() }}
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-4">
-                                {{ form.num_techs.label(class="form-label small fw-bold text-nowrap") }}
-                                {{ form.num_techs(class="form-control form-control-sm", placeholder="e.g. 5") }}
-                            </div>
-                            <div class="col-4">
-                                {{ form.proficiency.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.proficiency(class="form-control form-control-sm", placeholder="110") }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                {{ form.days_in_month.label(class="form-label small fw-bold text-nowrap") }}
-                                {{ form.days_in_month(class="form-control form-control-sm", placeholder="21") }}
-                            </div>
-                        </div>
-                        
-                        <hr>
-                        
-                        <div class="mb-3">
-                            {{ form.avg_hours_per_ro.label(class="form-label small fw-bold text-nowrap") }}
-                            <div class="input-group input-group-sm">
-                                {{ form.avg_hours_per_ro(class="form-control form-control-sm", placeholder="2.0") }}
-                                <span class="input-group-text">hrs</span>
-                            </div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                {{ form.walk_in_percent.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.walk_in_percent(class="form-control form-control-sm", placeholder="10") }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                {{ form.show_rate.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.show_rate(class="form-control form-control-sm", placeholder="85") }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="d-grid mt-4">
-                            {{ form.submit(class="btn btn-primary shadow-sm") }}
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-12 col-lg-6">
-            {% if results %}
-            <div class="card border-info mb-4 shadow-sm">
-                <div class="card-header bg-info text-white fw-bold text-center">Daily Appointment Target</div>
-                <div class="card-body text-center py-4">
-                    <h1 class="display-3 fw-bold text-dark mb-0">{{ "{:,.0f}".format(results.daily_appt_goal) }}</h1>
-                    <p class="lead text-muted mb-0">Appointments / Day</p>
-                </div>
-            </div>
-
-            <div class="card shadow-sm">
-                <div class="card-header fw-bold">Target Breakdown</div>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>Daily Capacity (Hours)</span>
-                        <span class="fw-bold">{{ "{:,.1f}".format(results.daily_capacity_hours) }} hrs</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>Monthly Capacity (Hours)</span>
-                        <span class="fw-bold">{{ "{:,.0f}".format(results.monthly_capacity_hours) }} hrs</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center bg-light">
-                        <span>Daily Repair Order Goal</span>
-                        <span class="fw-bold text-primary">{{ "{:,.0f}".format(results.daily_ro_goal) }} ROs</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>Monthly Repair Order Goal</span>
-                        <span class="fw-bold">{{ "{:,.0f}".format(results.monthly_ro_goal) }} ROs</span>
-                    </li>
-                </ul>
-            </div>
-            {% else %}
-            <div class="alert alert-secondary h-100 d-flex align-items-center justify-content-center">
-                <div class="text-center">
-                    <i class="fas fa-bullseye fa-3x mb-3 text-muted"></i>
-                    <p>Calculate your targets to see daily goals.</p>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const fields = document.querySelectorAll("input, select, textarea");
-
-    function normalizeValue(value) {
-        return String(value ?? "").trim();
-    }
-
-    function highlightIfChanged(field) {
-        const initialValue = field.dataset.initialValue ?? "";
-        const currentValue = normalizeValue(field.value);
-
-        if (currentValue !== initialValue) {
-            field.classList.add("bg-warning", "bg-opacity-25", "border-warning");
-        } else {
-            field.classList.remove("bg-warning", "bg-opacity-25", "border-warning");
-        }
-    }
-
-    fields.forEach(field => {
-        if (field.type === "hidden" || field.type === "submit" || field.readOnly) {
-            return;
-        }
-
-        field.dataset.initialValue = normalizeValue(field.value);
-
-        field.addEventListener("input", function () {
-            highlightIfChanged(field);
-        });
-
-        field.addEventListener("change", function () {
-            highlightIfChanged(field);
-        });
-    });
-});
-</script>
 {% endblock %}

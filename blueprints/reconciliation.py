@@ -1,169 +1,124 @@
+"""Preview and apply reviewed CDK technician hours."""
+
 import csv
-import io
-from flask import Blueprint, render_template, flash, redirect, url_for, request, jsonify
-from flask_login import login_required, current_user
+import hashlib
+import json
+from datetime import date, datetime
+from pathlib import Path
+from uuid import uuid4
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask_login import current_user, login_required
+from flask_wtf import FlaskForm
+from sqlalchemy.exc import SQLAlchemyError
+
 from extensions import db
-from models import WorkLog, TeamMember, Team, ManagedStore
-from forms import ReconciliationForm
-from datetime import datetime
+from models import ManagedStore, WorkLog
+from services.tech_hours_download import compare_tech_hours, comparison_fingerprint, hour_totals, read_tech_hours
+from utils.permissions import require_capability
 
-reconciliation_bp = Blueprint('reconciliation', __name__)
 
-@reconciliation_bp.route("/manage/reconcile", methods=['GET', 'POST'])
+reconciliation_bp = Blueprint("reconciliation", __name__)
+
+
+def preview_path(identifier):
+    return Path(current_app.instance_path) / "tech-hours-previews" / f"{identifier}.json"
+
+
+@reconciliation_bp.route("/manage/reconcile", methods=["GET", "POST"])
 @login_required
+@require_capability("worklog.manage")
 def reconcile_logs():
-    form = ReconciliationForm()
-    audit_results = []
-    
-    if form.validate_on_submit():
-        f = form.dms_file.data
-        # Use 'latin-1' or 'cp1252' encoding which is common for legacy DMS exports
-        stream = io.StringIO(f.stream.read().decode("latin-1"), newline=None)
-        csv_input = csv.reader(stream)
-        
-        # Mapping: Tech Number -> Member Object
-        store_techs = (
-            TeamMember.query.join(Team)
-            .filter(
-                Team.store_id == current_user.store_id,
-                TeamMember.retired_at.is_(None),
-            )
-            .all()
-        )
-        tech_map = {t.tech_number: t for t in store_techs if t.tech_number}
-        
-        # Skip Header (Row 0)
-        next(csv_input, None)
-        
-        for row in csv_input:
-            if not row or len(row) < 14: continue 
-            
-            # CDK Format Parsing
-            try:
-                csv_ro = row[0].strip()
-                if not csv_ro: continue 
-                
-                csv_tech_num = row[4].strip()
-                csv_line = row[5].strip() # Line Item (Col 5 / Index 5)
-                
-                try:
-                    csv_sold_hours = float(row[13]) if row[13].strip() else 0.0
-                    csv_actual_hours = float(row[12]) if row[12].strip() else 0.0
-                except ValueError:
-                    continue 
-                
-                # Parse Date (e.g., "04NOV25")
-                csv_date_str = row[1].strip()
-                csv_date_obj = None
-                clean_date_iso = ""
-                if csv_date_str:
-                    try:
-                        csv_date_obj = datetime.strptime(csv_date_str, '%d%b%y').date()
-                        clean_date_iso = csv_date_obj.strftime('%Y-%m-%d')
-                    except ValueError:
-                        pass 
-                        
-            except IndexError:
-                continue
+    store = db.session.get(ManagedStore, current_user.store_id)
+    if store is None:
+        abort(403)
+    form = FlaskForm()
+    if request.method != "POST":
+        return download_page(store, form)
+    if not form.validate_on_submit():
+        flash("Reload the page before submitting the download.", "warning")
+        return download_page(store, form)
+    if request.form.get("action") == "apply":
+        return apply_download(store, form)
 
-            # Find Tech
-            tech = tech_map.get(csv_tech_num)
-            
-            if tech:
-                # Match Log in DB (Match by RO and Line Item if possible, else just RO)
-                # Ideally we match RO + Line, but sometimes line items differ (e.g. 'A' vs '01')
-                # Let's try strict match first
-                query = WorkLog.query.filter_by(team_member_id=tech.id, ro_number=csv_ro)
-                if csv_line:
-                    # Optional: Filter by line item if you want strict matching
-                    # query = query.filter_by(line_item=csv_line)
-                    pass
-                
-                if csv_date_obj:
-                    query = query.filter_by(date=csv_date_obj)
-                
-                # If multiple entries for same RO (e.g. lines A and B), this logic might need 
-                # to be smarter (summing them), but for now let's find the first match.
-                app_log = query.first()
-                
-                app_hours = 0.0
-                if app_log:
-                    app_hours = app_log.flat_rate_hours
-                
-                # Calc Variance (App - DMS)
-                variance = app_hours - csv_sold_hours
-                
-                status = 'Missing'
-                if app_log:
-                    if abs(variance) < 0.01: # Float tolerance
-                        status = 'Match'
-                    elif variance > 0:
-                        status = 'Over-reported'
-                    else:
-                        status = 'Under-reported'
-                
-                audit_results.append({
-                    'tech_id': tech.id,
-                    'tech_name': tech.name,
-                    'date': clean_date_iso,
-                    'ro': csv_ro,
-                    'line': csv_line,
-                    'dms_hours': csv_sold_hours,
-                    'dms_actual': csv_actual_hours,
-                    'app_hours': app_hours,
-                    'variance': variance,
-                    'status': status
-                })
-            else:
-                # Unknown Tech
-                audit_results.append({
-                    'tech_name': f"Unknown ID {csv_tech_num}",
-                    'date': clean_date_iso,
-                    'ro': csv_ro,
-                    'line': csv_line,
-                    'dms_hours': csv_sold_hours,
-                    'dms_actual': 0,
-                    'app_hours': 0,
-                    'variance': -csv_sold_hours,
-                    'status': 'Unknown Tech'
-                })
-
-        store = db.session.get(ManagedStore, current_user.store_id)
-        if store:
-            store.tech_hours_audit_timestamp = datetime.utcnow()
-
-        db.session.commit()
-
-    return render_template('reconciliation.html', form=form, results=audit_results, title="Work Log Reconciliation")
-
-@reconciliation_bp.route("/manage/reconcile/add", methods=['POST'])
-@login_required
-def add_from_audit():
-    """AJAX Endpoint to add a missing log from the audit screen"""
+    file = request.files.get("dms_file")
     try:
-        data = request.json
-        
-        # Validate date
-        log_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
-        
-        new_log = WorkLog(
-            team_member_id=int(data.get('tech_id')),
-            date=log_date,
-            ro_number=data.get('ro'),
-            line_item=data.get('line'),
-            flat_rate_hours=float(data.get('sold')),
-            actual_time=float(data.get('actual')),
-            notes="Added via Audit Reconciler"
-        )
-        
-        db.session.add(new_log)
-                
-        # Update Tech Hours CDK audit timestamp
-        store = db.session.get(ManagedStore, current_user.store_id)
-        if store:
-            store.tech_hours_audit_timestamp = datetime.utcnow()
-            db.session.commit()
+        if not file or not file.filename.lower().endswith(".csv"):
+            raise ValueError("Choose a CDK technician hours CSV file.")
+        raw = file.stream.read(5_000_001)
+        if len(raw) > 5_000_000:
+            raise ValueError("Choose a technician hours CSV under 5 MB.")
+        detail = read_tech_hours(raw)
+        results, missing = compare_tech_hours(store.id, detail)
+    except (ValueError, csv.Error) as error:
+        flash(str(error), "warning")
+        return download_page(store, form)
 
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+    identifier = uuid4().hex
+    review = dict(id=identifier, store_id=store.id, user_id=current_user.get_id(),
+                  name=Path(file.filename.replace(chr(92), "/")).name,
+                  sha256=hashlib.sha256(raw).hexdigest(), detail=detail,
+                  fingerprint=comparison_fingerprint(results, missing))
+    path = preview_path(identifier)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(review), encoding="utf-8")
+    prior = session.get("tech_hours_preview")
+    session["tech_hours_preview"] = identifier
+    if prior:
+        preview_path(prior).unlink(missing_ok=True)
+    return download_page(store, form, review, results, missing)
+
+
+def apply_download(store, form):
+    identifier = session.get("tech_hours_preview")
+    if not identifier or request.form.get("preview_id") != identifier:
+        return preview_again("Preview the file before applying hours.")
+    path = preview_path(identifier)
+    try:
+        review = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return preview_again("Preview the file again before applying hours.")
+    if review["store_id"] != store.id or review["user_id"] != current_user.get_id():
+        abort(403)
+
+    try:
+        store.tech_hours_audit_timestamp = datetime.utcnow()
+        db.session.flush()
+        results, missing = compare_tech_hours(store.id, review["detail"])
+        if not missing or comparison_fingerprint(results, missing) != review["fingerprint"]:
+            db.session.rollback()
+            return preview_again("The Work Log changed since preview. Review the file again before applying hours.")
+        db.session.add_all([
+            WorkLog(
+                team_member_id=row["member_id"], date=date.fromisoformat(row["date"]),
+                ro_number=row["ro"], line_item=row["line"],
+                actual_time=float(row["actual"]), flat_rate_hours=float(row["sold"]),
+                notes=f"CDK RTH {review['sha256'][:16]} · CSV record {row['record']} · Seq {row['sequence'] or '—'}",
+            )
+            for row in missing
+        ])
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("CDK technician hours apply failed")
+        return preview_again("No hours were added. Preview the file again and retry.")
+
+    path.unlink(missing_ok=True)
+    session.pop("tech_hours_preview", None)
+    flash(f"Added {len(missing):,} CDK bookings to Work Log.", "success")
+    return download_page(store, form, review, results, missing, applied=True)
+
+
+def preview_again(message):
+    flash(message, "warning")
+    return redirect(url_for(".reconcile_logs"))
+
+
+def download_page(store, form, review=None, results=(), missing=(), applied=False):
+    detail = review["detail"] if review else []
+    dates = sorted({row["date"] for row in detail})
+    return render_template(
+        "reconciliation.html", title="Load Tech Hours Download", store=store, form=form, review=review,
+        results=results, source_totals=hour_totals(detail), dates=dates, booking_count=len(detail),
+        missing_count=len(missing), missing_totals=hour_totals(missing), applied=applied,
+    )

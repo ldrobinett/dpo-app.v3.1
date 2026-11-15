@@ -1,38 +1,175 @@
 {% extends "base.html" %}
+
+{% block styles %}
+<style>
+  .performance-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+  .performance-filters > div { flex: 1 1 135px; min-width: 0; }
+  .performance-filters .form-label { margin-bottom: 3px; font-size: .75rem; }
+  .performance-filters .form-control, .performance-filters .form-select { padding-block: .3rem; font-size: .8rem; }
+  .performance-totals { display: flex; flex-wrap: wrap; gap: 8px 26px; color: #506178; }
+  .performance-totals strong, .performance-table .hours { color: #17283f; font-variant-numeric: tabular-nums; }
+  .performance-table { max-height: max(320px, 62vh); overflow: auto; border: 1px solid #dbe4ee; border-radius: 8px; }
+  .performance-table table { min-width: 690px; font-size: .8rem; }
+  .performance-table th {
+      position: sticky; top: 0; z-index: 2; background: #17283f; color: white; white-space: nowrap;
+  }
+  .performance-table td { padding: .45rem .55rem; }
+  .performance-table .share { min-width: 135px; }
+  .performance-table progress { vertical-align: middle; width: 78px; height: .5rem; accent-color: #398276; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-  <div><h1>Team Performance</h1><p class="text-muted mb-0">{{ today.strftime('%A, %B %d, %Y') }} · Logged hours against scheduled DPO</p></div>
-  <div class="text-muted small text-end">Last updated {{ updated.strftime('%I:%M:%S %p') }} Pacific<br>Refreshes every 60 seconds · <a href="{{ request.url }}">Refresh now</a></div>
-</div>
-<form method="get" class="card card-body mb-4">
-  <div class="row g-3 align-items-end">
-    {% for key, label, options in [('team_id', 'Team', teams), ('asm_id', "ASM's team", asms), ('tech_id', 'Technician', members)] %}
-    <div class="col-md-3"><label for="{{ key }}" class="form-label">{{ label }}</label><select name="{{ key }}" id="{{ key }}" class="form-select"><option value="">All</option>{% for option in options %}<option value="{{ option.id }}" {% if selected[key] == option.id %}selected{% endif %}>{{ option.name }}{% if key == 'asm_id' %} — {{ option.team.name }}{% endif %}</option>{% endfor %}</select></div>
-    {% endfor %}
-    <div class="col-md-3"><button class="btn btn-primary" type="submit">Apply filters</button> <a class="btn btn-outline-secondary" href="{{ url_for('team_performance.team_performance') }}">Reset</a></div>
+<header class="workspace-page-header">
+  <div>
+    <h1>Team Performance</h1>
+    <p class="workspace-page-date mb-0">Booked sold hours against scheduled DPO, and how booked hours are spread across the team.</p>
   </div>
-</form>
-<div class="row g-3 mb-4">
-{% for key, label in [('today','Today'), ('week','Week to date · Mon–today'), ('month','Month to date')] %}
-{% set p = totals[key] %}
-<div class="col-md-4"><div class="card h-100"><div class="card-body">
-  <h2 class="h5">{{ label }}</h2><div class="fs-2 fw-bold">{{ '%.1f'|format(p.actual) }} <span class="fs-5 text-muted">/ {{ '%.1f'|format(p.target) }} hrs</span></div>
-  {% if p.percent is not none %}<div class="{% if p.gap >= 0 %}text-success{% else %}text-danger{% endif %}">{{ '%.0f'|format(p.percent) }}% of target · {{ '%.1f'|format(p.gap|abs) }} hrs {% if p.gap >= 0 %}ahead{% else %}behind{% endif %}</div>{% else %}<div class="text-muted">No scheduled target</div>{% endif %}
-  {% if key == 'today' %}<div class="mt-2">{{ '%.1f'|format(p.remaining) }} hours remaining to daily goal</div>{% endif %}
-</div></div></div>
-{% endfor %}
-</div>
-{% if missing_schedule %}<div class="alert alert-warning">No WORK schedule found in the displayed period for: {{ missing_schedule|join(', ') }}. Check Calendar before relying on their targets.</div>{% endif %}
-<div class="card mb-3"><div class="card-header fw-bold">Technician production</div><div class="table-responsive"><table class="table table-hover align-middle mb-0">
-<thead><tr><th>Technician / Team</th><th>Daily DPO</th><th>Today</th><th>Week to date</th><th>MTD</th><th>Today's hours remaining</th></tr></thead>
-<tbody>{% for row in rows %}<tr><td class="fw-semibold">{{ row.name }}<div class="small text-muted">{{ row.team }}{% if not row.scheduled %} · Not scheduled today{% endif %}</div></td><td>{{ '%.1f'|format(row.dpo) }}</td>
-{% for key in ['today','week','month'] %}{% set p = row[key] %}<td><div>{{ '%.1f'|format(p.actual) }} / {{ '%.1f'|format(p.target) }} hrs</div>{% if p.percent is not none %}<div class="small {% if p.gap >= 0 %}text-success{% else %}text-danger{% endif %}">{{ '%.0f'|format(p.percent) }}% · {{ '%+.1f'|format(p.gap) }} hrs</div>{% else %}<div class="small text-muted">No scheduled target</div>{% endif %}</td>{% endfor %}
-<td class="fw-bold">{{ '%.1f'|format(row.today.remaining) }}</td></tr>{% else %}<tr><td colspan="6" class="text-center py-4">No technicians match these filters.</td></tr>{% endfor %}</tbody></table></div></div>
-<p class="small text-muted">Targets use each technician's current DPO once per scheduled WORK day through today. Actuals are flat-rate hours entered in Work Logs. Today's remaining hours are the production gap; queued ready-to-work hours are not yet captured. The ASM filter shows their assigned team's production, including work from other advisors.</p>
-<script>
-let refreshTimer;
-const filterForm = document.querySelector('form[method="get"]');
-filterForm.addEventListener('change', () => clearTimeout(refreshTimer));
-refreshTimer = setTimeout(() => window.location.reload(), 60000);
-</script>
+  {% if pilot and can('manage.view') %}
+  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('team_performance.technician_development') }}">Technician Development</a>
+  {% endif %}
+</header>
+
+{% if pilot %}
+<aside class="workspace-evidence-note" aria-label="Honda production coverage">
+  <strong>{{ pilot.store_name }} local export</strong>
+  <span>Booked {{ pilot.period_start }} through {{ pilot.period_end }}. Hours with unconfirmed technician IDs are outside these totals. Scheduled DPO comparisons are pending verified schedules and DPOs.</span>
+</aside>
+{% endif %}
+
+<section class="card mb-3" aria-label="Team performance filters and totals">
+  <div class="card-body py-2 px-3">
+    <form method="get" class="performance-filters">
+      {% for key, label, options in [('team_id', 'Team', teams), ('asm_id', "ASM’s team", asms), ('tech_id', 'Technician', members)] %}
+      <div>
+        <label for="{{ key }}" class="form-label">{{ label }}</label>
+        <select name="{{ key }}" id="{{ key }}" class="form-select">
+          <option value="">All</option>
+          {% for option in options %}<option value="{{ option.id }}"{% if selected[key] == option.id %} selected{% endif %}>{{ option.name }}{% if key == 'asm_id' %} — {{ option.team.name }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+      <div>
+        <label for="performancePeriod" class="form-label">Period</label>
+        <select id="performancePeriod" name="period" class="form-select">
+          {% for key, label in [('today', 'Day'), ('week', 'Week to date'), ('month', 'Month to date')] %}
+          <option value="{{ key }}"{% if period == key %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="performanceDate" class="form-label">Through date</label>
+        <input id="performanceDate" name="date" type="date" class="form-control" value="{{ today.isoformat() }}" max="{{ latest_date.isoformat() }}" required>
+      </div>
+      <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team_performance.team_performance') }}">Reset</a>
+    </form>
+    <div class="performance-totals border-top pt-2 mt-2 small" aria-label="Selected period totals">
+      <strong>{{ period_start.strftime('%b %d') }}{% if period_start != today %}–{{ today.strftime('%b %d') }}{% endif %}, {{ today.year }}</strong>
+      <span><strong>{{ '{:,.2f}'.format(total.actual) if total.bookings else '—' }}</strong> booked FRH</span>
+      <span><strong>{{ '{:,.2f}'.format(total.target) if not pilot and total.target > 0 else '—' }}</strong> scheduled DPO target</span>
+      {% if not pilot and total.bookings and total.percent is not none and not total.bookings_without_target %}
+      <span><strong>{{ '%+.2f'|format(total.gap) }}</strong> FRH vs. target</span>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if missing_schedule %}
+<p class="small mb-3"><strong>{{ missing_schedule }} {{ 'technician has' if missing_schedule == 1 else 'technicians have' }} booked hours with no work shifts entered</strong> in this period. Check the schedule before using these hours against a target.</p>
+{% endif %}
+
+{% if pilot %}
+<section class="card mb-3" aria-labelledby="uvi-title">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+      <h2 id="uvi-title" class="h6 mb-0">Utilization Variance Index (UVI)</h2>
+      <a class="small" href="{{ url_for('main.help_page') }}#durable-dealership-measures">Measure definitions</a>
+    </div>
+    {% if leaders %}
+    {% set top = leaders|sum(attribute='share') %}
+    <p class="mb-2">The top {{ 'two technicians account' if leaders|length == 2 else 'technician accounts' }} for
+      <strong>{{ '%.1f'|format(top) }}%</strong> of the booked hours in this view.</p>
+    <div class="row g-2">
+      {% for lead in leaders %}
+      <div class="col-12 col-md-6">
+        <div class="border rounded p-2 small">
+          <strong>{{ lead.name }}</strong>
+          <div>{{ '%.1f'|format(lead[period].actual) }} booked FRH · {{ '%.1f'|format(lead.share) }}% of this view</div>
+          <div>{{ lead.coverage_orders|length }} open assigned ROs in the local Route Sheet</div>
+          <a href="#coverage-{{ lead.id }}">Review coverage</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="small text-muted mt-2 mb-0">Booked hours use the selected period. Open ROs come from the latest Route Sheet loaded into this test. Confirm the jobs, hours still needed, and promise times before reassigning work.</p>
+    {% else %}
+    <p class="small text-muted mb-0">Choose a team or store view with at least two technicians and positive booked hours. Reconcile any negative technician totals before using shares.</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% if coverage_form %}
+<form method="post" id="coverage-follow-up">{{ coverage_form.hidden_tag() }}</form>
+{% endif %}
+<section aria-labelledby="distribution-title">
+  <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+    <h2 id="distribution-title" class="h6 mb-0">Booked hours by technician</h2>
+    {% if show_shares %}<span class="text-muted small">Share of booked hours within this view</span>{% endif %}
+  </div>
+  <div class="performance-table" tabindex="0" role="region" aria-label="Scrollable technician production">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr><th scope="col">Technician / Team</th><th scope="col" class="text-end">Booked FRH</th><th scope="col">Share of booked hours</th>
+            <th scope="col" class="text-end">Daily DPO</th><th scope="col" class="text-end">Scheduled Target</th><th scope="col" class="text-end">FRH vs. Target</th>
+            {% if distribution %}<th scope="col">Absence coverage</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+      {% set p = row[period] %}
+      <tr>
+        <td class="fw-semibold">{{ row.name }}<div class="small fw-normal text-muted">{{ row.team }}</div></td>
+        <td class="hours text-end fw-semibold">{{ '%.2f'|format(p.actual) if p.bookings else '—' }}</td>
+        <td class="share">
+          {% if row.share is not none and p.bookings %}
+          <progress value="{{ row.share }}" max="100" aria-label="{{ row.name }} share of booked hours"></progress> {{ '%.1f'|format(row.share) }}%
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td class="hours text-end">{{ '%.1f'|format(row.dpo) if not pilot and row.dpo > 0 else '—' }}</td>
+        <td class="hours text-end">{{ '%.2f'|format(p.target) if not pilot and p.target > 0 else '—' }}</td>
+        <td class="hours text-end">{{ '%+.2f'|format(p.gap) if not pilot and p.target > 0 and p.bookings else '—' }}</td>
+        {% if distribution %}
+        <td id="coverage-{{ row.id }}">
+          {% if p.actual > 0 %}
+          <details>
+            <summary>{{ row.coverage_orders|length }} open assigned ROs</summary>
+            {% if row.coverage_orders %}
+            <ul class="ps-3 my-2">
+              {% for order in row.coverage_orders %}
+              <li><strong>RO {{ order.ro_number }}</strong> · {{ order.status or 'No status' }} ·
+                {{ order.promised_time.strftime('%b %d, %I:%M %p') if order.promised_time else 'Promise time missing' }}
+                {% if order.service_description %}<div class="text-muted">{{ order.service_description }}</div>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="my-2">Check the current Route Sheet and upcoming bookings for work to cover.</p>
+            {% endif %}
+            {% if coverage_form %}
+            <button class="btn btn-sm btn-outline-primary mt-1" type="submit" form="coverage-follow-up"
+                    name="technician_id" value="{{ row.id }}">Draft coverage follow-up</button>
+            {% endif %}
+          </details>
+          {% else %}—{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No technicians match these filters.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="small text-muted mt-3 mb-0">Booked FRH are sold hours from Work Log. The scheduled target uses daily DPO once per recorded work day. Use booked-hour share to spot concentration and check dispatch, job mix, and attendance before drawing a performance conclusion.{% if selected.asm_id %} The ASM filter shows their assigned team’s production across advisors.{% endif %}</p>
 {% endblock %}

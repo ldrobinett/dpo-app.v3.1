@@ -1,0 +1,26 @@
+{% if calculator_guidance %}
+<section class="card calculator-result mb-3" aria-labelledby="calculator-management-direction">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <h2 id="calculator-management-direction" class="h6 mb-1">Management Intelligence™ direction</h2>
+            <a class="small" href="{{ url_for('management_intelligence.overview', calculator=calculator_guidance.calculator) }}">Action &amp; Follow-Up</a>
+        </div>
+        <p class="small mb-2"><strong>{{ calculator_guidance.status }}</strong>{% if calculator_guidance.direction %} · {{ calculator_guidance.direction }}{% endif %}</p>
+        {% if calculator_guidance.focus %}
+        <details>
+            <summary class="small fw-semibold">Why this is the next step</summary>
+            <div class="small pt-2">
+                <p class="mb-1"><strong>{{ calculator_guidance.focus.priority }}.</strong> {{ calculator_guidance.focus.reason }}</p>
+                <p class="text-muted mb-2">
+                    {{ '{:,.2f}'.format(calculator_guidance.actual_frh) }} booked FRH · {{ calculator_guidance.period_start }} through {{ calculator_guidance.period_end }}.
+                    {{ 'Work shifts recorded.' if calculator_guidance.scheduled else 'Work shifts missing.' }}
+                    {% if calculator_guidance.demand_frh is none %}Demand unconfirmed.{% endif %}
+                    {% if not calculator_guidance.process_known %}Handoffs and completion still need evidence.{% endif %}
+                </p>
+                <p class="mb-0"><strong>Check the result</strong> {{ calculator_guidance.verify }}</p>
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</section>
+{% endif %}

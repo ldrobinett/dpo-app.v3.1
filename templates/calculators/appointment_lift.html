@@ -1,140 +1,88 @@
 {% extends "base.html" %}
+{% from "calculators/assumption_field.html" import assumption, money %}
 
-{% block container_class %}container py-4{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calculator-workspace.css') }}">
+{% endblock %}
+
+{% macro count(value) -%}
+    {{ '{:,.1f}'.format(value) if value is not none else 'Unconfirmed' }}
+{%- endmacro %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-10">
-    <div class="card shadow-sm">
-      <div class="card-header bg-white fw-bold">{{ title }}</div>
-      <div class="alert alert-info py-2 mb-4">
-        <i class="fas fa-circle-info me-2"></i>
-        Values are prefilled from current store data when available. Review and adjust as needed before calculating.
+<header class="workspace-page-header">
+    <div>
+        <h1>Appointment Lift Calculator</h1>
+        <p class="workspace-page-date mb-0">See how much extra work the shop can finish before opening more slots.</p>
     </div>
-      <div class="card-body">
-        <form method="POST">
-          {{ form.hidden_tag() }}
+</header>
 
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">{{ form.additional_appointments.label.text }}</label>
-              {{ form.additional_appointments(class="form-control") }}
+{% include "calculators/management_guidance.html" %}
+
+<div class="row g-3">
+    <div class="col-12 col-xl-5">
+        <section class="card" aria-labelledby="lift-inputs">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="lift-inputs">Booking plan and shop capacity</h2>
+                {% if form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+                <form method="post">
+                    {{ form.hidden_tag() }}
+                    <div class="calculator-fields mb-3">
+                        {{ assumption(form.additional_appointments, 'Use slots you have demand for.', 'per day') }}
+                        {{ assumption(form.show_rate, 'Use recent results for this type of booking.', '%') }}
+                        {{ assumption(form.spare_ros_per_day, 'Leave blank if unconfirmed. Enter zero if the shop is full.', 'per day') }}
+                        {{ assumption(form.workdays_per_month, 'Starts with this month’s calendar. Use the days with coverage for this plan.', 'days') }}
+                        {{ assumption(form.avg_hours_per_ro, 'Use recent completed ROs with a similar job mix.', 'FRH') }}
+                        {{ assumption(form.avg_gross_per_ro, 'Optional. Use the same job mix as hours per RO.', '$') }}
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {{ form.submit(class_="btn btn-primary") }}
+                        <a href="{{ url_for('calculators.appointment_lift_calculator') }}" class="btn btn-outline-secondary">Reset assumptions</a>
+                    </div>
+                </form>
             </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.show_rate.label.text }}</label>
-              {{ form.show_rate(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.avg_hours_per_ro.label.text }}</label>
-              {{ form.avg_hours_per_ro(class="form-control") }}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ form.avg_gross_per_ro.label.text }}</label>
-              {{ form.avg_gross_per_ro(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.workdays_per_month.label.text }}</label>
-              {{ form.workdays_per_month(class="form-control") }}
-            </div>
-          </div>
-
-          <div class="mt-4">
-            {{ form.submit(class="btn btn-primary fw-bold") }}
-          </div>
-        </form>
-
-        {% if results %}
-        <hr class="my-4">
-
-        <div class="row g-4">
-          <div class="col-md-6">
-            <div class="card border-start border-4 border-primary h-100">
-              <div class="card-body">
-                <h6 class="fw-bold">Daily Lift</h6>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Shown Appointments</span>
-                  <strong>{{ "%.1f"|format(results.effective_shown_appointments) }}</strong>
+        </section>
+    </div>
+    <div class="col-12 col-xl-7">
+        <section class="card calculator-result mb-3" aria-labelledby="lift-results">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="lift-results">What the shop can deliver</h2>
+                {% if results %}
+                <div class="calculator-totals mb-3">
+                    <div><span class="small">Extra arrivals per day</span><strong>{{ count(results.arrivals) }}</strong></div>
+                    <div><span class="small">Extra completed ROs per day</span><strong>{{ count(results.completed) }}</strong></div>
+                    <div><span class="small">Estimated sold hours over plan</span><strong>{{ count(results.period_hours) }}</strong></div>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Added FRH / Day</span>
-                  <strong>{{ "%.1f"|format(results.added_frh_per_day) }}</strong>
+                {% if results.completed is none %}
+                <p class="small text-muted mb-0">Enter confirmed shop capacity to estimate completed ROs, sold hours, and gross.</p>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-sm calculator-breakdown mb-0" aria-label="Appointment lift breakdown">
+                        <tbody>
+                            <tr><th scope="row">Extra arrivals above capacity per day</th><td>{{ count(results.overflow) }}</td></tr>
+                            <tr><th scope="row">Estimated extra sold hours per day</th><td>{{ count(results.daily_hours) }}</td></tr>
+                            {% if results.period_gross is not none %}<tr><th scope="row">Estimated extra gross over plan</th><td>{{ money(results.period_gross) }}</td></tr>{% endif %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="d-flex justify-content-between">
-                  <span>Added Gross / Day</span>
-                  <strong>${{ "{:,.0f}".format(results.added_gross_per_day) }}</strong>
-                </div>
-              </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">Enter extra bookings and the show rate to estimate arrivals. Add confirmed shop capacity to see what that could turn into.</p>
+                {% endif %}
             </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card border-start border-4 border-success h-100">
-              <div class="card-body">
-                <h6 class="fw-bold">Monthly Impact</h6>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Added FRH / Month</span>
-                  <strong>{{ "%.1f"|format(results.monthly_added_frh) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Added Gross / Month</span>
-                  <strong>${{ "{:,.0f}".format(results.monthly_added_gross) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between">
-                  <span>Added Gross / Year</span>
-                  <strong>${{ "{:,.0f}".format(results.annual_added_gross) }}</strong>
-                </div>
-              </div>
+        </section>
+        {% if next_step %}
+        <section class="card" aria-labelledby="lift-action">
+            <div class="card-body">
+                <h2 class="h6" id="lift-action">What to do next</h2>
+                <p class="mb-2">{{ next_step.action }}</p>
+                <p class="small mb-2"><strong>Check the result</strong> {{ next_step.expected }}</p>
+                {% if draft %}
+                <a class="btn btn-sm btn-primary" href="{{ url_for('management_intelligence.overview', calculator='appointment_lift_calculator', plan=draft) }}">Draft action for follow-up</a>
+                {% endif %}
             </div>
-          </div>
-        </div>
+        </section>
         {% endif %}
-      </div>
     </div>
-  </div>
 </div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  const fields = document.querySelectorAll("form input, form select, form textarea");
-
-  function normalizeValue(field) {
-    if (field.type === "checkbox" || field.type === "radio") {
-      return field.checked ? "checked" : "unchecked";
-    }
-    return String(field.value ?? "").trim();
-  }
-
-  function updateChangedState(field) {
-    const initialValue = field.dataset.initialValue ?? "";
-    const currentValue = normalizeValue(field);
-
-    if (currentValue !== initialValue) {
-      field.classList.add("bg-warning", "bg-opacity-25", "border-warning");
-    } else {
-      field.classList.remove("bg-warning", "bg-opacity-25", "border-warning");
-    }
-  }
-
-  fields.forEach((field) => {
-    if (
-      field.type === "hidden" ||
-      field.type === "submit" ||
-      field.type === "button" ||
-      field.hasAttribute("readonly")
-    ) {
-      return;
-    }
-
-    field.dataset.initialValue = normalizeValue(field);
-    field.addEventListener("input", function () {
-      updateChangedState(field);
-    });
-    field.addEventListener("change", function () {
-      updateChangedState(field);
-    });
-  });
-});
-</script>
 {% endblock %}

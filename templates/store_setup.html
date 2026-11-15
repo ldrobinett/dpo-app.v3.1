@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="workspace-page-header">
+  <div>
+    <h1>Store Setup</h1>
+    <p class="workspace-page-date mb-0">{{ store.name }} · Set up the store before loading production.</p>
+  </div>
+</header>
+
+<div class="list-group">
+  <section class="list-group-item py-3">
+    <h2 class="h6">Store and manager access</h2>
+    <p class="small mb-2">Confirm the store name and who can manage setup. Enter shop and financial inputs when you have verified values.</p>
+    <a href="{{ url_for('onboarding.review_setup') }}" class="btn btn-sm btn-outline-primary">Store Settings</a>
+    {% if can('users.manage') %}<a href="{{ url_for('users.list_users') }}" class="btn btn-sm btn-outline-secondary">User Management</a>{% endif %}
+  </section>
+  <section class="list-group-item py-3">
+    <h2 class="h6">Teams, technicians, and advisors</h2>
+    <p class="small mb-2">{{ counts.teams }} teams · {{ counts.active }} active technicians · {{ counts.historical }} historical technicians · {{ counts.advisors }} advisors</p>
+    <p class="small">Use DMS numbers so the Route Sheet and Work Log match the roster. Keep departed technicians for historical bookings.</p>
+    <a href="{{ url_for('onboarding.team_upload') }}" class="btn btn-sm btn-outline-primary">Bulk Team Upload</a>
+    {% if can('teams.manage') %}<a href="{{ url_for('teams.teams') }}" class="btn btn-sm btn-outline-secondary">Team Setup</a>{% endif %}
+  </section>
+  <section class="list-group-item py-3">
+    <h2 class="h6">Schedules and production targets</h2>
+    <p class="small">Recorded work shifts: {{ counts.shifts }}. Verify schedules and approved DPOs before using the store’s pace comparisons.</p>
+    {% if can('schedule.manage') %}<a href="{{ url_for('schedule.generate_schedule') }}" class="btn btn-sm btn-outline-primary">Set up schedules</a>{% endif %}
+    {% if can('teams.manage') %}<a href="{{ url_for('teams.team_members') }}" class="btn btn-sm btn-outline-secondary">Review technician DPOs</a>{% endif %}
+  </section>
+  <section class="list-group-item py-3">
+    <h2 class="h6">Load and reconcile CDK data</h2>
+    <p class="small">Recorded ROs: {{ counts.orders }} · Work Log entries: {{ counts.bookings }}. Preview each file, confirm unresolved assignments and hours, then apply the reviewed rows.</p>
+    {% if can('routesheet.edit') %}<a href="{{ url_for('routesheet.cdk_audit_upload') }}" class="btn btn-sm btn-outline-primary">Load Route Sheet</a>{% endif %}
+    {% if can('worklog.manage') %}<a href="{{ url_for('reconciliation.reconcile_logs') }}" class="btn btn-sm btn-outline-secondary">Load Tech Hours</a>{% endif %}
+  </section>
+  <section class="list-group-item py-3">
+    <h2 class="h6">MTD metrics and forecast</h2>
+    <p class="small">{{ 'Shared forecast inputs are on file.' if shared_inputs else 'Shared forecast inputs are pending.' }} Use the store’s verified month-to-date report and forecast.</p>
+    {% if can('manage.view') %}<a href="{{ url_for('main.input_metrics') }}" class="btn btn-sm btn-outline-primary">Enter MTD Metrics</a>{% endif %}
+    {% if can('finance.view') %}<a href="{{ url_for('finance.monthly_forecast') }}" class="btn btn-sm btn-outline-secondary">Monthly Forecasts</a>{% endif %}
+  </section>
+</div>
+{% endblock %}

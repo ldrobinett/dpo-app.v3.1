@@ -1,0 +1,16 @@
+{% macro assumption(field, source, unit, hint="") -%}
+<div>
+    {{ field.label(class_="form-label") }}
+    <div class="input-group input-group-sm">
+        {{ field(class_="form-control", inputmode='numeric' if field.type == 'IntegerField' else 'text' if field.type == 'StringField' else 'decimal',
+                 aria_describedby=field.name ~ '-source') }}
+        {% if unit %}<span class="input-group-text">{{ unit }}</span>{% endif %}
+    </div>
+    <p id="{{ field.name }}-source" class="small text-muted mt-1 mb-0">{{ source }}{% if hint %} · {{ hint }}{% endif %}</p>
+    {% for error in field.errors %}<p class="small text-danger mb-0">{{ error }}</p>{% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro money(amount, signed=false) -%}
+    {{ '-' if amount < 0 else '+' if signed and amount > 0 else '' }}${{ '{:,.2f}'.format(amount|abs) }}
+{%- endmacro %}

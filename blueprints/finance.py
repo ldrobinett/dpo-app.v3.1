@@ -1,9 +1,9 @@
-from flask import Blueprint, render_template, url_for, flash, redirect, request
+from flask import Blueprint, render_template, url_for, flash, redirect, request, current_app, abort
 from flask_login import login_required, current_user, AnonymousUserMixin
 from extensions import db
 from models import (
     ScheduleEntry, WorkLog, TeamSchedule, Team,
-    ProductionObjectiveMemo, FinancialForecast, FinancialInputs, StoreForecastInputs, TeamMember, User
+    ProductionObjectiveMemo, FinancialForecast, FinancialInputs, StoreForecastInputs, TeamMember, User, ManagedStore
 )
 from forms import FinancialPerformanceForm
 from services.forecast_inputs import (
@@ -16,7 +16,10 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from sqlalchemy.orm import joinedload
 import traceback # Import for logging
-from utils.permissions import require_capability
+from utils.permissions import has_capability, require_capability
+from services.production_pace import shop_production_today
+from .team_performance import build_progress, summarize_progress
+from pytz import timezone
 
 # Create the Blueprint
 finance_bp = Blueprint('finance', __name__)
@@ -100,117 +103,6 @@ def apply_financial_adjustments(forecast_data, user_inputs):
 
     return forecast_data
 
-
-def get_production_display_data(store_id):
-    """Calculates Today's and MTD performance data for each tech."""
-
-    today = date.today()
-    start_of_month = today.replace(day=1)
-
-    member_data = defaultdict(lambda: {
-        'name': 'Unknown', 'dpo': 0.0, 'actual_today': 0.0,
-        'is_scheduled_today': False, 'expected_mtd': 0.0, 'actual_mtd': 0.0,
-        'team_name': 'Unassigned'
-    })
-
-    # --- 1. Get all members and their basic info ---
-    all_members = TeamMember.query.join(Team).filter(Team.store_id == store_id).options(joinedload(TeamMember.team)).order_by(TeamMember.name).all()
-    for member in all_members:
-        member_data[member.id]['name'] = member.name
-
-        # --- FRH Calculation Logic: Use calculated DPO if mode is set ---
-        frh_value = member.daily_production_objective
-        if getattr(member, 'dpo_calculation_mode', 'manual') == 'calculated':
-            frh_value = member.calculated_dpo
-
-        member_data[member.id]['dpo'] = float(frh_value or 0.0) # Use the correct DPO
-        # --- End FRH Calculation Logic ---
-
-        member_data[member.id]['team_name'] = member.team.name if member.team else 'Unassigned'
-
-    # --- 2. Calculate Today's Actuals (from WorkLogs) ---
-    logs_today = WorkLog.query.join(TeamMember).join(Team).filter(
-        Team.store_id == store_id,
-        WorkLog.date == today
-    ).all()
-
-    for log in logs_today:
-        if log.team_member_id and log.flat_rate_hours:
-            member_data[log.team_member_id]['actual_today'] += float(log.flat_rate_hours)
-
-    # --- 3. Check if Scheduled Today & Calculate MTD Expected (from Schedules) ---
-    schedules_mtd = ScheduleEntry.query.join(TeamMember).join(Team).filter(
-        Team.store_id == store_id,
-        ScheduleEntry.date >= start_of_month,
-        ScheduleEntry.date <= today
-    ).options(
-        joinedload(ScheduleEntry.team_member) # Only need member
-    ).all()
-
-    for s in schedules_mtd:
-
-        # --- NEW CHECK: Skip non-productive entries ---
-        if s.schedule_type != 'WORK':
-            continue
-        # --- END NEW CHECK ---
-
-        if s.team_member:
-
-            # --- FRH Calculation Logic: Use calculated DPO if mode is set ---
-            member = s.team_member
-            frh_value = member.daily_production_objective
-            if getattr(member, 'dpo_calculation_mode', 'manual') == 'calculated':
-                frh_value = member.calculated_dpo
-
-            dpo = float(frh_value or 0.0) # Use the correct DPO
-            # --- End FRH Calculation Logic ---
-
-            if dpo > 0:
-                member_id = s.team_member_id
-
-                # Add to MTD expected total
-                member_data[member_id]['expected_mtd'] += dpo
-
-                # Check if scheduled today
-                if s.date == today:
-                    member_data[member_id]['is_scheduled_today'] = True
-
-    # --- 4. Calculate MTD Actuals (from WorkLogs) ---
-    logs_mtd = WorkLog.query.join(TeamMember).join(Team).filter(
-        Team.store_id == store_id,
-        WorkLog.date >= start_of_month,
-        WorkLog.date <= today
-    ).all()
-
-    for log in logs_mtd:
-        if log.team_member_id and log.flat_rate_hours:
-            member_data[log.team_member_id]['actual_mtd'] += float(log.flat_rate_hours)
-
-    # --- 5. Calculate Percentages and Final Formatting ---
-    final_data_by_team = defaultdict(list)
-
-    for member_id, data in member_data.items():
-        dpo = data['dpo']
-        actual_today = data['actual_today']
-        is_scheduled_today = data['is_scheduled_today']
-        expected_mtd = data['expected_mtd']
-        actual_mtd = data['actual_mtd']
-
-        percent_today = 0.0
-        if is_scheduled_today and dpo > 0:
-            percent_today = (actual_today / dpo) * 100
-
-        percent_mtd = (actual_mtd / expected_mtd) * 100 if expected_mtd > 0 else 0
-
-        data['percent_today'] = percent_today
-        data['percent_mtd'] = percent_mtd
-
-        if dpo > 0 or expected_mtd > 0 or actual_mtd > 0:
-              final_data_by_team[data['team_name']].append(data)
-
-    sorted_team_data = dict(sorted(final_data_by_team.items()))
-
-    return sorted_team_data
 
 # --- ROUTES ---
 
@@ -529,65 +421,54 @@ def monthly_forecast():
                            title='Monthly Forecast',
                            all_forecasts=all_forecasts)
 
-# === Production Display Route ===
 @finance_bp.route("/production_display")
 @login_required
-@require_capability("finance.view")
 def production_display():
+    store_id = current_user.store_id
+    if not store_id or not (has_capability("production.view") or has_capability("finance.view")):
+        abort(403)
 
-    if not current_user.is_authenticated or isinstance(current_user._get_current_object(), AnonymousUserMixin):
-        flash('Session expired or user not fully authenticated. Please log in.', 'warning')
-        return redirect(url_for('auth.login'))
-
-    production_data = get_production_display_data(current_user.store_id)
-
-    today_date_str = date.today().strftime("%A, %B %d, %Y")
-
-    # Flatten all members for store leaderboard
-    all_members = []
-    for team, members in production_data.items():
-        all_members.extend(members)
-
-    # Sort by MTD %
-    all_members_sorted = sorted(
-        all_members,
-        key=lambda m: m['percent_mtd'],
-        reverse=True
+    now = datetime.now(timezone("America/Los_Angeles"))
+    store = db.session.get(ManagedStore, store_id)
+    if store is None:
+        abort(404)
+    today = now.date()
+    month_start = today.replace(day=1)
+    members = TeamMember.query.join(Team).options(joinedload(TeamMember.team)).filter(
+        Team.store_id == store_id,
+    ).order_by(Team.name, Team.id, TeamMember.name).all()
+    logs = WorkLog.query.join(TeamMember).join(Team).filter(
+        Team.store_id == store_id, WorkLog.date.between(month_start, today),
+    ).all()
+    shifts = ScheduleEntry.query.options(joinedload(ScheduleEntry.team_member)).join(TeamMember).join(Team).filter(
+        Team.store_id == store_id, ScheduleEntry.date.between(month_start, today), ScheduleEntry.schedule_type == "WORK",
+    ).all()
+    pilot = current_app.config.get("MI_LOCAL_PILOT")
+    pilot = pilot if pilot and pilot["store_id"] == store_id else None
+    board = shop_production_today(
+        now, [shift for shift in shifts if shift.date == today],
+        [log for log in logs if log.date == today], targets_verified=pilot is None,
     )
-
-    # Shop Pace MTD
-    total_expected_mtd = 0
-    total_actual_mtd = 0
-
-    for member in all_members:
-        total_expected_mtd += member['expected_mtd']
-        total_actual_mtd += member['actual_mtd']
-
-    shop_pace = 0
-
-    if total_expected_mtd > 0:
-        shop_pace = (total_actual_mtd / total_expected_mtd) * 100
-
-    # Store highlights
-    store_leader = None
-    needs_attention = None
-    big_day = None
-
-    if all_members_sorted:
-        store_leader = all_members_sorted[0]
-        needs_attention = min(all_members_sorted, key=lambda m: m['percent_mtd'])
-        big_day = max(all_members_sorted, key=lambda m: m['percent_today'])
-
+    rows, _ = build_progress(members, shifts, logs, today)
+    by_technician = {row["id"]: row for row in rows}
+    team_production = {}
+    for member in members:
+        row = by_technician.get(member.id)
+        if row:
+            row["retired"] = bool(member.retired_at and member.retired_at.date() <= today)
+            team_production.setdefault(member.team_id, {"name": member.team.name, "rows": []})["rows"].append(row)
+    team_screens = []
+    for team in team_production.values():
+        rows = team["rows"]
+        totals = {period: summarize_progress(rows, period) for period in ("today", "month")}
+        page_size = 8
+        page_count = (len(rows) + page_size - 1) // page_size
+        for start in range(0, len(rows), page_size):
+            team_screens.append(dict(
+                name=team["name"], rows=rows[start:start + page_size], totals=totals,
+                page=start // page_size + 1, pages=page_count,
+            ))
     return render_template(
-        "production_display.html",
-        title="Live Production Display",
-        production_data=production_data,
-        today_date_str=today_date_str,
-        all_members_sorted=all_members_sorted,
-        store_leader=store_leader,
-        needs_attention=needs_attention,
-        big_day=big_day,
-        shop_pace=shop_pace,
-        total_actual_mtd=total_actual_mtd,
-        total_expected_mtd=total_expected_mtd
+        "production_display.html", title="Live Production Display",
+        store=store, now=now, board=board, pilot=pilot, team_screens=team_screens,
     )

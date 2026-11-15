@@ -35,11 +35,17 @@
                             {% endfor %}
                         </div>
 
-                        <h5 class="text-primary mb-3">3. Default Schedule (For all imports)</h5>
+                        <div class="form-check mb-3">
+                            {{ form.roster_only(class="form-check-input") }}
+                            {{ form.roster_only.label(class="form-check-label") }}
+                            <p class="small text-muted mb-0">Use this when schedules or DPOs are still pending. Retired_On can retain a technician for historical bookings.</p>
+                        </div>
+                        <h5 class="text-primary mb-3">Schedule defaults for imports that generate shifts</h5>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 {{ form.default_start_time.label(class="form-label small") }}
                                 {{ form.default_start_time(class="form-control") }}
+                                {% for error in form.default_start_time.errors %}<span class="text-danger">{{ error }}</span>{% endfor %}
                             </div>
                             <div class="col-md-6">
                                 {{ form.default_end_time.label(class="form-label small") }}

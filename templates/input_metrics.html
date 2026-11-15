@@ -1,96 +1,92 @@
-<form method="POST" action="{{ url_for('main.input_metrics') }}">
-    <p>Enter metrics for MTD as of Yesterday: {{ metrics.date if metrics else "Yesterday" }}</p>
+{% extends "base.html" %}
 
-    <div class="card shadow-sm border-0 mb-3">
-        <div class="card-body">
+{% block styles %}
+<style>
+    .metrics-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px 16px; }
+    .metrics-fields .form-label { margin-bottom: 4px; font-size: .83rem; }
+    .metrics-fields .form-control { font-size: .9rem; padding: .45rem .6rem; }
+    .metrics-missing { color: #825210; }
+</style>
+{% endblock %}
 
-            <div class="fw-bold mb-3">MTD Input (Yesterday)</div>
-
-            <div class="alert alert-info">
-                Enter yesterday’s MTD gross performance. This drives forecasting and pacing. Appointment data should reflect today’s appointments.
-            </div>
-
-            <!-- GROSS INPUTS -->
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Labor Gross</label>
-                    <input
-                        type="number"
-                        step="0.01"
-                        name="labor_gross"
-                        class="form-control"
-                        value="{{ metrics.labor_gross if metrics else '' }}"
-                    >
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Parts Gross</label>
-                    <input
-                        type="number"
-                        step="0.01"
-                        name="parts_gross"
-                        class="form-control"
-                        value="{{ metrics.parts_gross if metrics else '' }}"
-                    >
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Sublet / Other</label>
-                    <input
-                        type="number"
-                        step="0.01"
-                        name="sublet_gross"
-                        class="form-control"
-                        value="{{ metrics.sublet_gross if metrics else '' }}"
-                    >
-                </div>
-            </div>
-
-            <!-- APPOINTMENTS / ROS -->
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Today Appointments</label>
-                    <input
-                        type="number"
-                        name="today_appts"
-                        class="form-control"
-                        value="{{ metrics.today_appts if metrics else '' }}"
-                    >
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Next 7 Day Appointments</label>
-                    <input
-                        type="number"
-                        name="appt_7_day"
-                        class="form-control"
-                        value="{{ metrics.appt_7_day if metrics else '' }}"
-                    >
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">MTD CP ROs</label>
-                    <input
-                        type="number"
-                        name="cp_ros_mtd"
-                        class="form-control"
-                        min="0"
-                        value="{{ metrics.cp_ros_mtd if metrics and metrics.cp_ros_mtd is not none else '' }}"
-                    >
-                    <div class="form-text">Enter current month-to-date customer pay RO count.</div>
-                </div>
-            </div>
-
-            <!-- SUBMIT -->
-            <button type="submit" class="btn btn-primary w-100">
-                Save Metrics
-            </button>
-
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} mt-3">{{ message }}</div>
-                {% endfor %}
-            {% endwith %}
-        </div>
+{% macro metric(field, step, minimum=none) %}
+<div data-metric>
+    <div class="d-flex flex-wrap justify-content-between gap-1">
+        {{ field.label(class_="form-label") }}
+        <span class="small metrics-missing" data-missing{% if field.data is not none and not field.errors %} hidden{% endif %}>Needs entry</span>
     </div>
+    {% if minimum is none %}
+        {{ field(class_="form-control", step=step) }}
+    {% else %}
+        {{ field(class_="form-control", step=step, min=minimum) }}
+    {% endif %}
+    {% for field_error in field.errors %}<p class="small text-danger mt-1 mb-0">{{ field_error }}</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<header class="workspace-page-header">
+    <div>
+        <h1>Enter MTD Metrics</h1>
+        <p class="workspace-page-date mb-0">Use the store’s month-to-date report and appointment schedule.</p>
+    </div>
+</header>
+
+<form method="post" action="{{ url_for('main.input_metrics') }}" id="dailyMetricsForm">
+    {{ form.hidden_tag() }}
+    {% set missing = namespace(count=0) %}
+    {% for name in metric_fields %}
+        {% if form[name].data is none or form[name].errors %}{% set missing.count = missing.count + 1 %}{% endif %}
+    {% endfor %}
+    <div class="workspace-evidence-note" role="status">
+        <strong id="metricsMissingCount">{{ missing.count }} of {{ metric_fields|length }} need entry</strong>
+        <span>Enter zero only when the report shows zero.</span>
+    </div>
+    {% if error or form.csrf_token.errors or form.reporting_date.errors or form.appointments_date.errors %}
+    <p role="alert" class="alert alert-danger">{{ error or 'Reload the page and try again.' }}</p>
+    {% endif %}
+
+    <section class="card mb-3" aria-labelledby="mtd-performance-heading">
+        <div class="card-body">
+            <h2 class="h6 mb-1" id="mtd-performance-heading">Month-to-date results</h2>
+            <p class="small text-muted mb-3">Through <strong>{{ metrics_date.strftime('%A, %B %d, %Y') }}</strong>. Total gross is calculated from the three gross amounts.</p>
+            <div class="metrics-fields">
+                {{ metric(form.labor_gross, '0.01') }}
+                {{ metric(form.parts_gross, '0.01') }}
+                {{ metric(form.sublet_gross, '0.01') }}
+                {{ metric(form.cp_ros_mtd, '1', 0) }}
+            </div>
+        </div>
+    </section>
+
+    <section class="card mb-3" aria-labelledby="mtd-appointments-heading">
+        <div class="card-body">
+            <h2 class="h6 mb-1" id="mtd-appointments-heading">Appointments</h2>
+            <p class="small text-muted mb-3">Check the appointment schedule for <strong>{{ today.strftime('%A, %B %d, %Y') }}</strong>.</p>
+            <div class="metrics-fields">
+                {{ metric(form.today_appts, '1', 0) }}
+                {{ metric(form.appt_7_day, '1', 0) }}
+            </div>
+        </div>
+    </section>
+
+    <button class="btn btn-primary" type="submit">Save MTD Metrics</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const metricsForm = document.getElementById("dailyMetricsForm");
+    const metricFields = metricsForm.querySelectorAll("[data-metric]");
+    metricsForm.addEventListener("input", () => {
+        let missing = 0;
+        for (const field of metricFields) {
+            const input = field.querySelector("input");
+            const needsEntry = !input.value || !input.validity.valid;
+            field.querySelector("[data-missing]").hidden = !needsEntry;
+            if (needsEntry) missing++;
+        }
+        document.getElementById("metricsMissingCount").textContent = `${missing} of ${metricFields.length} need entry`;
+    });
+</script>
+{% endblock %}

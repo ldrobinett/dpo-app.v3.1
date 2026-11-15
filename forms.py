@@ -6,10 +6,30 @@ from wtforms import (
     RadioField, IntegerField, DateTimeLocalField
 )
 from flask_wtf.file import FileField, FileAllowed, FileRequired
-from wtforms.validators import DataRequired, Length, EqualTo, ValidationError, Optional, NumberRange
+from wtforms.validators import DataRequired, InputRequired, Length, EqualTo, ValidationError, Optional, NumberRange
 from wtforms_sqlalchemy.fields import QuerySelectField
 from models import User, Team, TeamMember, ASM
 from datetime import date
+from math import isfinite
+
+
+def validate_gross(_form, field):
+    amount = field.data
+    if amount is None or not amount.is_finite() or not isfinite(float(amount)):
+        raise ValidationError("Enter a valid dollar amount.")
+    if amount.as_tuple().exponent < -2:
+        raise ValidationError("Enter dollars and cents, with no more than two decimal places.")
+
+
+class DailyMetricsForm(FlaskForm):
+    reporting_date = HiddenField(validators=[InputRequired()])
+    appointments_date = HiddenField(validators=[InputRequired()])
+    labor_gross = DecimalField("Labor gross", validators=[InputRequired(), validate_gross])
+    parts_gross = DecimalField("Parts gross", validators=[InputRequired(), validate_gross])
+    sublet_gross = DecimalField("Sublet / other gross", validators=[InputRequired(), validate_gross])
+    cp_ros_mtd = IntegerField("Customer-pay ROs", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
+    today_appts = IntegerField("Today’s appointments", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
+    appt_7_day = IntegerField("Next 7 days’ appointments", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
 
 # --- Query Factories & Helpers ---
 def team_query():
@@ -101,17 +121,17 @@ class OnboardingForm(FlaskForm):
 
 class StoreSettingsForm(FlaskForm):
     # 1. Store Identity
-    store_name = StringField('Dealership / Store Name', validators=[DataRequired()])
+    store_name = StringField('Dealership / Store Name', validators=[DataRequired(), Length(max=120)])
 
     # 2. Facility
     bays_with_lifts = IntegerField('Bays with Lifts', validators=[Optional()])
     bays_without_lifts = IntegerField('Bays without Lifts', validators=[Optional()])
 
     # 3. Financial Baseline (Overall)
-    elr = DecimalField('Overall Effective Labor Rate ($)', places=2, validators=[DataRequired()])
-    parts_to_labor = DecimalField('Overall Parts to Labor Ratio', places=2, validators=[DataRequired()])
-    labor_margin = DecimalField('Overall Labor Margin %', places=1, validators=[DataRequired()])
-    parts_margin = DecimalField('Overall Parts Margin %', places=1, validators=[DataRequired()])
+    elr = DecimalField('Overall Effective Labor Rate ($)', places=2, validators=[Optional()])
+    parts_to_labor = DecimalField('Overall Parts to Labor Ratio', places=2, validators=[Optional()])
+    labor_margin = DecimalField('Overall Labor Margin %', places=1, validators=[Optional()])
+    parts_margin = DecimalField('Overall Parts Margin %', places=1, validators=[Optional()])
 
     # 4. Customer Pay (CP) Baseline
     cp_elr = DecimalField('CP Effective Labor Rate ($)', places=2, validators=[Optional()])
@@ -142,8 +162,9 @@ class BulkTeamUploadForm(FlaskForm):
     ])
 
     # Standard Schedule Defaults
-    default_start_time = TimeField('Default Start Time', validators=[DataRequired()])
-    default_end_time = TimeField('Default End Time', validators=[DataRequired()])
+    roster_only = BooleanField('Import roster only', default=True)
+    default_start_time = TimeField('Default Start Time', validators=[Optional()])
+    default_end_time = TimeField('Default End Time', validators=[Optional()])
     default_lunch_start = TimeField('Default Lunch Start', validators=[Optional()])
     default_lunch_end = TimeField('Default Lunch End', validators=[Optional()])
 
@@ -403,118 +424,137 @@ class LaborGridForm(FlaskForm):
 # ==========================================
 # CALCULATOR FORMS
 # ==========================================
+def validate_finite_number(_form, field):
+    if field.data is None or not isfinite(field.data):
+        raise ValidationError("Enter a valid number.")
+
+
 class MPICalculatorForm(FlaskForm):
-    effective_labor_rate = FloatField('Effective Labor Rate ($)', validators=[DataRequired()])
-    tenths_increase = FloatField('Tenths Increase (e.g., 0.3)', default=0.3, validators=[DataRequired()])
-    labor_gross_margin = FloatField('Labor Gross % (e.g., 0.75)', default=0.75, validators=[DataRequired()])
-    parts_to_labor_ratio = FloatField('Parts to Labor Ratio', default=0.80, validators=[DataRequired()])
-    parts_gross_margin = FloatField('Parts Gross % (e.g., 0.40)', default=0.40, validators=[DataRequired()])
-    monthly_cp_ros = IntegerField('Monthly CP RO Count', validators=[DataRequired()])
-    submit = SubmitField('Calculate Potential')
+    effective_labor_rate = FloatField("CP effective labor rate", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    tenths_increase = FloatField("Extra sold hours per CP RO", default=0.3, validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    labor_gross_margin = FloatField("CP labor gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    parts_to_labor_ratio = FloatField("CP parts sales per $1 of labor", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    parts_gross_margin = FloatField("CP parts gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    monthly_cp_ros = IntegerField("Monthly customer-pay ROs", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
+    submit = SubmitField("Calculate opportunity")
 
 class ApptCalculatorForm(FlaskForm):
-    num_techs = FloatField('Number of Techs', validators=[DataRequired()])
-    proficiency = FloatField('Proficiency Target (e.g. 1.1)', default=1.1, validators=[DataRequired()])
-    days_in_month = FloatField('Tech Work Days in Month', default=21, validators=[DataRequired()])
-    avg_hours_per_ro = FloatField('Avg Hours per RO (CP/WP)', default=2.0, validators=[DataRequired()])
-    walk_in_percent = FloatField('Walk-in % (e.g. 0.10)', default=0.10, validators=[DataRequired()])
-    show_rate = FloatField('Show Rate (e.g. 0.85)', default=0.85, validators=[DataRequired()])
-    submit = SubmitField('Calculate Targets')
+    num_techs = FloatField("Techs available per day", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    hours_per_tech = FloatField("Working hours per tech", default=8, validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=24)])
+    proficiency = FloatField("Production proficiency", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    days_in_month = IntegerField("Shop days this month", validators=[InputRequired(), NumberRange(min=0, max=31)])
+    avg_hours_per_ro = FloatField("Average sold hours per RO", validators=[InputRequired(), validate_finite_number, NumberRange(min=0.01)])
+    walk_in_percent = FloatField("Work from walk-ins", default=10, validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=100)])
+    show_rate = FloatField("Appointment show rate", default=90, validators=[InputRequired(), validate_finite_number, NumberRange(min=0.01, max=100)])
+    submit = SubmitField("Calculate targets")
 
 class CPGPOpportunityForm(FlaskForm):
-    curr_elr = FloatField('Current ELR', validators=[DataRequired()])
-    curr_hours_per_ro = FloatField('Current Hrs/RO', validators=[DataRequired()])
-    curr_labor_margin = FloatField('Current Labor Margin %', validators=[DataRequired()])
-    curr_parts_ratio = FloatField('Current P:L Ratio', validators=[DataRequired()])
-    curr_parts_margin = FloatField('Current Parts Margin %', validators=[DataRequired()])
-    curr_ro_count = IntegerField('Current Monthly ROs', validators=[DataRequired()])
+    curr_elr = FloatField("Current CP labor rate", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    curr_hours_per_ro = FloatField("Current sold hours per CP RO", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    curr_labor_margin = FloatField("Current labor gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    curr_parts_ratio = FloatField("Current parts sales per $1 of labor", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    curr_parts_margin = FloatField("Current parts gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    curr_ro_count = IntegerField("Current monthly CP ROs", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
 
-    opp_elr = FloatField('Target ELR', validators=[DataRequired()])
-    opp_hours_per_ro = FloatField('Target Hrs/RO', validators=[DataRequired()])
-    opp_labor_margin = FloatField('Target Labor Margin %', validators=[DataRequired()])
-    opp_parts_ratio = FloatField('Target P:L Ratio', validators=[DataRequired()])
-    opp_parts_margin = FloatField('Target Parts Margin %', validators=[DataRequired()])
-    opp_ro_count = IntegerField('Target Monthly ROs', validators=[DataRequired()])
+    opp_elr = FloatField("Target CP labor rate", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    opp_hours_per_ro = FloatField("Target sold hours per CP RO", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    opp_labor_margin = FloatField("Target labor gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    opp_parts_ratio = FloatField("Target parts sales per $1 of labor", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    opp_parts_margin = FloatField("Target parts gross margin", validators=[InputRequired(), validate_finite_number, NumberRange(max=100)])
+    opp_ro_count = IntegerField("Target monthly CP ROs", validators=[InputRequired(), NumberRange(min=0, max=2147483647)])
 
-    submit = SubmitField('Compare')
+    submit = SubmitField("Compare gross profit")
 
 class CapacityOpportunityForm(FlaskForm):
-    days_in_month = FloatField('Technician WorkDays in Month (not calendar days)', default=21, validators=[DataRequired()])
-    hours_per_day = FloatField('Hours per Day', default=8, validators=[DataRequired()])
+    days_in_month = IntegerField("Current shop days", validators=[InputRequired(), NumberRange(min=0, max=31)])
+    hours_per_day = FloatField("Current working hours per tech", validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=24)])
+    opp_days_in_month = IntegerField("Target shop days", validators=[InputRequired(), NumberRange(min=0, max=31)])
+    opp_hours_per_day = FloatField("Target working hours per tech", validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=24)])
+    demand_hours = FloatField("Monthly sold hours supported by demand", validators=[Optional(), validate_finite_number, NumberRange(min=0)])
 
-    curr_tech_count = FloatField('Current Techs', validators=[DataRequired()])
-    curr_proficiency = FloatField('Current Proficiency', validators=[DataRequired()])
-    curr_elr = FloatField('Current ELR', validators=[DataRequired()])
-    curr_labor_margin = FloatField('Current Labor Margin %', validators=[DataRequired()])
-    curr_parts_ratio = FloatField('Current P:L Ratio', validators=[DataRequired()])
-    curr_parts_margin = FloatField('Current Parts Margin %', validators=[DataRequired()])
-    curr_unapplied = FloatField('Current Unapplied Cost ($)', default=0)
+    curr_tech_count = FloatField("Current techs available", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    curr_proficiency = FloatField("Current proficiency", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    curr_elr = FloatField("Current effective labor rate", validators=[Optional(), validate_finite_number, NumberRange(min=0)])
+    curr_labor_margin = FloatField("Current labor gross margin", validators=[Optional(), validate_finite_number, NumberRange(max=100)])
+    curr_parts_ratio = FloatField("Current parts sales per $1 of labor", validators=[Optional(), validate_finite_number, NumberRange(min=0)])
+    curr_parts_margin = FloatField("Current parts gross margin", validators=[Optional(), validate_finite_number, NumberRange(max=100)])
+    curr_unapplied = FloatField("Current monthly unapplied labor cost", validators=[Optional(), validate_finite_number])
 
-    opp_tech_count = FloatField('Target Techs', validators=[DataRequired()])
-    opp_proficiency = FloatField('Target Proficiency', validators=[DataRequired()])
-    opp_elr = FloatField('Target ELR', validators=[DataRequired()])
-    opp_labor_margin = FloatField('Target Labor Margin %', validators=[DataRequired()])
-    opp_parts_ratio = FloatField('Target P:L Ratio', validators=[DataRequired()])
-    opp_parts_margin = FloatField('Target Parts Margin %', validators=[DataRequired()])
-    opp_unapplied = FloatField('Target Unapplied Cost ($)', default=0)
+    opp_tech_count = FloatField("Target techs available", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    opp_proficiency = FloatField("Target proficiency", validators=[InputRequired(), validate_finite_number, NumberRange(min=0)])
+    opp_elr = FloatField("Target effective labor rate", validators=[Optional(), validate_finite_number, NumberRange(min=0)])
+    opp_labor_margin = FloatField("Target labor gross margin", validators=[Optional(), validate_finite_number, NumberRange(max=100)])
+    opp_parts_ratio = FloatField("Target parts sales per $1 of labor", validators=[Optional(), validate_finite_number, NumberRange(min=0)])
+    opp_parts_margin = FloatField("Target parts gross margin", validators=[Optional(), validate_finite_number, NumberRange(max=100)])
+    opp_unapplied = FloatField("Target monthly unapplied labor cost", validators=[Optional(), validate_finite_number])
 
-    submit = SubmitField('Calculate Opportunity')
+    submit = SubmitField("Compare capacity")
 
 class PaceRecoveryCalculatorForm(FlaskForm):
     monthly_forecast_gross = FloatField(
         "Monthly Forecast Gross",
-        validators=[DataRequired(), NumberRange(min=0)],
+        validators=[Optional(), validate_finite_number, NumberRange(min=0)],
     )
     mtd_actual_gross = FloatField(
         "MTD Actual Gross",
-        validators=[DataRequired(), NumberRange(min=0)],
+        validators=[Optional(), validate_finite_number],
     )
     monthly_frh_goal = FloatField(
         "Monthly FRH Goal",
-        validators=[DataRequired(), NumberRange(min=0)],
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=0)],
     )
     mtd_actual_frh = FloatField(
         "MTD Actual FRH",
-        validators=[DataRequired(), NumberRange(min=0)],
+        validators=[InputRequired(), validate_finite_number],
     )
     elapsed_workdays = FloatField(
         "Elapsed Workdays",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=0.1, max=31)],
     )
     remaining_workdays = FloatField(
         "Remaining Workdays",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=31)],
     )
     avg_hours_per_ro = FloatField(
-        "Average Hours per RO",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        "Average sold hours per RO",
+        validators=[Optional(), validate_finite_number, NumberRange(min=0.01)],
     )
     avg_gross_per_ro = FloatField(
-        "Average Gross per RO",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        "Average gross per RO",
+        validators=[Optional(), validate_finite_number],
     )
-    submit = SubmitField("Calculate Recovery Plan")
+    extra_capacity_per_day = FloatField(
+        "Additional shop capacity per day", validators=[Optional(), validate_finite_number, NumberRange(min=0)],
+    )
+    extra_demand_per_day = FloatField(
+        "Additional work available per day", validators=[Optional(), validate_finite_number, NumberRange(min=0)],
+    )
+    submit = SubmitField("Calculate recovery")
 
 
 class AppointmentLiftCalculatorForm(FlaskForm):
     additional_appointments = IntegerField(
-        "Additional Appointments",
-        validators=[DataRequired(), NumberRange(min=0)],
+        "Extra appointments per day",
+        validators=[InputRequired(), NumberRange(min=0)],
     )
     avg_hours_per_ro = FloatField(
-        "Average Hours per RO",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        "Average sold hours per completed RO",
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=0)],
     )
     avg_gross_per_ro = FloatField(
-        "Average Gross per RO",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        "Average gross per completed RO",
+        validators=[Optional(), validate_finite_number],
     )
     show_rate = FloatField(
         "Show Rate (%)",
-        validators=[DataRequired(), NumberRange(min=0, max=100)],
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=0, max=100)],
     )
     workdays_per_month = FloatField(
-        "Workdays per Month",
-        validators=[DataRequired(), NumberRange(min=0.1)],
+        "Workdays in the plan",
+        validators=[InputRequired(), validate_finite_number, NumberRange(min=1, max=31)],
     )
-    submit = SubmitField("Calculate Appointment Lift")    
+    spare_ros_per_day = FloatField(
+        "Extra ROs the shop can finish per day",
+        validators=[Optional(), validate_finite_number, NumberRange(min=0)],
+    )
+    submit = SubmitField("Calculate lift")

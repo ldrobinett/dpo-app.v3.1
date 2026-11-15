@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "calculators/assumption_field.html" import assumption %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calculator-workspace.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="workspace-page-header">
+  <div>
+    <h1>Technician Sustainability Index (TSI)</h1>
+    <p class="workspace-page-date mb-0">See who’s learning critical jobs, who can work independently, and where the shop needs another qualified tech.</p>
+  </div>
+  <div class="d-flex flex-wrap gap-3 small">
+    <a href="{{ url_for('.structural_concentration') }}">Coverage &amp; Backups</a>
+    <a href="{{ url_for('main.help_page') }}#durable-dealership-measures">Measure definitions</a>
+  </div>
+</header>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-5">
+    <section class="card mb-3" aria-labelledby="critical-jobs-title">
+      <div class="card-body">
+        <h2 class="h5" id="critical-jobs-title">Critical jobs</h2>
+        {% if jobs %}
+        <div class="list-group list-group-flush">
+          {% for entry in jobs %}
+          <a class="list-group-item list-group-item-action px-2{% if job and job.id == entry.id %} active{% endif %}"
+             href="{{ url_for('.technician_development', job=entry.id) }}"{% if job and job.id == entry.id %} aria-current="page"{% endif %}>
+            <strong>{{ entry.name }}</strong>
+            <span class="d-block small">{{ entry.independent|length }}/{{ entry.coverage_target }} independent ·
+              {{ entry.learning|length }} learning · {{ entry.gap }} still needed</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="small text-muted mb-0">Add a critical job to start. The Honda exports show production and repair orders. Skill checks come from a manager’s observation or sign-off.</p>
+        {% endif %}
+      </div>
+    </section>
+    <section class="card" aria-labelledby="add-job-title">
+      <div class="card-body">
+        <h2 class="h6" id="add-job-title">Add a critical job</h2>
+        {% if job_form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+        <form method="post">
+          {{ job_form.hidden_tag() }}
+          <div class="calculator-fields mb-3">
+            {{ assumption(job_form.name, 'Use a job the shop needs to be able to cover.', '') }}
+            {{ assumption(job_form.coverage_target, 'Set the coverage your shop needs for this job.', '') }}
+          </div>
+          <button class="btn btn-sm btn-primary" name="operation" value="add">Add job</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-12 col-xl-7">
+    {% if job %}
+    <section class="card mb-3 calculator-result" aria-labelledby="job-depth-title">
+      <div class="card-body">
+        <h2 class="h5" id="job-depth-title">{{ job.name }}</h2>
+        <div class="calculator-totals mb-3">
+          <div><span class="small">Verified independent</span><strong>{{ job.independent|length }} of {{ job.coverage_target }} needed</strong></div>
+          <div><span class="small">Learning with a lead</span><strong>{{ job.learning|length }}</strong></div>
+          <div><span class="small">Active techs unchecked</span><strong>{{ job.unknown }}</strong></div>
+        </div>
+        {% if job.gap %}
+        <p><strong>{{ job.gap }} more independent {{ 'tech needed' if job.gap == 1 else 'techs needed' }}</strong> to meet the coverage target.</p>
+        {% else %}
+        <p><strong>Coverage target met.</strong> Check who’s available on the shifts that need coverage.</p>
+        {% endif %}
+        {% for state, label in [('independent', 'Can work independently'), ('learning', 'Learning'), ('needs_training', 'Needs training')] %}
+        <h3 class="h6">{{ label }}</h3>
+        {% if job[state] %}
+        <ul class="small">
+          {% for check in job[state] %}
+          <li><strong>{{ check.technician }}</strong> · {{ check.observed_on }} · {{ check.evidence }} <span class="text-muted">· {{ check.entered_by }}</span></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="small text-muted">No checks recorded in this group.</p>
+        {% endif %}
+        {% endfor %}
+        <form method="post">
+          {{ follow_form.hidden_tag() }}
+          <button class="btn btn-sm btn-outline-primary" name="operation" value="follow">Draft development follow-up</button>
+        </form>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="skill-check-title">
+      <div class="card-body">
+        <h2 class="h6" id="skill-check-title">Record a skill check</h2>
+        {% if roster %}
+        <p class="small text-muted">Use a supervised RO for learning and a verified completion or sign-off for independent work.</p>
+        {% if skill_form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+        <form method="post">
+          {{ skill_form.hidden_tag() }}
+          <div class="calculator-fields mb-3">
+            {% for field in [skill_form.technician, skill_form.status, skill_form.observed_on, skill_form.evidence] %}
+            <div>
+              {{ field.label(class_="form-label") }}
+              {{ field(class_="form-select form-select-sm" if field.type == 'SelectField' else "form-control form-control-sm", required=true) }}
+              {% for error in field.errors %}<p class="small text-danger mb-0">{{ error }}</p>{% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+          <button class="btn btn-sm btn-primary" name="operation" value="record">Save skill check</button>
+        </form>
+        {% else %}
+        <p class="small text-muted mb-0">There are no active technicians available for skill checks.</p>
+        {% endif %}
+      </div>
+    </section>
+    {% else %}
+    <p class="workspace-evidence-note">Select a critical job to see its development and coverage.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

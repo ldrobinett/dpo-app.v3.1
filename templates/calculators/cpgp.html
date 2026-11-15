@@ -1,195 +1,110 @@
 {% extends "base.html" %}
+{% from "calculators/assumption_field.html" import assumption, money %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calculator-workspace.css') }}">
+<style>
+    .cp-breakdown th, .cp-breakdown td { vertical-align: middle; }
+    .cp-breakdown td { white-space: nowrap; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="sticky-top bg-white border-bottom shadow-sm py-3 mb-4" style="z-index: 950;">
-    <div class="container-fluid text-center">
-        <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
-            {{ title }}
-        </h1>
-        <div class="alert alert-info py-2 mb-4">
-            <i class="fas fa-circle-info me-2"></i>
-            Values are prefilled from current store data when available. Review and adjust as needed before calculating.
-        </div>
+<header class="workspace-page-header">
+    <div>
+        <h1>CP Gross Profit Opportunity</h1>
+        <p class="workspace-page-date mb-0">Compare current and target customer-pay gross using the same repair-order and gross definitions.</p>
+    </div>
+</header>
+{% include "calculators/management_guidance.html" %}
+
+<div class="row g-3">
+    <div class="col-12 col-xl-6">
+        <section class="card" aria-labelledby="cp-assumptions">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <h2 id="cp-assumptions" class="h5 mb-0">Current vs. target assumptions</h2>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-current>Copy current to target</button>
+                </div>
+                <p class="small text-muted mb-3">Use your CP report for the current figures. Enter 75 for a 75% margin and 0.80 for 80¢ of parts per $1 of labor.</p>
+                {% if form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+                <form method="post" data-scenario-form>
+                    {{ form.hidden_tag() }}
+                    {% for key, label, unit, setting in drivers %}
+                    <div class="calculator-fields calculator-pair" data-scenario-pair>
+                        {{ assumption(form['curr_' ~ key], sources[key], unit) }}
+                        {{ assumption(form['opp_' ~ key], 'Target scenario', unit) }}
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        {{ form.submit(class_="btn btn-primary") }}
+                        <a class="btn btn-outline-secondary" href="{{ url_for('calculators.cpgp_calculator') }}">Reset assumptions</a>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-12 col-xl-6">
+        <section class="card calculator-result mb-3" aria-labelledby="cp-results">
+            <div class="card-body">
+                <h2 id="cp-results" class="h5 mb-3">Estimated monthly CP gross</h2>
+                {% if results %}
+                <div class="calculator-totals mb-3" aria-label="Monthly customer-pay gross comparison">
+                    <div><span class="small">Current</span><strong>{{ money(results.current.monthly) }}</strong></div>
+                    <div><span class="small">Target</span><strong>{{ money(results.target.monthly) }}</strong></div>
+                    <div><span class="small">Monthly difference</span><strong>{{ money(results.difference, true) }}</strong></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm calculator-breakdown cp-breakdown mb-0" aria-label="Customer-pay gross breakdown">
+                        <thead><tr><th scope="col">Gross</th><th scope="col" class="text-end">Current</th><th scope="col" class="text-end">Target</th></tr></thead>
+                        <tbody>
+                            <tr><th scope="row">Per CP RO</th><td>{{ money(results.current.per_ro) }}</td><td>{{ money(results.target.per_ro) }}</td></tr>
+                            <tr><th scope="row">Monthly labor</th><td>{{ money(results.current.labor) }}</td><td>{{ money(results.target.labor) }}</td></tr>
+                            <tr><th scope="row">Monthly parts</th><td>{{ money(results.current.parts) }}</td><td>{{ money(results.target.parts) }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small mt-2 mb-0"><strong>{{ money(results.annualized, true) }} annualized</strong> if the same monthly difference holds for 12 months.</p>
+                {% else %}
+                <p class="text-muted mb-0">Enter current and target assumptions to see the monthly difference and the changes driving it.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if results %}
+        <section class="card mb-3" aria-labelledby="cp-drivers">
+            <div class="card-body">
+                <h2 class="h6" id="cp-drivers">What drives the difference</h2>
+                {% if results.effects %}
+                <p class="small text-muted">Each row changes one assumption and holds the rest at current values. The effects can interact, so the rows may not add up to the monthly difference.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm calculator-breakdown cp-breakdown mb-0" aria-label="Effect of changing one assumption at a time">
+                        <thead><tr><th scope="col">Assumption changed</th><th scope="col" class="text-end">Current → Target</th><th scope="col" class="text-end">Monthly effect</th></tr></thead>
+                        <tbody>
+                        {% for driver in results.effects %}
+                            <tr><th scope="row">{{ driver.label }}</th>
+                                <td>{{ '{:,}'.format(driver.current) }} → {{ '{:,}'.format(driver.target) }} {{ driver.unit }}</td>
+                                <td>{{ money(driver.effect, true) }}</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}<p class="small mb-0">Current and target assumptions match.</p>{% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="card" aria-labelledby="cp-store-check">
+            <div class="card-body">
+                <h2 class="h6" id="cp-store-check">Check the opportunity with the store</h2>
+                <p class="small mb-0">Check which assumption the shop can change. Use documented work, customer authorization, and available capacity to set the target. Compare the next CP gross report with the result you expected.</p>
+            </div>
+        </section>
     </div>
 </div>
+{% endblock %}
 
-<div class="container-fluid px-4">
-    <form method="POST">
-        {{ form.hidden_tag() }}
-        
-        <div class="row g-4">
-            <div class="col-12 col-lg-4">
-                <div class="card border-secondary h-100 shadow-sm">
-                    <div class="card-header bg-secondary text-white text-center fw-bold">Current State</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            {{ form.curr_elr.label(class="form-label small fw-bold text-nowrap") }}
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                {{ form.curr_elr(class="form-control", readonly=True, id="curr_elr") }}
-                            </div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                {{ form.curr_hours_per_ro.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.curr_hours_per_ro(class="form-control form-control-sm", id="curr_hrs") }}
-                                    <span class="input-group-text">hrs</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                {{ form.curr_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.curr_labor_margin(class="form-control", readonly=True, id="curr_lm") }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                {{ form.curr_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
-                                {{ form.curr_parts_ratio(class="form-control form-control-sm", readonly=True, id="curr_pr") }}
-                            </div>
-                            <div class="col-6">
-                                {{ form.curr_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.curr_parts_margin(class="form-control", readonly=True, id="curr_pm") }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            {{ form.curr_ro_count.label(class="form-label small fw-bold text-nowrap") }}
-                            {{ form.curr_ro_count(class="form-control form-control-sm", id="curr_ro") }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-lg-4">
-                <div class="card border-success h-100 shadow-sm">
-                    <div class="card-header bg-success text-white text-center fw-bold">Target Opportunity</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            {{ form.opp_elr.label(class="form-label small fw-bold text-nowrap") }}
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                {{ form.opp_elr(class="form-control override-check", **{'data-compare': 'curr_elr'}) }}
-                            </div>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                {{ form.opp_hours_per_ro.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.opp_hours_per_ro(class="form-control form-control-sm override-check", **{'data-compare': 'curr_hrs'}) }}
-                                    <span class="input-group-text">hrs</span>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                {{ form.opp_labor_margin.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.opp_labor_margin(class="form-control override-check", **{'data-compare': 'curr_lm'}) }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                {{ form.opp_parts_ratio.label(class="form-label small fw-bold text-nowrap") }}
-                                {{ form.opp_parts_ratio(class="form-control form-control-sm override-check", **{'data-compare': 'curr_pr'}) }}
-                            </div>
-                            <div class="col-6">
-                                {{ form.opp_parts_margin.label(class="form-label small fw-bold text-nowrap") }}
-                                <div class="input-group input-group-sm">
-                                    {{ form.opp_parts_margin(class="form-control override-check", **{'data-compare': 'curr_pm'}) }}
-                                    <span class="input-group-text">%</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            {{ form.opp_ro_count.label(class="form-label small fw-bold text-nowrap") }}
-                            {{ form.opp_ro_count(class="form-control form-control-sm override-check", **{'data-compare': 'curr_ro'}) }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-lg-4">
-                <div class="card border-primary h-100 shadow-lg">
-                    <div class="card-header bg-primary text-white text-center fw-bold">Financial Impact</div>
-                    <div class="card-body d-flex flex-column justify-content-between">
-                        {% if results %}
-                        <div>
-                            <h6 class="text-muted text-center mb-3 text-uppercase fw-bold text-nowrap" style="letter-spacing: 1px;">Gross Profit Per RO</h6>
-                            <div class="d-flex justify-content-between mb-2 border-bottom pb-1">
-                                <span>Current:</span>
-                                <span>${{ "{:,.2f}".format(results.current_gp_ro) }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between mb-3">
-                                <span>Target:</span>
-                                <span class="fw-bold text-success">${{ "{:,.2f}".format(results.opportunity_gp_ro) }}</span>
-                            </div>
-                            <div class="alert alert-success text-center py-2 mb-4">
-                                <strong>+${{ "{:,.2f}".format(results.variance_ro) }}</strong> <small>/ RO</small>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h6 class="text-muted text-center mb-3 text-uppercase fw-bold text-nowrap" style="letter-spacing: 1px;">Total Monthly GP</h6>
-                            <div class="d-flex justify-content-between mb-2 border-bottom pb-1">
-                                <span>Current:</span>
-                                <span>${{ "{:,.0f}".format(results.current_monthly_gp) }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between mb-3">
-                                <span>Target:</span>
-                                <span class="fw-bold text-success">${{ "{:,.0f}".format(results.opportunity_monthly_gp) }}</span>
-                            </div>
-                            
-                            <div class="text-center bg-primary text-white rounded p-3 mb-2 shadow-sm">
-                                <div class="small text-uppercase opacity-75 text-nowrap">Monthly Increase</div>
-                                <div class="h3 mb-0 fw-bold text-nowrap">+${{ "{:,.0f}".format(results.monthly_variance) }}</div>
-                            </div>
-                            
-                            <div class="text-center bg-warning text-dark rounded p-3 shadow-sm">
-                                <div class="small text-uppercase opacity-75 text-nowrap">Annualized Opportunity</div>
-                                <div class="h2 mb-0 fw-bold text-nowrap">+${{ "{:,.0f}".format(results.yearly_variance) }}</div>
-                            </div>
-                        </div>
-                        {% else %}
-                        <div class="text-center text-muted my-auto">
-                            <i class="fas fa-chart-line fa-3x mb-3"></i>
-                            <p>Compare your current metrics against a target scenario.</p>
-                        </div>
-                        {% endif %}
-                        
-                        <div class="mt-4">
-                            {{ form.submit(class="btn btn-dark w-100 btn-lg") }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </form>
-</div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    const inputs = document.querySelectorAll('.override-check');
-    function checkOverride(input) {
-        const compareId = input.dataset.compare;
-        const compareEl = document.getElementById(compareId);
-        if (!compareEl) return;
-        if (parseFloat(input.value) != parseFloat(compareEl.value)) {
-            input.classList.add('bg-warning', 'bg-opacity-25', 'border-warning');
-        } else {
-            input.classList.remove('bg-warning', 'bg-opacity-25', 'border-warning');
-        }
-    }
-    inputs.forEach(input => {
-        checkOverride(input);
-        input.addEventListener('input', () => checkOverride(input));
-    });
-});
-</script>
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/calculator-comparison.js') }}"></script>
 {% endblock %}

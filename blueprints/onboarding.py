@@ -4,13 +4,37 @@ import io
 import time
 from datetime import datetime, date, timedelta
 import calendar
-from flask import Blueprint, render_template, url_for, flash, redirect, request, make_response
+from flask import Blueprint, abort, render_template, url_for, flash, redirect, request, make_response
 from flask_login import login_required, current_user
 from extensions import db, bcrypt
-from models import OnboardingTicket, User, FinancialInputs, StoreForecastInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability, ManagedStore
+from models import OnboardingTicket, User, FinancialInputs, StoreForecastInputs, Team, TeamMember, ASM, ScheduleEntry, Role, Capability, ManagedStore, WorkLog, RepairOrder
 from forms import OnboardingForm, StoreSettingsForm, BulkTeamUploadForm
+from utils.permissions import require_capability
 
 onboarding_bp = Blueprint('onboarding', __name__)
+
+
+@onboarding_bp.get("/manage/store-setup")
+@login_required
+@require_capability("onboarding.manage")
+def store_setup():
+    store = db.session.get(ManagedStore, current_user.store_id)
+    if store is None:
+        abort(403)
+    technicians = TeamMember.query.join(Team).filter(Team.store_id == store.id)
+    roster = technicians.with_entities(TeamMember.id).subquery()
+    active = technicians.filter(db.or_(TeamMember.retired_at.is_(None), TeamMember.retired_at > datetime.now())).count()
+    counts = dict(
+        teams=Team.query.filter_by(store_id=store.id).count(),
+        active=active, historical=technicians.count() - active,
+        advisors=ASM.query.filter_by(store_id=store.id).count(),
+        shifts=ScheduleEntry.query.join(roster, roster.c.id == ScheduleEntry.team_member_id)
+        .filter(ScheduleEntry.schedule_type == "WORK").count(),
+        orders=RepairOrder.query.filter_by(store_id=store.id).count(),
+        bookings=WorkLog.query.join(roster, roster.c.id == WorkLog.team_member_id).count(),
+    )
+    return render_template("store_setup.html", title="Store Setup", store=store, counts=counts,
+                           shared_inputs=db.session.get(StoreForecastInputs, store.id) is not None)
 
 # ==========================================
 # 1. ADMIN & SETUP ROUTES
@@ -147,14 +171,14 @@ def setup_store(token):
 
 @onboarding_bp.route("/manage/initial_setup", methods=['GET', 'POST'])
 @login_required
+@require_capability("onboarding.manage")
 def review_setup():
     form = StoreSettingsForm()
     store = ManagedStore.query.filter_by(
         id=current_user.store_id
     ).first()
-    main_team = Team.query.filter_by(
-        store_id=current_user.store_id
-    ).first()
+    if store is None:
+        abort(403)
 
     fin_inputs = FinancialInputs.query.filter_by(
         user_id=current_user.id
@@ -258,7 +282,7 @@ def download_sample_csv():
     header = [
         'Type', 'Name', 'Number', 'Team', 'Level',
         '10_Wk_FRH', '10_Wk_Days_Off',
-        'Work_Days', 'Start_Time', 'End_Time', 'Lunch_Start', 'Lunch_End'
+        'Work_Days', 'Start_Time', 'End_Time', 'Lunch_Start', 'Lunch_End', 'Retired_On'
     ]
 
     rows = [
@@ -279,11 +303,26 @@ def download_sample_csv():
 
 @onboarding_bp.route("/onboarding/team_upload", methods=['GET', 'POST'])
 @login_required
+@require_capability("onboarding.manage")
 def team_upload():
     form = BulkTeamUploadForm()
 
     if form.validate_on_submit():
         f = form.csv_file.data
+        if form.roster_only.data:
+            try:
+                imported = import_roster(current_user.store_id, f.stream.read(2_000_001))
+            except (ValueError, UnicodeError, csv.Error) as error:
+                db.session.rollback()
+                form.csv_file.errors.append(str(error))
+            else:
+                db.session.commit()
+                flash(f"Added {imported} roster entries. Existing entries were skipped.", "success")
+                return redirect(url_for(".store_setup"))
+            return render_template('onboarding_team_upload.html', form=form, title='Bulk Team Upload')
+        if not form.default_start_time.data or not form.default_end_time.data:
+            form.default_start_time.errors.append("Enter default start and end times to generate schedules.")
+            return render_template('onboarding_team_upload.html', form=form, title='Bulk Team Upload')
         stream = io.TextIOWrapper(f.stream, encoding="UTF-8", newline=None)
         csv_input = csv.reader(stream)
 
@@ -420,3 +459,51 @@ def team_upload():
         return redirect(url_for('teams.teams'))
 
     return render_template('onboarding_team_upload.html', form=form, title='Bulk Team Upload')
+
+
+def import_roster(store_id, raw):
+    if len(raw) > 2_000_000:
+        raise ValueError("Choose a roster CSV under 2 MB.")
+    reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig"), newline=""))
+    if not {"Type", "Name", "Number", "Team"}.issubset(reader.fieldnames or ()):
+        raise ValueError("Use the roster template with Type, Name, Number, and Team.")
+    entries = {}
+    for row in reader:
+        if not any(value for value in row.values()):
+            continue
+        kind, name, number, team = [(row.get(key) or "").strip() for key in ("Type", "Name", "Number", "Team")]
+        if kind.upper() not in {"TECH", "ASM"} or not name or not number or not team:
+            raise ValueError(f"Row {reader.line_num} needs Tech or ASM, a name, DMS number, and team.")
+        if len(name) > 100 or len(team) > 100 or len(number) > 20:
+            raise ValueError(f"Check the name, team, or DMS number length at row {reader.line_num}.")
+        retired_on = (row.get("Retired_On") or "").strip()
+        try:
+            retired = datetime.combine(date.fromisoformat(retired_on), datetime.min.time()) if retired_on else None
+        except ValueError:
+            raise ValueError(f"Row {reader.line_num} needs a retirement date in YYYY-MM-DD format.") from None
+        key = kind.upper(), number
+        if key in entries or (retired and key[0] != "TECH"):
+            raise ValueError(f"Check duplicate numbers and technician retirement dates at row {reader.line_num}.")
+        entries[key] = name, team, retired
+    if not entries:
+        raise ValueError("The roster CSV has no personnel rows.")
+    teams = {team.name: team for team in Team.query.filter_by(store_id=store_id)}
+    existing = {("TECH", member.tech_number) for member in TeamMember.query.join(Team).filter(Team.store_id == store_id)}
+    existing.update(("ASM", member.asm_number) for member in ASM.query.filter_by(store_id=store_id))
+    imported = 0
+    for (kind, number), (name, team_name, retired) in entries.items():
+        if (kind, number) in existing:
+            continue
+        if team_name not in teams:
+            teams[team_name] = Team(name=team_name, store_id=store_id)
+            db.session.add(teams[team_name])
+        team = teams[team_name]
+        if kind == "TECH":
+            db.session.add(TeamMember(
+                name=name, tech_number=number, team=team, retired_at=retired,
+                daily_production_objective=db.null(), hist_frh_total=db.null(), hist_days_in_period=db.null(),
+            ))
+        else:
+            db.session.add(ASM(name=name, asm_number=number, team=team, store_id=store_id))
+        imported += 1
+    return imported

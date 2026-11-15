@@ -1,352 +1,205 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="120">
-
-```
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-<title>{{ title }}</title>
-
-<style>
-
-    body{
-        background-color:#f8f9fa;
-        padding-top:1rem;
-    }
-
-    .board-screen{
-        display:none;
-    }
-
-    .compact .card-header{
-    font-size:1.5rem;
-    }
-
-    .compact .kpi-value{
-        font-size:2.2rem;
-    }
-
-    .tech-card{
-        border:none;
-        box-shadow:0 4px 12px rgba(0,0,0,.1);
-        margin-bottom:1.5rem;
-    }
-
-    .top-performer{
-        border:4px solid #198754;
-    }
-
-    .card-header{
-        background-color:#343a40;
-        color:white;
-        font-size:2rem;
-        font-weight:bold;
-        padding:.75rem 1.25rem;
-        text-align:center;
-    }
-
-    .rank{
-        color:#ffc107;
-        margin-right:.5rem;
-        font-size:1.25rem;
-    }
-
-    .card-body{
-        padding:1.5rem;
-        font-size:1.25rem;
-    }
-
-    .kpi-label{
-        font-size:1rem;
-        color:#6c757d;
-        margin-bottom:.25rem;
-        display:block;
-    }
-
-    .kpi-value{
-        font-size:3rem;
-        font-weight:bold;
-        line-height:1;
-    }
-
-    .progress{
-        height:1.4rem;
-        margin-top:.5rem;
-        font-size:.9rem;
-    }
-
-    .team-header{
-        font-size:2.25rem;
-        font-weight:bold;
-        color:#495057;
-        margin-bottom:1rem;
-        padding-bottom:.5rem;
-        border-bottom:2px solid #dee2e6;
-    }
-
-    .hours-display{
-        font-size:1rem;
-        color:#6c757d;
-    }
-
-</style>
-```
-
+    <title>{{ title }} · {{ store.name }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #101b2c;
+            color: #f2f6fc;
+            font: 400 1rem/1.35 system-ui, sans-serif;
+        }
+        main { max-width: 1800px; margin-inline: auto; padding: clamp(20px, 4vw, 70px); }
+        header, footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+        h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 3rem); }
+        .muted, .kpi-label { color: #b7c5da; }
+        .report-date { margin: 4px 0 0; font-size: clamp(.9rem, 1.5vw, 1.4rem); }
+        a { color: #b4e9df; }
+        a:focus-visible, button:focus-visible { outline: 2px solid #b4e9df; outline-offset: 4px; }
+        .display-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 10px; }
+        .display-controls button {
+            border: 1px solid #536781; border-radius: 6px; padding: .34rem .6rem;
+            color: #f2f6fc; background: #192943; cursor: pointer; font: inherit;
+        }
+        .display-position { margin-right: 4px; font-variant-numeric: tabular-nums; }
+        .production-numbers {
+            display: grid; grid-template-columns: 1fr 1fr; gap: clamp(12px, 2vw, 26px);
+            margin: clamp(20px, 4vw, 48px) 0 16px;
+        }
+        .kpi, .pace {
+            border: 1px solid #354763;
+            border-radius: 16px;
+            background: #192943;
+            padding: clamp(18px, 2.8vw, 42px);
+        }
+        .kpi-label { margin: 0; font-size: clamp(1rem, 2.2vw, 2.25rem); font-weight: 650; }
+        .kpi-value {
+            margin: .05em 0 0; font-size: clamp(3.1rem, 9.5vw, 10rem);
+            line-height: 1.08; font-weight: 750; letter-spacing: -.05em; font-variant-numeric: tabular-nums;
+        }
+        .kpi-detail { margin: .35em 0 0; color: #b7c5da; font-size: clamp(.95rem, 1.45vw, 1.55rem); }
+        .pace { margin-top: clamp(12px, 2vw, 26px); }
+        .pace-title { margin: 0 0 4px; font-size: clamp(1.8rem, 4.8vw, 5.4rem); letter-spacing: -.035em; }
+        .pace.good { border-color: #438674; background: #173b3c; }
+        .pace.good .pace-title { color: #b8f3dd; }
+        .pace.attention { border-color: #a17837; background: #3d3020; }
+        .pace.attention .pace-title { color: #ffdf9d; }
+        .pace-reason { margin: 0; font-size: clamp(1rem, 1.9vw, 1.8rem); }
+        .expected { margin-top: 8px; font-weight: 650; }
+        progress { width: 100%; height: 14px; accent-color: #80d6c5; vertical-align: middle; }
+        .team-production { margin-top: clamp(24px, 3vw, 46px); }
+        .team-production h2 { margin: 0 0 4px; font-size: clamp(1.4rem, 2.5vw, 2.65rem); }
+        .team-production > p { margin: 0 0 14px; }
+        .team-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; }
+        .team-total { border: 1px solid #354763; border-radius: 10px; background: #192943; padding: .6rem 1rem; }
+        .team-total h3 { margin: 0; font-size: clamp(.85rem, 1.55vw, 1.4rem); }
+        .team-total p { margin: .1rem 0 0; }
+        .team-total strong { font-variant-numeric: tabular-nums; font-size: clamp(1.5rem, 3.5vw, 3.6rem); }
+        .team-panel { margin-bottom: 14px; border: 1px solid #354763; border-radius: 12px; background: #192943; }
+        .team-panel h3 { margin: 0; padding: .6rem 1rem; font-size: clamp(1.05rem, 1.8vw, 1.8rem); }
+        .team-table { overflow-x: auto; }
+        .team-table table { width: 100%; min-width: 350px; border-collapse: collapse; }
+        .team-table th, .team-table td { padding: .45rem .75rem; border-top: 1px solid #354763; }
+        .team-table thead th { color: #b7c5da; font-size: clamp(.75rem, 1.2vw, 1.15rem); text-align: right; }
+        .team-table th:first-child { text-align: left; }
+        .team-table tbody { font-size: clamp(.87rem, 1.6vw, 1.6rem); }
+        .team-table td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        footer { margin-top: clamp(16px, 2.5vw, 36px); font-size: clamp(.8rem, 1.15vw, 1.15rem); }
+        footer p { margin: 0; }
+        @media (max-width: 540px) { .production-numbers, .team-totals { grid-template-columns: 1fr; } }
+    </style>
 </head>
-
 <body>
-
-<div class="container-fluid">
-
-<h1 class="text-center mb-4">{{ title }} - {{ today_date_str }}</h1>
-<div id="wake-lock-status" class="text-center small text-muted mb-2" role="status">
-    Keep screen on: checking…
-</div>
-
-<div class="board-screen">
-
-<div class="text-center mb-4">
-
-<div style="font-size:1.6rem; font-weight:700; color:black;">
-Shop Pace to Goal
-</div>
-
-<div style="font-size:4rem; font-weight:900;
-{% if shop_pace >= 100 %}
-color:#198754;
-{% elif shop_pace >= 90 %}
-color:#ffc107;
-{% else %}
-color:#dc3545;
-{% endif %}
-">
-
-{{ "%.0f"|format(shop_pace) }}%
-
-</div>
-
-<div style="font-size:1.1rem; color:black; font-weight:500;">
-{{ "%.1f"|format(total_actual_mtd) }} hrs /
-{{ "%.1f"|format(total_expected_mtd) }} hrs
-</div>
-
-</div>
-
-<hr class="my-4">
-
-<h2 class="team-header">Store Leaderboard</h2>
-
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
-
-{% for member in all_members_sorted %}
-
-<div class="col">
-
-<div class="card tech-card h-100 {% if loop.index == 1 %}top-performer{% endif %}">
-
-<div class="card-header">
-
-<span class="rank">#{{ loop.index }}</span>
-{{ member.name }}
-
-</div>
-
-<div class="card-body text-center">
-
-<span class="kpi-label">MTD vs Expected</span>
-
-<div class="kpi-value mb-2">
-
-{{ "%.0f"|format(member.percent_mtd) }}%
-
-</div>
-
-<div class="progress">
-
-<div class="progress-bar
-{% if member.percent_mtd >= 100 %}
-bg-success
-{% elif member.percent_mtd >= 90 %}
-bg-warning
-{% else %}
-bg-danger
-{% endif %}"
-
-style="width: {{ member.percent_mtd }}%;">
-
-{{ "%.1f"|format(member.actual_mtd) }} hrs
-
-</div>
-
-</div>
-
-<div class="hours-display mt-1">
-
-Expected: {{ "%.1f"|format(member.expected_mtd) }} hrs
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-{% endfor %}
-
-</div>
-
-</div>
-
-{% if production_data %}
-
-{% for team_name, members in production_data.items() %}
-
-<div class="board-screen">
-
-<h2 class="team-header">{{ team_name }}</h2>
-
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
-
-{% for member in members|sort(attribute='percent_mtd', reverse=True) %}
-
-<div class="col">
-
-<div class="card tech-card h-100 {% if loop.index == 1 %}top-performer{% endif %}">
-
-<div class="card-header">
-
-<span class="rank">#{{ loop.index }}</span>
-
-{{ member.name }}
-
-</div>
-
-<div class="card-body">
-
-<div class="row text-center">
-
-<div class="col-6 border-end">
-
-<span class="kpi-label">Today vs DPO</span>
-
-{% if member.is_scheduled_today %}
-
-<div class="kpi-value mb-2">
-{{ "%.0f"|format(member.percent_today) }}%
-</div>
-
-<div class="progress">
-
-<div class="progress-bar
-
-{% if member.percent_today >= 100 %}
-bg-success
-{% elif member.percent_today >= 75 %}
-bg-warning
-{% else %}
-bg-danger
-{% endif %}"
-
-style="width: {{ member.percent_today }}%;">
-
-{{ "%.1f"|format(member.actual_today) }} hrs
-
-</div>
-
-</div>
-
-<div class="hours-display mt-1">
-
-Goal: {{ "%.1f"|format(member.dpo) }} hrs
-
-</div>
-
-{% else %}
-
-<div class="kpi-value text-muted">-</div>
-
-<div class="hours-display mt-1">Off Today</div>
-
-{% endif %}
-
-</div>
-
-<div class="col-6">
-
-<span class="kpi-label">MTD vs Expected</span>
-
-<div class="kpi-value mb-2">
-
-{{ "%.0f"|format(member.percent_mtd) }}%
-
-</div>
-
-<div class="progress">
-
-<div class="progress-bar
-
-{% if member.percent_mtd >= 100 %}
-bg-success
-{% elif member.percent_mtd >= 90 %}
-bg-warning
-{% else %}
-bg-danger
-{% endif %}"
-
-style="width: {{ member.percent_mtd }}%;">
-
-{{ "%.1f"|format(member.actual_mtd) }} hrs
-
-</div>
-
-</div>
-
-<div class="hours-display mt-1">
-
-Exp: {{ "%.1f"|format(member.expected_mtd) }} hrs
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-{% endfor %}
-
-</div>
-
-</div>
-
-{% endfor %}
-
-{% else %}
-
-<div class="alert alert-warning text-center">
-
-<h2>No production data available.</h2>
-
-</div>
-
-{% endif %}
-
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<main>
+    <header>
+        <div>
+            <h1>{{ store.name }} · Live Production</h1>
+            <p class="report-date muted">{{ now.strftime('%A, %B %d, %Y') }}</p>
+        </div>
+        <a href="{{ url_for('main.home') }}">Back to Overview</a>
+    </header>
+    {% if team_screens %}
+    <nav class="display-controls" aria-label="Display rotation">
+        <span class="muted display-position" id="display-position">Screen 1 of {{ team_screens|length + 1 }}</span>
+        <button type="button" id="display-prev">Previous</button>
+        <button type="button" id="display-pause">Pause</button>
+        <button type="button" id="display-next">Next</button>
+    </nav>
+    {% endif %}
+
+    <div data-display-screen>
+    <section class="production-numbers" aria-label="Today’s production">
+        <div class="kpi">
+            <h2 class="kpi-label">Booked Hours</h2>
+            <p class="kpi-value">{{ '{:,.2f}'.format(board.booked) if board.booked is not none else '—' }}</p>
+            <p class="kpi-detail">{{ 'Sold hours (FRH)' if board.booked is not none else 'No bookings posted for today' }}</p>
+        </div>
+        <div class="kpi">
+            <h2 class="kpi-label">Today’s Target</h2>
+            <p class="kpi-value">{{ '{:,.2f}'.format(board.target) if board.target is not none else '—' }}</p>
+            <p class="kpi-detail">{{ 'Scheduled DPO (FRH)' if board.target is not none else 'Target unavailable' }}</p>
+        </div>
+    </section>
+    {% if board.target is not none and board.booked is not none %}
+    <progress value="{{ [0, board.booked]|max }}" max="{{ board.target }}" aria-label="Booked hours toward today’s full target"></progress>
+    {% endif %}
+
+    <section class="pace {{ board.tone }}" aria-label="Shop pace">
+        <h2 class="pace-title">{{ board.status }}</h2>
+        <p class="pace-reason">{{ board.reason }}</p>
+        {% if board.expected is not none %}
+        <p class="pace-reason expected">{{ '{:,.2f}'.format(board.expected) }} FRH expected by {{ now.strftime('%I:%M %p').lstrip('0') }}</p>
+        {% endif %}
+    </section>
+    </div>
+
+    {% for team in team_screens %}
+    <section class="team-production" aria-labelledby="production-by-team-{{ loop.index }}" data-display-screen hidden>
+        <h2 id="production-by-team-{{ loop.index }}">{{ team.name }}</h2>
+        <p class="muted">{{ 'DPO targets are pending verification.' if pilot else 'Booked FRH against scheduled DPO targets.' }}</p>
+        <div class="team-totals" aria-label="Team totals">
+            {% for period, label in [('today', 'Today'), ('month', 'Month to date')] %}
+            {% set total = team.totals[period] %}
+            {% set target = not pilot and total.target > 0 and not total.scheduled_without_target %}
+            <div class="team-total">
+                <h3>{{ label }} · Booked / Target</h3>
+                <p><strong>{{ '{:,.2f}'.format(total.actual) if total.bookings else '—' }}</strong> /
+                    <strong>{{ '{:,.2f}'.format(total.target) if target else '—' }}</strong> <span class="muted">FRH</span></p>
+                <p class="muted">
+                    {% if target and total.bookings and not total.bookings_without_target %}{{ '{:.0f}'.format(total.percent) }}% of target
+                    {% elif target and total.bookings_without_target %}Check hours booked without a target
+                    {% elif not target %}Target unavailable
+                    {% else %}No bookings posted{% endif %}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        <section class="team-panel" aria-labelledby="display-team-{{ loop.index }}">
+            <h3 id="display-team-{{ loop.index }}">Technician production{% if team.pages > 1 %} · {{ team.page }} of {{ team.pages }}{% endif %}</h3>
+            <div class="team-table" tabindex="0" role="region" aria-label="{{ team.name }} technician production">
+                <table>
+                    <thead><tr><th scope="col">Technician</th><th scope="col">Today · Booked / Target</th><th scope="col">MTD · Booked / Target</th></tr></thead>
+                    <tbody>
+                    {% for row in team.rows %}
+                        <tr>
+                            <th scope="row">{{ row.name }}{% if row.retired %} <small class="muted">· Historical bookings</small>{% endif %}</th>
+                            {% for period in ['today', 'month'] %}
+                            {% set value = row[period] %}
+                            <td>{{ '{:,.2f}'.format(value.actual) if value.bookings else '—' }} <span class="muted">/ {{ '{:,.2f}'.format(value.target) if not pilot and value.target > 0 else '—' }}</span></td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </section>
+    {% endfor %}
+
+    <footer class="muted">
+        <p>Checked {{ now.strftime('%I:%M %p').lstrip('0') }} Pacific · Refreshes every 2 minutes</p>
+        {% if pilot and board.booked is none %}<p>Local CDK booking file through {{ pilot.period_end.strftime('%b %d') }}</p>{% endif %}
+        <p id="wake-lock-status" role="status">Keep screen on: checking</p>
+    </footer>
+</main>
 
 <script>
+(() => {
+    const screens = [...document.querySelectorAll("[data-display-screen]")];
+    if (screens.length < 2) return;
+    const pause = document.getElementById("display-pause");
+    const position = document.getElementById("display-position");
+    const storageKey = "prodtracker-production-display";
+    let saved = {};
+    try { saved = JSON.parse(sessionStorage.getItem(storageKey)) || {}; } catch {}
+    let index = Number.isInteger(saved.index) && saved.index < screens.length && saved.index >= 0 ? saved.index : 0;
+    let paused = saved.paused ?? window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let timer;
 
-// Request a screen wake lock only on the dedicated production display.
+    function showScreen(nextIndex) {
+        index = (nextIndex + screens.length) % screens.length;
+        screens.forEach((screen, i) => { screen.hidden = i !== index; });
+        position.textContent = `Screen ${index + 1} of ${screens.length}`;
+        pause.textContent = paused ? "Resume" : "Pause";
+        try { sessionStorage.setItem(storageKey, JSON.stringify({index, paused})); } catch {}
+        clearTimeout(timer);
+        if (!paused) timer = setTimeout(() => showScreen(index + 1), 12000);
+    }
+
+    document.getElementById("display-prev").addEventListener("click", () => showScreen(index - 1));
+    document.getElementById("display-next").addEventListener("click", () => showScreen(index + 1));
+    pause.addEventListener("click", () => {
+        paused = !paused;
+        showScreen(index);
+    });
+    showScreen(index);
+})();
+
 (() => {
     let wakeLock = null;
     let pending = false;
@@ -354,11 +207,10 @@ Exp: {{ "%.1f"|format(member.expected_mtd) }} hrs
 
     async function keepScreenOn() {
         if (!window.isSecureContext || !("wakeLock" in navigator)) {
-            status.textContent = "Keep screen on: unavailable (requires HTTPS and a supported browser)";
+            status.textContent = "Keep screen on: unavailable";
             return;
         }
         if (document.visibilityState !== "visible" || wakeLock || pending) return;
-
         pending = true;
         try {
             const lock = await navigator.wakeLock.request("screen");
@@ -366,11 +218,10 @@ Exp: {{ "%.1f"|format(member.expected_mtd) }} hrs
             status.textContent = "Keep screen on: active";
             lock.addEventListener("release", () => {
                 if (wakeLock === lock) wakeLock = null;
-                status.textContent = "Keep screen on: released — retrying when visible";
+                status.textContent = "Keep screen on: released";
             });
         } catch (error) {
-            status.textContent = "Keep screen on: request denied — retrying";
-            console.warn("ProdTracker screen wake lock:", error);
+            status.textContent = "Keep screen on: will retry";
         } finally {
             pending = false;
         }
@@ -381,55 +232,6 @@ Exp: {{ "%.1f"|format(member.expected_mtd) }} hrs
     setInterval(keepScreenOn, 30000);
     keepScreenOn();
 })();
-
-let screens = document.querySelectorAll(".board-screen");
-let index = 0;
-
-function rotateScreens(){
-
-screens.forEach(s => s.style.display="none");
-
-screens[index].style.display="block";
-
-index = (index + 1) % screens.length;
-
-}
-
-function autoScaleCards(){
-
-let screens = document.querySelectorAll(".board-screen");
-
-screens.forEach(screen => {
-
-let cards = screen.querySelectorAll(".tech-card").length;
-let row = screen.querySelector(".row");
-
-if(!row) return;
-
-if(cards <= 6){
-    row.className = "row row-cols-1 row-cols-md-2 row-cols-lg-2 g-4";
-}
-else if(cards <= 10){
-    row.className = "row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4";
-}
-else if(cards <= 16){
-    row.className = "row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4";
-}
-else{
-    row.className = "row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3";
-    screen.classList.add("compact");
-}
-
-});
-
-}
-
-autoScaleCards();
-rotateScreens();
-
-setInterval(rotateScreens,10000);
-
 </script>
-
 </body>
 </html>

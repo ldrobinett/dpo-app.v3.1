@@ -9,6 +9,7 @@ from forms import (
 from datetime import date, time, timedelta, datetime
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
+from pytz import timezone
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from utils.permissions import require_capability
@@ -197,87 +198,72 @@ def schedules():
 @schedule_bp.route("/schedule_calendar")
 @login_required
 def schedule_calendar():
-    selected_team_id = request.args.get('team_id', default=None, type=int)
+    store_id = current_user.store_id
+    selected_team_id = request.args.get("team_id", type=int)
+    teams = Team.query.filter_by(store_id=store_id).order_by(Team.name).all()
+    if selected_team_id is not None and selected_team_id not in {team.id for team in teams}:
+        abort(404)
 
-    all_teams = Team.query.order_by(Team.name).all()
-    team_name_map = {team.id: team.name for team in all_teams}
+    today = datetime.now(timezone("America/Los_Angeles")).date()
+    try:
+        anchor = date.fromisoformat(request.args.get("date", ""))
+        if not 2 <= anchor.year <= 9998:
+            raise ValueError
+    except ValueError:
+        anchor = today
+    view = "month" if request.args.get("view") == "month" else "week"
+    if view == "month":
+        start = anchor.replace(day=1)
+        following = start + relativedelta(months=1)
+        previous = start - relativedelta(months=1)
+    else:
+        start = anchor - timedelta(days=anchor.weekday())
+        following = start + timedelta(days=7)
+        previous = start - timedelta(days=7)
+    end = following - timedelta(days=1)
 
-    query = ScheduleEntry.query.options(
-        joinedload(ScheduleEntry.team_member).joinedload(TeamMember.team)
+    query = (
+        ScheduleEntry.query.join(TeamMember).join(Team)
+        .options(joinedload(ScheduleEntry.team_member).joinedload(TeamMember.team))
+        .filter(Team.store_id == store_id, ScheduleEntry.date.between(start, end))
+    )
+    if selected_team_id is not None:
+        query = query.filter(Team.id == selected_team_id)
+    entries = query.order_by(TeamMember.name, ScheduleEntry.start_time, ScheduleEntry.id).all()
+    by_day = defaultdict(list)
+    for entry in entries:
+        retired_at = entry.team_member.retired_at
+        if retired_at is None or entry.date < retired_at.date():
+            by_day[entry.date].append(entry)
+
+    days = []
+    for offset in range((end - start).days + 1):
+        day = start + timedelta(days=offset)
+        working = defaultdict(list)
+        away = defaultdict(list)
+        other = []
+        for entry in by_day[day]:
+            if entry.schedule_type == "WORK":
+                working[entry.team_member].append(entry)
+            elif entry.schedule_type in {"PTO", "TRAINING", "HOLIDAY", "OFF"}:
+                away[entry.team_member].append(entry)
+            else:
+                other.append(entry)
+
+        working_teams = {member.team_id for member in working}
+        recorded_teams = {member.team_id for member in away}
+        teams_to_check = [
+            team.name for team in teams if team.id in recorded_teams - working_teams
+        ]
+        days.append(dict(date=day, working=working, away=away, other=other,
+                         teams_to_check=teams_to_check))
+
+    return render_template(
+        "schedule_calendar.html", title="Schedule", days=days, all_teams=teams,
+        selected_team_id=selected_team_id, today=today, start=start, end=end,
+        previous=previous, following=following, anchor=anchor, view=view,
     )
 
-    all_schedules = query.order_by(ScheduleEntry.date, ScheduleEntry.start_time).all()
-
-    events = []
-
-    def format_time(dt):
-        if not dt: return ""
-        hour = dt.strftime('%I').lstrip('0')
-        ampm = dt.strftime('%p')[0].lower()
-        return f"{hour}{ampm}"
-
-    if selected_team_id:
-        # FILTERED VIEW
-        for schedule in all_schedules:
-            if schedule.team_member and schedule.team_member.team_id == selected_team_id:
-                # Determine styling based on schedule_type
-                if schedule.schedule_type == 'PTO':
-                    event_class = 'bg-info'
-                    title_suffix = " (PTO)"
-                elif schedule.schedule_type == 'TRAINING':
-                    event_class = 'bg-warning'
-                    title_suffix = " (Training)"
-                elif schedule.schedule_type == 'HOLIDAY':
-                    event_class = 'bg-danger'
-                    title_suffix = " (Holiday)"
-                else:
-                    event_class = ''
-                    title_suffix = ""
-
-                start_datetime = datetime.combine(schedule.date, schedule.start_time) if schedule.start_time else datetime.combine(schedule.date, time(8, 0))
-                end_datetime = datetime.combine(schedule.date, schedule.end_time) if schedule.end_time else start_datetime + timedelta(hours=1)
-                start_str = format_time(start_datetime)
-                end_str = format_time(end_datetime)
-
-                title = f"{schedule.team_member.name} ({start_str} - {end_str}){title_suffix}"
-
-                events.append({
-                    'title': title,
-                    'start': start_datetime.isoformat(),
-                    'end': end_datetime.isoformat(),
-                    'notes': schedule.notes,
-                    'className': event_class
-                })
-    else:
-        # DEFAULT VIEW (Grouped by Team)
-        grouped_schedules = defaultdict(lambda: defaultdict(list))
-        for s in all_schedules:
-            if s.team_member and s.team_member.team_id:
-                grouped_schedules[s.date][s.team_member.team_id].append(s)
-
-        for date_val, teams_on_date in grouped_schedules.items():
-            for team_id, schedules_for_team in teams_on_date.items():
-                if not schedules_for_team: continue
-                earliest_start = min(s.start_time for s in schedules_for_team if s.start_time) if any(s.start_time for s in schedules_for_team) else time(8, 0)
-                latest_end = max(s.end_time for s in schedules_for_team if s.end_time) if any(s.end_time for s in schedules_for_team) else time(17, 0)
-                start_datetime = datetime.combine(date_val, earliest_start)
-                end_datetime = datetime.combine(date_val, latest_end)
-                team_name = team_name_map.get(team_id, "Unknown Team")
-                title_suffix = f" ({schedules_for_team[0].schedule_type})" if schedules_for_team[0].schedule_type != 'WORK' else "" # Indicate Non-Work Day
-                start_str = format_time(start_datetime)
-                end_str = format_time(end_datetime)
-                title = f"{team_name} ({start_str} - {end_str}){title_suffix}"
-                events.append({
-                    'title': title,
-                    'start': start_datetime.isoformat(),
-                    'end': end_datetime.isoformat(),
-                })
-
-    return render_template('schedule_calendar.html',
-                             title='Schedule Calendar',
-                             events=events,
-                             all_teams=all_teams,
-                             selected_team_id=selected_team_id)
 
 # NOTE: The combined route logic is not being used in your current setup, but good practice is to define it.
 @schedule_bp.route("/schedule/entry/new_combined", methods=['GET', 'POST'], defaults={'entry_id': None})

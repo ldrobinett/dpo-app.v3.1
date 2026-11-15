@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% from "local_focus_fields.html" import input %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='action-follow-up.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="workspace-page-header">
+  <div>
+    <p class="small mb-2"><a href="{{ url_for('.overview') }}">Back to Action &amp; Follow-Up</a></p>
+    <h1>{{ 'Follow up on action' if decision.action else 'Decision record' }}</h1>
+  </div>
+</header>
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">{{ decision.action or snapshot.focus.priority }}</h2>
+      <dl class="focus-facts mb-3">
+        {% if decision.action %}
+        <div><dt>Owner</dt><dd>{{ decision.owner }}</dd></div>
+        <div><dt>Due date</dt><dd>{{ decision.due_date }}</dd></div>
+        <div><dt>Work status</dt><dd><span class="focus-state {{ stage }}">{{ work_status }}</span></dd></div>
+        <div><dt>Result</dt><dd>{{ result_status }}</dd></div>
+        {% endif %}
+        <div><dt>Decision</dt><dd>{{ {'accept': 'Accepted', 'modify': 'Changed', 'reject': 'Declined', 'defer': 'Deferred'}[decision.disposition] }} by {{ decision.entered_by }}</dd></div>
+      </dl>
+      {% if decision.action %}
+      <div class="row g-3 mb-3 border-top pt-3">
+        <div class="col-md-6"><h3 class="h6 mb-1">What we expected</h3><p class="mb-0">{{ decision.expected_result }}</p></div>
+        <div class="col-md-6">
+          <h3 class="h6 mb-1">What we saw</h3>
+          {% if latest %}
+          <p class="mb-1">{{ latest.observed }}</p>
+          <p class="small text-muted mb-0">{{ latest.observed_on }} · {{ latest.evidence_reference }}</p>
+          {% else %}<p class="text-muted mb-0">No follow-up recorded.</p>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      <details>
+        <summary>Evidence at the time of the decision</summary>
+        <p class="small text-muted mt-2">Evidence window {{ snapshot.start }} through {{ snapshot.end }}</p>
+        <p>{{ snapshot.focus.action }}</p>
+        <p>{{ snapshot.focus.reason }}</p>
+        <p><strong>Manager’s reason</strong> {{ decision.rationale }}</p>
+        <p>{{ "%.2f"|format(snapshot.result.true_potential.actual_frh) }} observed sold hours.</p>
+        {% if snapshot.pace_recovery %}
+        <p><strong>Pace Recovery scenario</strong> · {{ snapshot.pace_recovery.through }} ·
+            {{ '{:,.1f}'.format(snapshot.pace_recovery.result.gap) }} FRH gap at current pace.
+            {% if snapshot.pace_recovery.result.recoverable is not none %}
+            {{ '{:,.1f}'.format(snapshot.pace_recovery.result.recoverable) }} FRH modeled recovery.
+            {% else %}Recoverable hours were still unconfirmed.{% endif %}
+        </p>
+        {% endif %}
+        {% if snapshot.appointment_lift %}
+        {% set lift = snapshot.appointment_lift %}
+        <p><strong>Appointment Lift scenario</strong> · {{ lift.through }} ·
+            {{ lift['values'].additional_appointments }} extra bookings per day at a {{ lift['values'].show_rate|round(1) }}% show rate.
+            {{ '{:,.1f}'.format(lift.result.arrivals) }} expected extra arrivals per day.
+            {% if lift.result.completed is not none %}
+            {{ '{:,.1f}'.format(lift.result.completed) }} modeled extra completed ROs per day.
+            {% else %}Shop capacity was still unconfirmed.{% endif %}
+        </p>
+        {% endif %}
+        {% if snapshot.uvi_coverage %}
+        {% set coverage = snapshot.uvi_coverage %}
+        <p><strong>Utilization Variance Index (UVI) coverage for {{ coverage.technician }}</strong> · {{ coverage.start }} through {{ coverage.through }} ·
+            {{ '%.1f'|format(coverage.hours) }} booked FRH ({{ '%.1f'|format(coverage.share) }}% of the selected view).
+            The loaded Route Sheet had {{ coverage.open_orders }} open assigned ROs when this coverage check was drafted.
+        </p>
+        {% endif %}
+        {% for limitation in snapshot.result.true_potential.limitations %}<p>{{ limitation }}</p>{% endfor %}
+        {% if snapshot.tsi_development %}
+        {% set development = snapshot.tsi_development %}
+        <p><strong>Technician Sustainability Index (TSI) · {{ development.job }}</strong> · {{ development.through }} ·
+            {{ development.independent }} of {{ development.target }} needed independent techs verified, {{ development.learning }} learning, {{ development.unknown }} unchecked.
+        </p>
+        <a href="{{ url_for('team_performance.technician_development', job=development.job_id) }}">Open the job’s skill checks</a>
+        {% endif %}
+        {% if snapshot.sci_coverage %}
+        {% set coverage = snapshot.sci_coverage %}
+        <p><strong>Structural Concentration Indicator (SCI) · {{ coverage.subject }}</strong> · {{ coverage.through }} ·
+            {% if coverage.primary %}{{ coverage.primary }} · {% endif %}
+            {{ coverage.coverage_count }} {{ 'verified backups' if coverage.kind == 'responsibility' else 'verified independent technicians' }} at assignment.
+        </p>
+        <a href="{{ url_for('team_performance.structural_concentration', kind=coverage.kind, entry=coverage.entry_id) }}">Open the current coverage checks</a>
+        {% endif %}
+      </details>
+    </div>
+  </section>
+  {% if decision.action %}
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Check the result</h2>
+      {% if error or form.csrf_token.errors %}<p class="alert alert-danger" role="alert">{{ error or 'The form expired. Reload and try again.' }}</p>{% endif %}
+      <form method="post" class="focus-form">
+        {{ form.hidden_tag() }}
+        <div class="row">
+          <div class="col-md-4">{{ input(form.completed, "form-select") }}</div>
+          <div class="col-md-4">{{ input(form.outcome, "form-select") }}</div>
+          <div class="col-md-4">{{ input(form.observed_on) }}</div>
+        </div>
+        {{ input(form.observed) }}
+        {{ input(form.evidence_reference) }}
+        <button class="btn btn-sm btn-primary" type="submit">Save follow-up</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+  {% if reviews %}
+  <section class="card">
+    <div class="card-body">
+      <h2 class="h6">Follow-up history</h2>
+      {% for review in reviews %}
+      <article class="{% if not loop.last %}border-bottom mb-3 pb-3{% endif %}">
+        <h3 class="h6">{{ review.observed_on }} · {{ 'Completed' if review.completed == 'done' else 'Still open' }} · {{ {'worked': 'Worked', 'partial': 'Partly worked', 'missed': 'Missed the target', 'pending': 'Outcome pending'}[review.outcome] }}</h3>
+        <p class="mb-1">{{ review.observed }}</p>
+        <p class="small text-muted mb-0">Evidence: {{ review.evidence_reference }} · Recorded by {{ review.entered_by }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+{% endblock %}

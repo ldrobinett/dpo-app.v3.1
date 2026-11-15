@@ -1,0 +1,13 @@
+{% if tech_id_review %}
+<section class="card mb-3" aria-labelledby="technician-review-title">
+    <div class="card-body py-2 px-3">
+        <h2 class="h6 mb-1" id="technician-review-title">Management Intelligence™ · Reconcile technician IDs</h2>
+        <p class="small mb-2">Across the full CDK import, <strong>{{ tech_id_review.bookings }} bookings and {{ '%.2f'|format(tech_id_review.sold_hours|float) }} sold hours</strong> have no confirmed technician. Check who these IDs belong to before assigning the hours.</p>
+        <ul class="list-inline small mb-0">
+            {% for row in tech_id_review.rows %}
+            <li class="list-inline-item me-3"><strong>#{{ row.tech_number }}</strong> · {{ row.count }} bookings · {{ '%.2f'|format(row.sold_hours|float) }} FRH</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endif %}

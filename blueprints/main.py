@@ -1,6 +1,9 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import sqlite3
+
+from flask import Blueprint, current_app, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from extensions import db
+from forms import DailyMetricsForm
 from models import (
     RepairOrder,
     WorkLog,
@@ -16,6 +19,8 @@ from datetime import date, datetime, timedelta
 import pytz
 import math
 from .schedule import count_workdays, get_holiday_dates
+from .management_intelligence import evaluate_pilot, manager_focus
+from utils.permissions import has_capability
 
 main_bp = Blueprint("main", __name__)
 
@@ -582,54 +587,6 @@ def get_techs_below_pace(store_id: int, start_month: date, metrics_date: date) -
     return below[:10]
 
 
-def get_critical_ros(repair_orders: list[RepairOrder], limit: int = 5) -> tuple[list[dict], int]:
-    overdue_ros = []
-
-    for ro in repair_orders:
-        promised_time = getattr(ro, "promised_time", None)
-        if not promised_time:
-            continue
-
-        try:
-            compare_now = datetime.now(promised_time.tzinfo) if promised_time.tzinfo else datetime.now()
-            is_late = promised_time < compare_now
-        except Exception:
-            continue
-
-        if not is_late:
-            continue
-
-        late_delta = compare_now - promised_time
-        late_minutes = max(int(late_delta.total_seconds() // 60), 0)
-
-        if late_minutes < 60:
-            late_label = f"{late_minutes} min late"
-        else:
-            hours = late_minutes // 60
-            minutes = late_minutes % 60
-            if minutes == 0:
-                late_label = f"{hours} hr late"
-            else:
-                late_label = f"{hours} hr {minutes} min late"
-
-        overdue_ros.append(
-            {
-                "ro_number": ro.ro_number,
-                "customer_name": ro.customer_name,
-                "promised_time": promised_time,
-                "is_late": True,
-                "is_due_soon": False,
-                "late_label": late_label,
-            }
-        )
-
-    overdue_ros.sort(key=lambda ro: ro["promised_time"] or datetime.max)
-
-    critical = overdue_ros[:limit]
-    remaining = max(len(overdue_ros) - len(critical), 0)
-
-    return critical, remaining
-
 def get_sync_status(timestamp: datetime | None, stale_hours: int = 24) -> dict:
     pacific = pytz.timezone("US/Pacific")
 
@@ -869,7 +826,6 @@ def home():
         metrics_date=metrics_date,
     )
 
-    critical_ros, remaining_late_count = get_critical_ros(open_repair_orders)
 
     routesheet_sync = get_sync_status(store.routesheet_audit_timestamp if store else None)
     tech_hours_sync = get_sync_status(store.tech_hours_audit_timestamp if store else None)
@@ -916,8 +872,26 @@ def home():
     print("today_parts_gross:", today_parts_gross)
     print("today_sublet_gross:", today_sublet_gross)
     print("-------------------------------")
+    pilot = current_app.config.get("MI_LOCAL_PILOT")
+    show_mi_focus = (
+        pilot
+        and current_user.store_id == pilot["store_id"]
+        and not current_user.is_operator
+        and has_capability("manage.view")
+        and db.engine.url.get_backend_name() == "sqlite"
+    )
+    mi_focus = None
+    if show_mi_focus:
+        try:
+            case, result = evaluate_pilot(pilot)
+            mi_focus = manager_focus(case, result)
+        except (OSError, ValueError, sqlite3.Error):
+            current_app.logger.exception("Could not evaluate the local Management Intelligence case")
+
     return render_template(
         "home.html",
+        show_mi_focus=show_mi_focus,
+        mi_focus=mi_focus,
         projected_gross=projected_gross,
         projected_month_end_gross=projected_month_end_gross,
         projected_month_end_frh=projected_month_end_frh,
@@ -959,8 +933,6 @@ def home():
         status_counts=status_counts,
         top_techs=top_techs,
         techs_below_pace=techs_below_pace,
-        critical_ros=critical_ros,
-        remaining_late_count=remaining_late_count,
         routesheet_sync=routesheet_sync,
         tech_hours_sync=tech_hours_sync,
         on_pace=on_pace,
@@ -976,50 +948,38 @@ def home():
 @main_bp.route("/input-metrics", methods=["GET", "POST"])
 @login_required
 def input_metrics():
-    metrics_date = get_last_workday(date.today())
-
-    if request.method == "POST":
-        labor_gross = float(request.form.get("labor_gross") or 0)
-        parts_gross = float(request.form.get("parts_gross") or 0)
-        sublet_gross = float(request.form.get("sublet_gross") or 0)
-        total_gross = labor_gross + parts_gross + sublet_gross
-        cp_ros_mtd = int(request.form.get("cp_ros_mtd") or 0)
-
-        today_appts = int(request.form.get("today_appts") or 0)
-        appt_7_day = int(request.form.get("appt_7_day") or 0)
-
-        metrics = DailyMetrics.query.filter_by(
-            store_id=current_user.store_id,
-            date=metrics_date,
-        ).first()
-
-        if not metrics:
-            metrics = DailyMetrics(
-                store_id=current_user.store_id,
-                date=metrics_date,
-            )
-            db.session.add(metrics)
-
-        metrics.labor_gross = labor_gross
-        metrics.parts_gross = parts_gross
-        metrics.sublet_gross = sublet_gross
-        metrics.total_gross = total_gross
-        metrics.cp_ros_mtd = cp_ros_mtd
-        metrics.today_appts = today_appts
-        metrics.appt_7_day = appt_7_day
-
-        db.session.commit()
-
-        flash("Daily metrics saved successfully", "success")
-        return redirect(url_for("main.home"))
-
+    today = datetime.now(pytz.timezone("America/Los_Angeles")).date()
+    metrics_date = get_last_workday(today)
     metrics = DailyMetrics.query.filter_by(
         store_id=current_user.store_id,
         date=metrics_date,
     ).first()
+    gross_fields = ("labor_gross", "parts_gross", "sublet_gross")
+    metric_fields = gross_fields + ("cp_ros_mtd", "today_appts", "appt_7_day")
+    form = DailyMetricsForm(
+        obj=metrics, reporting_date=metrics_date.isoformat(), appointments_date=today.isoformat(),
+    )
+    error = None
+    if form.validate_on_submit():
+        total_gross = float(sum(form[name].data for name in gross_fields))
+        if form.reporting_date.data != metrics_date.isoformat() or form.appointments_date.data != today.isoformat():
+            error = "The date changed. Reload the page before saving."
+        elif not math.isfinite(total_gross):
+            error = "Enter a valid total for the three gross amounts."
+        else:
+            if metrics is None:
+                metrics = DailyMetrics(store_id=current_user.store_id, date=metrics_date)
+                db.session.add(metrics)
+            for name in metric_fields:
+                value = form[name].data
+                setattr(metrics, name, float(value) if name in gross_fields else value)
+            metrics.total_gross = total_gross
+            db.session.commit()
+            flash(f"MTD metrics saved through {metrics_date:%b %d, %Y}.", "success")
+            return redirect(url_for("main.home"))
 
     return render_template(
-        "input_metrics.html",
-        metrics=metrics,
+        "input_metrics.html", title="Enter MTD Metrics",
+        form=form, metric_fields=metric_fields, error=error, today=today,
         metrics_date=metrics_date,
     )

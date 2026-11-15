@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="workspace-page-header">
+  <div>
+    <h1>Structural Performance Index (SPI)</h1>
+    <p class="workspace-page-date mb-0">{{ pilot.store_name }} · Where the shop has depth and where it relies on one person</p>
+  </div>
+  <a class="small" href="{{ url_for('main.help_page') }}#durable-dealership-measures">Measure definitions</a>
+</header>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-4">
+    <section class="card h-100" aria-labelledby="spi-uvi">
+      <div class="card-body d-flex flex-column">
+        <h2 id="spi-uvi" class="h6">Utilization Variance Index (UVI)</h2>
+        <p class="small text-muted">Matched bookings {{ evidence_start.strftime('%b %d') }}–{{ pilot.period_end.strftime('%b %d, %Y') }}</p>
+        {% if leaders %}
+        <p class="mb-2"><strong>{{ '%.1f'|format(leaders|sum(attribute='share')) }}%</strong> of booked hours carried by
+          {{ 'the top two technicians' if leaders|length == 2 else 'one technician' }}.</p>
+        <ul class="small ps-3">
+          {% for lead in leaders %}
+          <li>{{ lead.name }} · {{ '%.1f'|format(lead.hours) }} FRH · {{ '%.1f'|format(lead.share) }}%</li>
+          {% endfor %}
+        </ul>
+        <p class="small text-muted">Review the assigned work and promise times if a lead producer is out.</p>
+        {% else %}
+        <p class="small">Booked-hour shares are unavailable. Check matched hours and any net-negative technician totals.</p>
+        {% endif %}
+        <a class="small mt-auto" href="{{ url_for('team_performance.team_performance', date=pilot.period_end, period='month') }}">Review work distribution</a>
+      </div>
+    </section>
+  </div>
+  <div class="col-12 col-xl-4">
+    <section class="card h-100" aria-labelledby="spi-tsi">
+      <div class="card-body d-flex flex-column">
+        <h2 id="spi-tsi" class="h6">Technician Sustainability Index (TSI)</h2>
+        <p class="small text-muted">Latest recorded skill checks for active technicians</p>
+        {% if jobs %}
+        <ul class="small list-group list-group-flush mb-3">
+          {% for job in jobs|sort(attribute='gap', reverse=true) %}
+          <li class="list-group-item px-0">
+            <a class="fw-semibold" href="{{ url_for('team_performance.technician_development', job=job.id) }}">{{ job.name }}</a>
+            <div>{{ job.independent|length }}/{{ job.coverage_target }} independent · {{ job.learning|length }} learning · {{ job.unknown }} unchecked</div>
+            {% if job.gap %}<strong>{{ job.gap }} still needed to meet the target</strong>
+            {% else %}<span class="text-success">Development target met</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="small">Add critical jobs and record skill checks to establish technician depth.</p>
+        {% endif %}
+        <a class="small mt-auto" href="{{ url_for('team_performance.technician_development') }}">Open Technician Development</a>
+      </div>
+    </section>
+  </div>
+  <div class="col-12 col-xl-4">
+    <section class="card h-100" aria-labelledby="spi-sci">
+      <div class="card-body d-flex flex-column">
+        <h2 id="spi-sci" class="h6">Structural Concentration Indicator (SCI)</h2>
+        <p class="small text-muted">Latest verified coverage. Confirm availability for the shift.</p>
+        {% if jobs or responsibilities %}
+        <ul class="small list-group list-group-flush mb-3">
+          {% for job in jobs %}
+          <li class="list-group-item px-0">
+            <a class="fw-semibold" href="{{ url_for('team_performance.structural_concentration', kind='job', entry=job.id) }}">{{ job.name }}</a>
+            {% if job.independent|length == 1 %}
+            <div><strong>One verified tech</strong> · {{ job.independent[0].technician }}</div>
+            {% elif job.independent %}
+            <div class="text-success">Multiple verified techs · {{ job.independent|map(attribute='technician')|join(', ') }}</div>
+            {% else %}<div>Independent coverage unconfirmed</div>{% endif %}
+          </li>
+          {% endfor %}
+          {% for item in responsibilities %}
+          <li class="list-group-item px-0">
+            <a class="fw-semibold" href="{{ url_for('team_performance.structural_concentration', kind='responsibility', entry=item.id) }}">{{ item.name }}</a>
+            <div>Primary · {{ item.primary_person }}</div>
+            {% if item.backups %}
+            <div class="text-success">Verified backup · {{ item.backups|map(attribute='person')|join(', ') }}</div>
+            {% else %}<strong>No verified backup</strong>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="small">Record critical responsibilities and backup checks to see where coverage depends on one person.</p>
+        {% endif %}
+        <a class="small mt-auto" href="{{ url_for('team_performance.structural_concentration') }}">Open Coverage &amp; Backups</a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="card" aria-labelledby="spi-outcomes">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+      <h2 id="spi-outcomes" class="h6 mb-0">Follow-up results</h2>
+      <a class="small" href="{{ url_for('.recap', scope='durability') }}">View durability actions in MI Recap</a>
+    </div>
+    <p class="small"><strong>{{ outcome_counts.worked }}</strong> worked ·
+      <strong>{{ outcome_counts.partial }}</strong> partly worked ·
+      <strong>{{ outcome_counts.missed }}</strong> missed the target ·
+      <strong>{{ pending }}</strong> awaiting a result</p>
+    {% if reviewed %}
+    <ul class="list-group list-group-flush">
+      {% for action in reviewed %}
+      <li class="list-group-item px-0 small">
+        <a class="fw-semibold" href="{{ url_for('.follow_up', decision_id=action.id) }}">{{ action.action }}</a>
+        <span class="text-muted"> · {{ checks[action.calculator].label }}{% if action.subject %} · {{ action.subject }}{% endif %}</span>
+        <div><strong>{{ action.result_status }}</strong> · {{ action.observed }}</div>
+        <div class="text-muted">{{ action.observed_on }} · {{ action.evidence_reference }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="small text-muted mb-0">Reviewed results appear after a manager records what happened and where to verify it.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

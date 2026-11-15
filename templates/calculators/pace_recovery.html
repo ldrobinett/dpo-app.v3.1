@@ -1,145 +1,115 @@
 {% extends "base.html" %}
+{% from "calculators/assumption_field.html" import assumption, money %}
 
-{% block container_class %}container py-4{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calculator-workspace.css') }}">
+{% endblock %}
+
+{% macro frh(value) -%}
+    {{ '{:,.1f}'.format(value) ~ ' FRH' if value is not none else '—' }}
+{%- endmacro %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-10">
-    <div class="card shadow-sm">
-      <div class="card-header bg-white fw-bold">{{ title }}</div>
-      <div class="alert alert-info py-2 mb-4">
-        <i class="fas fa-circle-info me-2"></i>
-        Values are prefilled from current store data when available. Review and adjust as needed before calculating.
-      </div>
-
-      <div class="card-body">
-        <form method="POST">
-          {{ form.hidden_tag() }}
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">{{ form.monthly_forecast_gross.label.text }}</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.monthly_forecast_gross(
-                    class="form-control",
-                    step="1",
-                    value="{:.0f}".format((form.monthly_forecast_gross.data or 0) | float)
-                ) }}
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.mtd_actual_gross.label.text }}</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.mtd_actual_gross(
-                    class="form-control",
-                    step="1",
-                    value="{:.0f}".format((form.mtd_actual_gross.data or 0) | float)
-                ) }}
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.monthly_frh_goal.label.text }}</label>
-              {{ form.monthly_frh_goal(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.mtd_actual_frh.label.text }}</label>
-              {{ form.mtd_actual_frh(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.elapsed_workdays.label.text }}</label>
-              {{ form.elapsed_workdays(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.remaining_workdays.label.text }}</label>
-              {{ form.remaining_workdays(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.avg_hours_per_ro.label.text }}</label>
-              {{ form.avg_hours_per_ro(class="form-control") }}
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">{{ form.avg_gross_per_ro.label.text }}</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.avg_gross_per_ro(
-                    class="form-control",
-                    id="avg_gross_per_ro",
-                    value="{:.2f}".format((form.avg_gross_per_ro.data or 0) | float),
-                    placeholder="0.00"
-                ) }}
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4">
-            {{ form.submit(class="btn btn-primary fw-bold") }}
-          </div>
-        </form>
-
-        {% if results %}
-        <hr class="my-4">
-
-        <div class="row g-4">
-          <div class="col-md-6">
-            <div class="card border-start border-4 border-danger h-100">
-              <div class="card-body">
-                <h6 class="fw-bold">Recovery Needed</h6>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Gross Gap</span>
-                  <strong>${{ "{:,.0f}".format(results.gross_gap) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>FRH Gap</span>
-                  <strong>{{ "%.1f"|format(results.frh_gap) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Daily Gross Add-On</span>
-                  <strong>${{ "{:,.0f}".format(results.daily_gross_add_on) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between">
-                  <span>Daily FRH Add-On</span>
-                  <strong>{{ "%.1f"|format(results.daily_frh_add_on) }}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card border-start border-4 border-success h-100">
-              <div class="card-body">
-                <h6 class="fw-bold">Operational Translation</h6>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Extra ROs / Day</span>
-                  <strong>{{ "%.1f"|format(results.extra_ros_per_day) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Extra Appointments / Day</span>
-                  <strong>{{ "%.1f"|format(results.extra_appts_per_day) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span>Projected Month-End Gross (No Recovery)</span>
-                  <strong>${{ "{:,.0f}".format(results.projected_month_end_gross) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between">
-                  <span>Projected Month-End FRH (No Recovery)</span>
-                  <strong>{{ "%.1f"|format(results.projected_month_end_frh) }}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
+<header class="workspace-page-header">
+    <div>
+        <h1>Pace Recovery Calculator</h1>
+        <p class="workspace-page-date mb-0">Reporting through {{ report_date.strftime('%b %d, %Y') }} · Check what the shop can recover before changing the plan.</p>
     </div>
-  </div>
+</header>
+
+{% include "calculators/management_guidance.html" %}
+
+<div class="row g-3">
+    <div class="col-12 col-xl-5">
+        <section class="card" aria-labelledby="recovery-inputs">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="recovery-inputs">Plan and shop limits</h2>
+                {% if form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+                <form method="post">
+                    {{ form.hidden_tag() }}
+                    <fieldset class="mb-3">
+                        <legend class="h6">Where we stand</legend>
+                        <div class="calculator-fields">
+                            {{ assumption(form.monthly_frh_goal, sources.monthly_frh_goal, 'FRH') }}
+                            {{ assumption(form.mtd_actual_frh, sources.mtd_actual_frh, 'FRH') }}
+                            {{ assumption(form.elapsed_workdays, sources.elapsed_workdays, 'days') }}
+                            {{ assumption(form.remaining_workdays, sources.remaining_workdays, 'days') }}
+                        </div>
+                    </fieldset>
+                    <fieldset class="mb-3">
+                        <legend class="h6">What the shop can take on</legend>
+                        <div class="calculator-fields">
+                            {{ assumption(form.extra_capacity_per_day, sources.extra_capacity_per_day, 'FRH') }}
+                            {{ assumption(form.extra_demand_per_day, sources.extra_demand_per_day, 'FRH') }}
+                        </div>
+                        <p class="small text-muted mt-2 mb-0">Leave a field blank if it hasn’t been confirmed. Enter zero if there’s no spare time or no additional work.</p>
+                    </fieldset>
+                    <details class="mb-3"{% if form.monthly_forecast_gross.errors or form.mtd_actual_gross.errors or form.avg_hours_per_ro.errors or form.avg_gross_per_ro.errors or form.monthly_forecast_gross.data is not none or form.mtd_actual_gross.data is not none or form.avg_hours_per_ro.data is not none or form.avg_gross_per_ro.data is not none %} open{% endif %}>
+                        <summary class="h6">Optional RO and gross estimates</summary>
+                        <div class="calculator-fields pt-2">
+                            {{ assumption(form.avg_hours_per_ro, sources.avg_hours_per_ro, 'FRH') }}
+                            {{ assumption(form.avg_gross_per_ro, sources.avg_gross_per_ro, '$') }}
+                            {{ assumption(form.monthly_forecast_gross, sources.monthly_forecast_gross, '$') }}
+                            {{ assumption(form.mtd_actual_gross, sources.mtd_actual_gross, '$') }}
+                        </div>
+                    </details>
+                    <div class="d-flex flex-wrap gap-2">
+                        {{ form.submit(class_="btn btn-primary") }}
+                        <a href="{{ url_for('calculators.pace_recovery_calculator') }}" class="btn btn-outline-secondary">Reset assumptions</a>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-xl-7">
+        <section class="card calculator-result mb-3" aria-labelledby="recovery-results">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="recovery-results">Gap and recoverable hours</h2>
+                {% if results %}
+                <div class="calculator-totals mb-3" aria-label="Recovery estimates">
+                    <div><span class="small">Month end at current pace</span><strong>{{ frh(results.projected) }}</strong></div>
+                    <div><span class="small">Gap to monthly target</span><strong>{{ frh(results.gap) }}</strong></div>
+                    <div><span class="small">Modeled recovery</span><strong>{{ frh(results.recoverable) }}</strong></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm calculator-breakdown mb-0" aria-label="Recovery breakdown">
+                        <tbody>
+                            <tr><th scope="row">MTD target at an even pace</th><td>{{ frh(results.mtd_expected) }}</td></tr>
+                            <tr><th scope="row">Booked per workday so far</th><td>{{ frh(results.run_rate) }}</td></tr>
+                            <tr><th scope="row">Extra per remaining day needed to hit target</th><td>{{ frh(results.required_extra_per_day) }}</td></tr>
+                            <tr><th scope="row">Total per remaining day needed to hit target</th><td>{{ frh(results.required_total_per_day) }}</td></tr>
+                            <tr><th scope="row">Gap still open after modeled recovery</th><td>{{ frh(results.uncovered) }}</td></tr>
+                            {% if results.extra_ros_per_day is not none %}<tr><th scope="row">Extra completed ROs per day in recovery scenario</th><td>{{ '{:,.1f}'.format(results.extra_ros_per_day) }}</td></tr>{% endif %}
+                            {% if results.projected_gross is not none %}<tr><th scope="row">Month-end gross at current pace</th><td>{{ money(results.projected_gross) }}</td></tr>{% endif %}
+                            {% if results.gross_gap is not none %}<tr><th scope="row">Gross gap at current pace</th><td>{{ money(results.gross_gap) }}</td></tr>{% endif %}
+                            {% if results.added_gross is not none %}<tr><th scope="row">Estimated gross from recoverable hours</th><td>{{ money(results.added_gross) }}</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if results.recoverable is none %}
+                <p class="small text-muted mt-2 mb-0">Recovery is unconfirmed until you enter both spare shop capacity and available work.</p>
+                {% elif not form.remaining_workdays.data %}
+                <p class="small text-muted mt-2 mb-0">No workdays left in this scenario. Check the month-end results.</p>
+                {% else %}
+                <p class="small text-muted mt-2 mb-0">Recovery uses the smaller of spare shop capacity and available work across the remaining days, up to the gap.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">Enter the monthly goal and booked hours so far to see the gap. Add spare shop time and available work to estimate recovery.</p>
+                {% endif %}
+            </div>
+        </section>
+        {% if next_step %}
+        <section class="card" aria-labelledby="recovery-action">
+            <div class="card-body">
+                <h2 id="recovery-action" class="h6">What to do next</h2>
+                <p class="mb-2">{{ next_step.action }}</p>
+                <p class="small mb-2"><strong>Check the result</strong> {{ next_step.expected }}</p>
+                {% if draft %}
+                <a class="btn btn-sm btn-primary" href="{{ url_for('management_intelligence.overview', calculator='pace_recovery_calculator', plan=draft) }}">Draft action for follow-up</a>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

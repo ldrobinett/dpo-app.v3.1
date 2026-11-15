@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="workspace-page-header">
+  <div>
+    <h1>Structural Concentration Indicator (SCI)</h1>
+    <p class="workspace-page-date mb-0">Find critical work that depends on one person and check who can take over.</p>
+  </div>
+  <a class="small" href="{{ url_for('main.help_page') }}#durable-dealership-measures">Measure definitions</a>
+</header>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-5">
+    <section class="card mb-3" aria-labelledby="sci-jobs">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+          <h2 id="sci-jobs" class="h6 mb-0">Critical technician jobs</h2>
+          <a class="small" href="{{ url_for('.technician_development') }}">Manage skill checks</a>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for job in jobs %}
+          {% set count = job.independent|length %}
+          <a class="list-group-item list-group-item-action px-2{% if kind == 'job' and selected.id == job.id %} active{% endif %}"
+             href="{{ url_for('.structural_concentration', kind='job', entry=job.id) }}">
+            <strong>{{ job.name }}</strong>
+            <span class="d-block small">{% if count == 1 %}One verified person · {{ job.independent[0].technician }}
+            {% elif not count %}Independent coverage unconfirmed
+            {% else %}{{ count }} verified independent techs{% endif %}</span>
+          </a>
+          {% else %}
+          <p class="small text-muted mb-0">Critical jobs and qualified technicians come from Technician Development.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="sci-responsibilities">
+      <div class="card-body">
+        <h2 id="sci-responsibilities" class="h6">Critical responsibilities</h2>
+        <div class="list-group list-group-flush mb-3">
+          {% for item in responsibilities %}
+          <a class="list-group-item list-group-item-action px-2{% if kind == 'responsibility' and selected.id == item.id %} active{% endif %}"
+             href="{{ url_for('.structural_concentration', kind='responsibility', entry=item.id) }}">
+            <strong>{{ item.name }}</strong>
+            <span class="d-block small">{{ item.primary_person }} · {{ item.backups|length ~ ' verified backup(s)' if item.backups else 'No verified backup' }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        <form method="post">
+          {{ responsibility_form.hidden_tag() }}
+          <h3 class="h6">Add a responsibility</h3>
+          {% if responsibility_form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+          {% for field in [responsibility_form.name, responsibility_form.primary_person] %}
+          <div class="mb-2">
+            {{ field.label(class_="form-label small") }}
+            {{ field(class_="form-control form-control-sm") }}
+            {% for error in field.errors %}<p class="small text-danger mb-0">{{ error }}</p>{% endfor %}
+          </div>
+          {% endfor %}
+          <button class="btn btn-sm btn-primary" name="operation" value="add">Add responsibility</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-12 col-xl-7">
+    {% if selected %}
+    <section class="card mb-3" aria-labelledby="sci-coverage">
+      <div class="card-body">
+        <h2 id="sci-coverage" class="h5">{{ selected.name }}</h2>
+        {% if kind == 'job' %}
+        {% if selected.independent|length == 1 %}
+        <p><strong>{{ selected.independent[0].technician }}</strong> is the only active technician verified to do this job independently.</p>
+        {% elif not selected.independent %}
+        <p>No independent skill check is on file for an active technician.</p>
+        {% endif %}
+        <h3 class="h6">Technicians verified to work independently</h3>
+        <ul class="small">
+          {% for check in selected.independent %}
+          <li><strong>{{ check.technician }}</strong> · {{ check.observed_on }} · {{ check.evidence }}</li>
+          {% else %}<li>None recorded.</li>{% endfor %}
+        </ul>
+        {% if selected.learning %}
+        <p class="small"><strong>Learning with a lead tech</strong> {{ selected.learning|map(attribute='technician')|join(', ') }}</p>
+        {% endif %}
+        <p class="small text-muted">{{ selected.unknown }} active techs still unchecked.
+          <a href="{{ url_for('.technician_development', job=selected.id) }}">Open this job’s skill checks</a>
+        </p>
+        {% else %}
+        <p><strong>Primary</strong> {{ selected.primary_person }}</p>
+        {% for key, label in [('backups', 'Verified backups'), ('unconfirmed', 'Unconfirmed backups')] %}
+        <h3 class="h6">{{ label }}</h3>
+        <ul class="small">
+          {% for check in selected[key] %}
+          <li><strong>{{ check.person }}</strong> · {{ check.observed_on }} · {{ check.evidence }}</li>
+          {% else %}<li>None recorded.</li>{% endfor %}
+        </ul>
+        {% endfor %}
+        {% endif %}
+        <p class="small text-muted">Check shift availability and access before relying on a backup.</p>
+        <form method="post">
+          {{ follow_form.hidden_tag() }}
+          <button class="btn btn-sm btn-outline-primary" name="operation" value="follow">Draft coverage follow-up</button>
+        </form>
+      </div>
+    </section>
+    {% if kind == 'responsibility' %}
+    <section class="card" aria-labelledby="sci-backup">
+      <div class="card-body">
+        <h2 id="sci-backup" class="h6">Record a backup check</h2>
+        {% if backup_form.csrf_token.errors %}<p class="alert alert-warning" role="alert">Reload the page and try again.</p>{% endif %}
+        <form method="post">
+          {{ backup_form.hidden_tag() }}
+          <div class="row g-2 mb-3">
+            {% for field in [backup_form.person, backup_form.status, backup_form.observed_on, backup_form.evidence] %}
+            <div class="col-12 col-sm-6">
+              {{ field.label(class_="form-label small") }}
+              {{ field(class_="form-select form-select-sm" if field.type == 'SelectField' else 'form-control form-control-sm', required=true) }}
+              {% for error in field.errors %}<p class="small text-danger mb-0">{{ error }}</p>{% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+          <button class="btn btn-sm btn-primary" name="operation" value="record">Save backup check</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+    {% else %}
+    <p class="workspace-evidence-note">Select a job or responsibility to review its coverage and assign a follow-up.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

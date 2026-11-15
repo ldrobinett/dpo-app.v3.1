@@ -1,6 +1,7 @@
 {% macro item(endpoint, label, icon=none) -%}
-<a class="workspace-link{% if request.endpoint == endpoint %} is-current{% endif %}"
-   href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>
+{% set active = request.endpoint == endpoint or (endpoint == 'management_intelligence.overview' and request.endpoint == 'management_intelligence.follow_up') %}
+<a class="workspace-link{% if active %} is-current{% endif %}"
+   href="{{ url_for(endpoint) }}"{% if active %} aria-current="page"{% endif %}>
     {% if icon %}<i class="fa-solid {{ icon }}" aria-hidden="true"></i>{% endif %}
     <span>{{ label }}</span>
 </a>
@@ -22,68 +23,111 @@
 <nav class="workspace-sidebar" id="store-navigation" aria-label="Store navigation">
     <div class="workspace-desktop-brand">{{ brand() }}</div>
     <div class="workspace-menu">
-        <p class="workspace-section">Operations</p>
-        {{ item('main.home', 'Overview', 'fa-table-columns') }}
-        {% if can('routes.view') %}{{ item('routesheet.view_sheet', 'Route Sheet', 'fa-list-check') }}{% endif %}
-        {% if can('worklog.view') %}{{ item('worklog.work_logs', 'Work Log', 'fa-clock') }}{% endif %}
-        {% if can('schedule.view') %}{{ item('schedule.schedule_calendar', 'Calendar', 'fa-calendar-days') }}{% endif %}
+        {% if can('manage.view') or can('routesheet.edit') or can('worklog.manage') %}
+        <div role="group" aria-labelledby="workspace-start-the-day">
+            <p class="workspace-section" id="workspace-start-the-day">Start the Day</p>
+            {% if can('manage.view') %}
+            {{ item('main.input_metrics', 'Enter MTD Metrics', 'fa-pen-to-square') }}
+            {% endif %}
+            {% if can('routesheet.edit') %}
+            {{ item('routesheet.cdk_audit_upload', 'Load Route Sheet Download', 'fa-file-arrow-up') }}
+            {% endif %}
+            {% if can('worklog.manage') %}
+            {{ item('reconciliation.reconcile_logs', 'Load Tech Hours Download', 'fa-clock') }}
+            {% endif %}
+        </div>
+        {% endif %}
 
         {% set show_mi = config.get('MI_LOCAL_PILOT') and current_user.store_id == config['MI_LOCAL_PILOT'].store_id and can('manage.view') %}
-        {% if can('routesheet.view') or can('production.view') or show_mi %}
-        <p class="workspace-section">Performance</p>
-        {% if can('routesheet.view') %}{{ item('team_performance.team_performance', 'Team Performance', 'fa-chart-column') }}{% endif %}
-        {% if show_mi %}
-        {{ item('management_intelligence.overview', 'Management Intelligence', 'fa-chart-line') }}
+        {% set show_recap = show_mi or (config.get('MI_LOCAL_PILOT') and current_user.store_id == config['MI_LOCAL_PILOT'].store_id and can('mi.recap.view')) %}
+        {% if show_recap %}
+        <div role="group" aria-labelledby="workspace-management-intelligence">
+            <p class="workspace-section" id="workspace-management-intelligence">Management Intelligence™</p>
+            {{ item('main.home', 'Overview', 'fa-table-columns') }}
+            {% if show_mi %}{{ item('management_intelligence.overview', 'Action & Follow-Up', 'fa-chart-line') }}{% endif %}
+            {% if show_mi %}{{ item('management_intelligence.structural_performance', 'Structural Performance', 'fa-diagram-project') }}{% endif %}
+            {{ item('management_intelligence.recap', 'Recap', 'fa-list-check') }}
+        </div>
+        {% else %}
+        {{ item('main.home', 'Overview', 'fa-table-columns') }}
         {% endif %}
-        {% if can('production.view') %}{{ item('finance.production_display', 'Live Production Display', 'fa-display') }}{% endif %}
+        {% if show_mi or can('routes.view') or can('worklog.view') or can('schedule.view') or can('routesheet.view') %}
+        <div role="group" aria-labelledby="workspace-teams">
+        <p class="workspace-section" id="workspace-teams">Teams</p>
+        {% if can('routes.view') %}{{ item('routesheet.view_sheet', 'Route Sheet', 'fa-list-check') }}{% endif %}
+        {% if can('worklog.view') %}{{ item('worklog.work_logs', 'Work Log', 'fa-clock') }}{% endif %}
+        {% if can('schedule.view') %}{{ item('schedule.schedule_calendar', 'Schedule', 'fa-calendar-days') }}{% endif %}
+        {% if can('routesheet.view') %}{{ item('team_performance.team_performance', 'Team Performance', 'fa-chart-column') }}{% endif %}
+        {% if show_mi %}{{ item('team_performance.technician_development', 'Technician Development', 'fa-screwdriver-wrench') }}{% endif %}
+        {% if show_mi %}{{ item('team_performance.structural_concentration', 'Coverage & Backups', 'fa-people-arrows') }}{% endif %}
+        </div>
         {% endif %}
 
-        {% if can('manage.view') %}
-        <details class="workspace-group"{% if request.blueprint in ('onboarding', 'users', 'teams', 'reconciliation', 'schedule', 'finance') and request.endpoint not in ('schedule.schedule_calendar', 'finance.production_display') %} open{% endif %}>
-            <summary class="workspace-link"><i class="fa-solid fa-gear" aria-hidden="true"></i><span>Manage</span></summary>
-            <div class="workspace-submenu">
-                {% if can('onboarding.manage') or can('users.manage') %}<p class="workspace-section">Store &amp; Access</p>{% endif %}
-                {% if can('onboarding.manage') %}
-                {{ item('onboarding.review_setup', 'Store Settings') }}
-                {{ item('onboarding.team_upload', 'Bulk Team Upload') }}
-                {% endif %}
-                {% if can('users.manage') %}{{ item('users.list_users', 'User Management') }}{% endif %}
-                {% if can('teams.manage') %}
-                <p class="workspace-section">Personnel</p>
-                {{ item('teams.teams', 'Teams') }}
-                {{ item('teams.team_members', 'Technicians') }}
-                {{ item('teams.view_asms', 'Service Advisors') }}
-                {% endif %}
-                {% if can('schedule.manage') %}
-                <p class="workspace-section">Operations</p>
-                {{ item('schedule.generate_schedule', 'Create/Modify Team Schedules') }}
-                {{ item('schedule.team_schedules', 'Standard Schedules') }}
-                {{ item('schedule.schedules', 'Manage PTO / Training') }}
-                {{ item('reconciliation.reconcile_logs', 'Run Reconcile Logs') }}
-                {% endif %}
-                {% if can('finance.view') %}
-                <p class="workspace-section">Financial Inputs &amp; Reports</p>
-                {{ item('finance.dashboard', 'Financial Dashboard') }}
-                {{ item('finance.monthly_forecast', 'Monthly Forecasts') }}
-                {% endif %}
-            </div>
-        </details>
+        {% if can('production.view') or can('calculators.view') %}
+        <div role="group" aria-labelledby="workspace-tools">
+        <p class="workspace-section" id="workspace-tools">Tools</p>
+        {% if can('production.view') %}
+        {{ item('finance.production_display', 'Live Production Display', 'fa-display') }}
         {% endif %}
 
         {% if can('calculators.view') %}
-        <details class="workspace-group"{% if request.blueprint in ('calculators', 'labor_matrix') %} open{% endif %}>
-            <summary class="workspace-link"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Tools &amp; Calculators</span></summary>
+        <details class="workspace-group"{% if request.blueprint == 'calculators' %} open{% endif %}>
+            <summary class="workspace-link"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Performance Calculators</span></summary>
             <div class="workspace-submenu">
-                {{ item('calculators.mpi_calculator', 'CP Menu/MPI Opportunity Calculator') }}
+                {{ item('calculators.mpi_calculator', 'Added Lines Calculator') }}
                 {{ item('calculators.appt_calculator', 'RO and Appointment Calculator') }}
                 {{ item('calculators.cpgp_calculator', 'CP Gross Profit Opportunity Calculator') }}
                 {{ item('calculators.capacity_calculator', 'Capacity Opportunity Calculator') }}
                 {{ item('calculators.pace_recovery_calculator', 'Pace Recovery Calculator') }}
                 {{ item('calculators.appointment_lift_calculator', 'Appointment Lift Calculator') }}
-                {{ item('labor_matrix.list_grids', 'Labor Matrix') }}
             </div>
         </details>
+        {{ item('labor_matrix.list_grids', 'Labor Matrix', 'fa-table-cells') }}
         {% endif %}
+        </div>
+        {% endif %}
+        {% if can('manage.view') %}
+        <div role="group" aria-labelledby="workspace-admin">
+        <p class="workspace-section" id="workspace-admin">Admin</p>
+        {% if can('onboarding.manage') %}
+        {{ item('onboarding.store_setup', 'Store Setup Checklist', 'fa-list-check') }}
+        {% endif %}
+            {% if can('onboarding.manage') or can('users.manage') %}
+            <div class="workspace-submenu" role="group" aria-labelledby="workspace-store-access">
+                <p class="workspace-section" id="workspace-store-access">Store &amp; Access</p>
+                {% if can('onboarding.manage') %}
+                {{ item('onboarding.review_setup', 'Store Settings') }}
+                {{ item('onboarding.team_upload', 'Bulk Team Upload') }}
+                {% endif %}
+                {% if can('users.manage') %}{{ item('users.list_users', 'User Management') }}{% endif %}
+            </div>
+            {% endif %}
+            {% if can('teams.manage') %}
+            <div class="workspace-submenu" role="group" aria-labelledby="workspace-personnel">
+                <p class="workspace-section" id="workspace-personnel">Personnel</p>
+                {{ item('teams.teams', 'Team Setup') }}
+                {{ item('teams.team_members', 'Technicians') }}
+                {{ item('teams.view_asms', 'Service Advisors') }}
+            </div>
+            {% endif %}
+            {% if can('schedule.manage') %}
+            <div class="workspace-submenu" role="group" aria-labelledby="workspace-operations">
+                <p class="workspace-section" id="workspace-operations">Operations</p>
+                {{ item('schedule.generate_schedule', 'Create/Modify Team Schedules') }}
+                {{ item('schedule.team_schedules', 'Standard Schedules') }}
+                {{ item('schedule.schedules', 'Manage PTO / Training') }}
+            </div>
+            {% endif %}
+            {% if can('finance.view') %}
+            <div class="workspace-submenu" role="group" aria-labelledby="workspace-financial">
+                <p class="workspace-section" id="workspace-financial">Financial Inputs &amp; Reports</p>
+                {{ item('finance.dashboard', 'Financial Dashboard') }}
+                {{ item('finance.monthly_forecast', 'Monthly Forecasts') }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
     </div>
     <div class="workspace-footer">
         {{ item('main.help_page', 'Help', 'fa-circle-question') }}

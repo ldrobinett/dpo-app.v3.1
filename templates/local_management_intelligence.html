@@ -1,30 +1,138 @@
 {% extends "base.html" %}
+{% from "local_focus_fields.html" import input %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='action-follow-up.css') }}">
+{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-  <h1>Management Intelligence</h1>
-  <p>{{ pilot.store_name }} · Booking window {{ pilot.period_start }} through {{ pilot.period_end }}</p>
-  <section class="card mb-3">
-    <div class="card-body">
-      <h2 class="h5">Evidence</h2>
-      <p>Observed production: {{ "%.2f"|format(result.true_potential.actual_frh) }} sold hours for mapped technicians.</p>
-      <p>{{ pilot.unmapped_sold_hours }} source sold hours await technician identity review.</p>
-      {% if not schedules_present %}<p>Work schedules are missing for this window. Capacity cannot be assessed.</p>{% endif %}
-      {% for limitation in result.true_potential.limitations %}<p>{{ limitation }}</p>{% endfor %}
+<header class="workspace-page-header">
+    <div>
+        <h1>Action &amp; Follow-Up</h1>
+        <p class="workspace-page-date mb-0">{{ pilot.store_name }} · Local pilot</p>
     </div>
-  </section>
-  <section class="card mb-3">
-    <div class="card-body">
-      <h2 class="h5">Condition and diagnosis</h2>
-      <p><strong>{{ result.condition.title }}</strong></p>
-      <p>{{ result.diagnosis.hypothesis }}</p>
+</header>
+
+<section class="mb-3" aria-labelledby="focus-action-list">
+    <h2 class="h6 mb-2" id="focus-action-list">Action list</h2>
+    {% if decisions %}
+    <div class="focus-table" role="region" aria-label="Scrollable action list" tabindex="0">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr><th scope="col">Action / Decision</th><th scope="col">Owner</th><th scope="col">Due</th>
+                    <th scope="col">Work Status</th><th scope="col">Result</th><th scope="col">Follow-Up</th></tr>
+            </thead>
+            <tbody>
+            {% for decision in decisions %}
+                <tr>
+                    <td class="fw-semibold">{{ decision.action or decision.rationale }}
+                        {% if decision.calculator in checks %}<div class="small fw-normal text-muted">{{ checks[decision.calculator].label }}</div>{% endif %}
+                    </td>
+                    <td>{{ decision.owner or '—' }}</td>
+                    <td class="focus-date">{{ decision.due_date or '—' }}</td>
+                    <td><span class="focus-state {{ decision.stage }}">{{ decision.work_status }}</span></td>
+                    <td>{{ decision.result_status }}
+                        {% if decision.observed_on %}<div class="small text-muted">Checked {{ decision.observed_on }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('.follow_up', decision_id=decision.id) }}">
+                            {{ 'Follow up' if decision.stage in ['overdue', 'due', 'open', 'check'] else 'View record' }}
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
-  </section>
-  <section class="card">
+    {% else %}
+    <p class="workspace-evidence-note mb-0">No actions recorded. Review the recommendation below to make the first decision.</p>
+    {% endif %}
+</section>
+
+<section class="card mb-3" aria-labelledby="focus-recommendation-title">
     <div class="card-body">
-      <h2 class="h5">Recommended next step</h2>
-      <p>{{ result.management_position.recommended_intervention }}</p>
+        <p class="small fw-semibold text-muted mb-1">Management Intelligence™ {{ 'calculator direction' if calculator and calculator not in ('uvi_coverage', 'tsi_development', 'sci_coverage') else 'recommendation' }} · {% if calculator == 'sci_coverage' and scenario %}{{ scenario.through }}{% else %}{{ pilot.period_start }} through {{ pilot.period_end }}{% endif %}</p>
+        <h2 class="h5" id="focus-recommendation-title">{{ focus.priority }}</h2>
+        <p class="mb-2">{{ focus.reason }}</p>
+        <p class="mb-2"><strong>Next step</strong> {{ focus.action }}</p>
+        {% if calculator != 'sci_coverage' or not scenario %}
+        <details>
+            <summary class="fw-semibold">Review the evidence</summary>
+            <div class="small mt-2">
+                <p>{{ "%.2f"|format(result.true_potential.actual_frh) }} sold hours for technicians matched to the roster.</p>
+                {% if not schedules_present %}<p>No work shifts are recorded for this booking window.</p>{% endif %}
+                {% for limitation in result.true_potential.limitations %}<p>{{ limitation }}</p>{% endfor %}
+                <details>
+                    <summary>Management Intelligence™ analysis</summary>
+                    <p>{{ result.condition.title }}</p>
+                    <p>{{ result.diagnosis.hypothesis }}</p>
+                    <p>{{ result.management_position.recommended_intervention }}</p>
+                </details>
+            </div>
+        </details>
+        {% endif %}
     </div>
-  </section>
-</div>
+</section>
+
+{% include "local_mi_technician_review.html" %}
+
+{% if scenario and calculator == 'sci_coverage' %}
+<aside class="workspace-evidence-note" aria-label="Structural Concentration Indicator coverage">
+    <strong>{{ scenario.subject }}</strong>
+    <span>{% if scenario.primary %}{{ scenario.primary }} · {% endif %}
+        {{ scenario.coverage_count }} {{ 'verified backups' if scenario.kind == 'responsibility' else 'verified independent technicians' }} at the start of this follow-up.</span>
+</aside>
+{% elif scenario and calculator == 'tsi_development' %}
+<aside class="workspace-evidence-note" aria-label="Technician Sustainability Index development scenario">
+    <strong>{{ scenario.job }}</strong>
+    <span>{{ scenario.independent }} of {{ scenario.target }} needed independent techs verified · {{ scenario.learning }} learning · {{ scenario.unknown }} unchecked.</span>
+</aside>
+{% elif scenario and calculator == 'uvi_coverage' %}
+<aside class="workspace-evidence-note" aria-label="Utilization Variance Index coverage scenario">
+    <strong>Utilization Variance Index (UVI) coverage for {{ scenario.technician }}</strong>
+    <span>{{ '%.1f'|format(scenario.hours) }} booked FRH ({{ '%.1f'|format(scenario.share) }}% of the selected view)
+        from {{ scenario.start }} through {{ scenario.through }}. The loaded Route Sheet had
+        {{ scenario.open_orders }} open assigned ROs. Confirm the jobs and backup before assigning the work.</span>
+</aside>
+{% elif scenario and calculator == 'appointment_lift_calculator' %}
+<aside class="workspace-evidence-note" aria-label="Appointment Lift scenario">
+    <strong>Appointment Lift scenario</strong>
+    <span>{{ scenario.expected }} Confirm coverage and the booking assumptions before assigning the work.</span>
+</aside>
+{% elif scenario %}
+<aside class="workspace-evidence-note" aria-label="Pace Recovery scenario">
+    <strong>Pace Recovery scenario</strong>
+    <span>{{ '{:,.1f}'.format(scenario.result.gap) }} FRH gap at current pace.
+        {% if scenario.result.recoverable is not none %}{{ '{:,.1f}'.format(scenario.result.recoverable) }} FRH modeled recovery.{% endif %}
+        Confirm the numbers with the shop before assigning the work.</span>
+</aside>
+{% endif %}
+
+<section class="card mb-3" aria-labelledby="focus-decision-title">
+    <div class="card-body">
+        <h2 class="h6 mb-3" id="focus-decision-title">Make the call</h2>
+        {% if error or form.csrf_token.errors %}<p class="alert alert-danger" role="alert">{{ error or 'The form expired. Reload and try again.' }}</p>{% endif %}
+        {% if current_decision %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('.follow_up', decision_id=current_decision.id) }}">Open this decision</a>
+        {% else %}
+        <form method="post" class="focus-form">
+            {{ form.hidden_tag() }}
+            <div class="row">
+                <div class="col-md-4">{{ input(form.disposition, "form-select") }}</div>
+                <div class="col-md-8">{{ input(form.rationale) }}</div>
+            </div>
+            <fieldset>
+                <legend class="h6">If you accept or change the recommendation</legend>
+                <div class="row">
+                    <div class="col-md-8">{{ input(form.owner) }}</div>
+                    <div class="col-md-4">{{ input(form.due_date) }}</div>
+                    <div class="col-md-6">{{ input(form.action) }}</div>
+                    <div class="col-md-6">{{ input(form.expected_result) }}</div>
+                </div>
+            </fieldset>
+            <button class="btn btn-sm btn-primary" type="submit">Save decision</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

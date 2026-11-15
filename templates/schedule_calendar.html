@@ -1,171 +1,159 @@
 {% extends "base.html" %}
 
 {% block styles %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+<style>
+    .calendar-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; }
+    .calendar-controls .form-label { margin-bottom: 3px; font-size: .78rem; }
+    .calendar-controls .form-control, .calendar-controls .form-select { font-size: .82rem; padding-block: .3rem; }
+    .calendar-day {
+        display: grid;
+        grid-template-columns: minmax(85px, .8fr) minmax(165px, 1.8fr) minmax(145px, 1.55fr) minmax(150px, 1.45fr);
+        gap: 8px 18px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e2e8ef;
+        font-size: .85rem;
+    }
+    .calendar-day:last-child { border-bottom: 0; }
+    .calendar-day-header { background: #17283f; color: white; font-weight: 600; }
+    .calendar-date-today { box-shadow: inset 3px 0 #398276; background: #f2f8f7; }
+    .calendar-day h3 { font-size: .9rem; margin: 0; }
+    .calendar-day summary { cursor: pointer; font-weight: 600; }
+    .calendar-day ul { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; }
+    .calendar-day li + li { margin-top: 5px; }
+    .calendar-check { color: #775107; }
+    @media (max-width: 767.98px) {
+        .calendar-day { grid-template-columns: 1fr 1fr; }
+        .calendar-day-header { display: none; }
+        .calendar-day > :first-child, .calendar-day > :last-child { grid-column: 1 / -1; }
+    }
+</style>
 {% endblock %}
+
+{% macro slot(entry) -%}
+    {%- if entry.start_time and entry.end_time -%}
+        {{ entry.start_time.strftime('%I:%M %p').lstrip('0') }}–{{ entry.end_time.strftime('%I:%M %p').lstrip('0') }}
+    {%- elif entry.start_time -%}
+        Starts {{ entry.start_time.strftime('%I:%M %p').lstrip('0') }}
+    {%- elif entry.end_time -%}
+        Ends {{ entry.end_time.strftime('%I:%M %p').lstrip('0') }}
+    {%- elif entry.schedule_type == 'WORK' -%}
+        Shift times missing
+    {%- endif -%}
+{%- endmacro %}
 
 {% block content %}
-
-
-
-
-<!-- ============================= -->
-<!-- CALENDAR HEADER -->
-<!-- ============================= -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div class="d-flex align-items-center gap-3">
-        <h1 class="mb-0">Schedule Calendar</h1>
-
-        <a href="{{ url_for('schedule.schedules') }}" class="btn btn-outline-primary fw-bold">
-            <i class="fas fa-user-clock me-2"></i>Manage PTO / Training
-        </a>
+<header class="workspace-page-header">
+    <div>
+        <h1>Schedule</h1>
+        <p class="workspace-page-date mb-0">See who’s scheduled, who’s out, and where to check coverage.</p>
     </div>
+    {% if can('schedule.manage') %}
+    <div class="workspace-page-actions">
+        <a href="{{ url_for('schedule.schedules') }}" class="btn btn-outline-secondary">Manage PTO / Training</a>
+        <a href="{{ url_for('schedule.generate_schedule') }}" class="btn btn-primary">Build schedule</a>
+    </div>
+    {% endif %}
+</header>
 
-    <form method="GET"
-          action="{{ url_for('schedule.schedule_calendar') }}"
-          class="d-flex align-items-center">
+<section class="card mb-3" aria-label="Schedule filters">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
+            <form class="calendar-controls" method="get">
+                <div>
+                    <label class="form-label" for="calendarTeam">Team</label>
+                    <select class="form-select" id="calendarTeam" name="team_id">
+                        <option value="">All teams</option>
+                        {% for team in all_teams %}<option value="{{ team.id }}"{% if team.id == selected_team_id %} selected{% endif %}>{{ team.name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="calendarDate">Go to date</label>
+                    <input type="date" class="form-control" id="calendarDate" name="date" value="{{ anchor.isoformat() }}" required>
+                </div>
+                <div>
+                    <label class="form-label" for="calendarView">Show</label>
+                    <select id="calendarView" name="view" class="form-select">
+                        <option value="week"{% if view == 'week' %} selected{% endif %}>Week</option>
+                        <option value="month"{% if view == 'month' %} selected{% endif %}>Month</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+            </form>
+            <nav class="btn-group btn-group-sm" aria-label="Schedule dates">
+                <a class="btn btn-outline-secondary" href="{{ url_for('.schedule_calendar', date=previous.isoformat(), view=view, team_id=selected_team_id) }}">Previous {{ view }}</a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('.schedule_calendar', date=today.isoformat(), view=view, team_id=selected_team_id) }}">Today</a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('.schedule_calendar', date=following.isoformat(), view=view, team_id=selected_team_id) }}">Next {{ view }}</a>
+            </nav>
+        </div>
+    </div>
+</section>
 
-        <label for="team_id" class="form-label me-2 mb-0">View:</label>
+<section class="card mb-3" aria-labelledby="calendar-range">
+    <div class="py-2 px-3">
+        <h2 class="h6 mb-1" id="calendar-range">{{ start.strftime('%b %d') }}–{{ end.strftime('%b %d, %Y') }}</h2>
+        <p class="small text-muted mb-0">Counts are people. A tech with a shift and time away can appear in both columns.</p>
+    </div>
+    <div class="calendar-day calendar-day-header" aria-hidden="true"><span>Date</span><span>Scheduled</span><span>Out / Training</span><span>Coverage check</span></div>
+    {% set labels = dict(PTO='PTO', TRAINING='Training', HOLIDAY='Holiday', OFF='Off') %}
+    {% for day in days %}
+    <article class="calendar-day{% if day.date == today %} calendar-date-today{% endif %}" aria-label="{{ day.date.strftime('%A %b %d') }}">
+        <div>
+            <h3>{{ day.date.strftime('%a, %b %d') }}</h3>
+            {% if day.date == today %}<span class="small text-muted">Today</span>{% endif %}
+        </div>
+        <div>
+            {% if day.working %}
+            <details>
+                <summary>{{ day.working|length }} scheduled</summary>
+                <ul>
+                    {% for person, shifts in day.working.items() %}
+                    <li><strong>{{ person.name }}</strong> <span class="text-muted">{% for entry in shifts %}{{ slot(entry) }}{% if not loop.last %} · {% endif %}{% endfor %}</span></li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% else %}<span class="text-muted">No shifts entered</span>{% endif %}
+        </div>
+        <div>
+            {% if day.away %}
+            <details>
+                <summary>{{ day.away|length }} out / in training</summary>
+                <ul>
+                    {% for person, entries in day.away.items() %}
+                    <li><strong>{{ person.name }}</strong> <span class="text-muted">{% for entry in entries %}{{ labels[entry.schedule_type] }}{% set times = slot(entry)|trim %}{% if times %} {{ times }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</span></li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% else %}<span class="text-muted">No time away entered</span>{% endif %}
+        </div>
+        <div>
+            {% if not day.working and not day.away and not day.other %}
+            <span class="text-muted">No schedule entered</span>
+            {% elif day.teams_to_check %}
+            <strong class="calendar-check">Check coverage</strong>
+            <div>{{ day.teams_to_check|join(', ') }}: time away recorded with no work shifts entered.</div>
+            {% endif %}
+            {% if day.other %}<span class="text-muted">{{ day.other|length }} entries need a schedule type check.</span>{% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</section>
 
-        <select name="team_id"
-                id="team_id"
-                class="form-select me-2"
-                style="width: auto;"
-                onchange="this.form.submit()">
-
-            <option value="" {% if not selected_team_id %}selected{% endif %}>
-                -- All Teams --
-            </option>
-
-            {% for team in all_teams %}
-            <option value="{{ team.id }}"
-                    {% if selected_team_id == team.id %}selected{% endif %}>
-                {{ team.name }}
-            </option>
+{% if can('schedule.manage') %}
+<details class="card mb-3">
+    <summary class="fw-semibold py-2 px-3">Copy monthly schedule</summary>
+    <form class="card-body pt-2" method="post" action="{{ url_for('schedule.copy_month_schedule') }}"
+          onsubmit="return confirm('Copy schedule to target month? This may overwrite existing entries.');">
+        <div class="calendar-controls">
+            {% for key, label, min, max in [('source_month', 'Source month', 1, 12), ('source_year', 'Source year', 1, 9999), ('target_month', 'Target month', 1, 12), ('target_year', 'Target year', 1, 9999)] %}
+            <div>
+                <label class="form-label" for="{{ key }}">{{ label }}</label>
+                <input type="number" class="form-control" id="{{ key }}" name="{{ key }}" min="{{ min }}" max="{{ max }}" required>
+            </div>
             {% endfor %}
-        </select>
-
-        <noscript>
-            <button type="submit" class="btn btn-sm btn-outline-secondary">
-                Filter
-            </button>
-        </noscript>
+            <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" name="clear_existing"> Clear target month first</label>
+            <button class="btn btn-sm btn-primary" type="submit">Copy schedule</button>
+        </div>
     </form>
-</div>
-
-<!-- ============================= -->
-<!-- COPY MONTH CARD -->
-<!-- ============================= -->
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-
-        <h5 class="card-title mb-3">
-            <i class="fas fa-copy me-2"></i>Copy Monthly Schedule
-        </h5>
-
-        <form method="POST"
-              action="{{ url_for('schedule.copy_month_schedule') }}"
-              onsubmit="return confirm('Copy schedule to target month? This may overwrite existing entries.');">
-
-            <div class="row g-3 align-items-end">
-
-                <div class="col-md-2">
-                    <label class="form-label">Source Month</label>
-                    <input type="number"
-                           name="source_month"
-                           class="form-control"
-                           min="1"
-                           max="12"
-                           required>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Source Year</label>
-                    <input type="number"
-                           name="source_year"
-                           class="form-control"
-                           required>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Target Month</label>
-                    <input type="number"
-                           name="target_month"
-                           class="form-control"
-                           min="1"
-                           max="12"
-                           required>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Target Year</label>
-                    <input type="number"
-                           name="target_year"
-                           class="form-control"
-                           required>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="form-check mt-4">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="clear_existing"
-                               id="clear_existing">
-
-                        <label class="form-check-label"
-                               for="clear_existing">
-                            Clear existing schedules in target month first
-                        </label>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary">
-                    Copy Schedule
-                </button>
-            </div>
-
-        </form>
-
-    </div>
-</div>
-
-<!-- ============================= -->
-<!-- CALENDAR -->
-<!-- ============================= -->
-<div class="card bg-light text-dark shadow-lg mb-4">
-    <div class="card-body">
-        <div id='calendar'></div>
-    </div>
-</div>
-
-{% endblock %}
-
-
-{% block scripts %}
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-
-    var calendarEl = document.getElementById('calendar');
-
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        events: {{ events | tojson | safe }},
-        editable: false,
-        selectable: true,
-        displayEventTime: false
-    });
-
-    calendar.render();
-});
-</script>
+</details>
+{% endif %}
 {% endblock %}

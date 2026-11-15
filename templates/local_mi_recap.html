@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='action-follow-up.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="workspace-page-header">
+    <div>
+        <h1>Management Intelligence™ Recap</h1>
+        <p class="workspace-page-date mb-0">{{ pilot.store_name }} · {{ 'Durability actions from UVI, TSI, and SCI' if durability_only else 'What managers are working on and how it turned out' }}</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm {{ 'btn-outline-secondary' if durability_only else 'btn-primary' }}" href="{{ url_for('.recap') }}"{% if not durability_only %} aria-current="page"{% endif %}>All actions</a>
+        <a class="btn btn-sm {{ 'btn-primary' if durability_only else 'btn-outline-secondary' }}" href="{{ url_for('.recap', scope='durability') }}"{% if durability_only %} aria-current="page"{% endif %}>Durability actions</a>
+    </div>
+</header>
+
+<section class="card mb-3" aria-labelledby="recap-outcomes">
+    <div class="card-body py-3">
+        <h2 id="recap-outcomes" class="h6">Action and outcome totals</h2>
+        {% set reviewed = actions|selectattr('stage', 'equalto', 'reviewed')|list %}
+        <div class="d-flex flex-wrap gap-3 small">
+            <span><strong>{{ actions|length }}</strong> recorded</span>
+            <span><strong>{{ actions|selectattr('stage', 'in', ['open', 'due', 'overdue'])|list|length }}</strong> open</span>
+            <span><strong>{{ actions|selectattr('stage', 'equalto', 'overdue')|list|length }}</strong> overdue</span>
+            <span><strong>{{ actions|selectattr('stage', 'equalto', 'check')|list|length }}</strong> completed, outcome pending</span>
+            <span><strong>{{ reviewed|selectattr('latest_outcome', 'equalto', 'worked')|list|length }}</strong> worked</span>
+            <span><strong>{{ reviewed|selectattr('latest_outcome', 'equalto', 'partial')|list|length }}</strong> partly worked</span>
+            <span><strong>{{ reviewed|selectattr('latest_outcome', 'equalto', 'missed')|list|length }}</strong> missed the target</span>
+        </div>
+    </div>
+</section>
+
+{% if actions %}
+<div class="focus-table mb-3" role="region" aria-label="Management action recap" tabindex="0">
+    <table class="table table-hover align-middle mb-0">
+        <thead><tr><th scope="col">Action</th><th scope="col">Owner / Due</th><th scope="col">Work Status</th>
+            <th scope="col">Expected</th><th scope="col">Observed / Evidence</th><th scope="col">Result</th></tr></thead>
+        <tbody>
+        {% for action in actions %}
+        <tr>
+            <td>
+                {% if can_follow_up %}<a class="fw-semibold" href="{{ url_for('.follow_up', decision_id=action.id) }}">{{ action.action }}</a>
+                {% else %}<strong>{{ action.action }}</strong>{% endif %}
+                <div class="small text-muted">{{ checks[action.calculator].label if action.calculator in checks else 'Today’s Focus' }}{% if action.subject %} · {{ action.subject }}{% endif %} · {{ action.entered_by }}</div>
+            </td>
+            <td>{{ action.owner }}<div class="focus-date small text-muted">{{ action.due_date }}</div></td>
+            <td><span class="focus-state {{ action.stage }}">{{ action.work_status }}</span></td>
+            <td>{{ action.expected_result }}</td>
+            <td>
+                {{ action.observed or 'No follow-up recorded' }}
+                {% if action.observed_on %}<div class="small text-muted">{{ action.observed_on }} · {{ action.evidence_reference }}</div>{% endif %}
+            </td>
+            <td class="fw-semibold">{{ action.result_status }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="workspace-evidence-note">{{ 'No durability actions have been assigned for this store.' if durability_only else 'No assigned actions have been recorded for this store.' }}</p>
+{% endif %}
+
+<p class="small text-muted mb-0">Results are the manager’s recorded follow-ups. Compare changes across multiple verified outcomes before turning one result into a rule for the store.</p>
+{% endblock %}

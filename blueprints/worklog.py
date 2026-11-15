@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, url_for, flash, redirect, request
+from flask import Blueprint, current_app, render_template, url_for, flash, redirect, request
 from flask_login import login_required, current_user
 from extensions import db
 from models import WorkLog, TeamMember, Team
@@ -6,6 +6,8 @@ from forms import WorkLogForm
 from utils.permissions import require_capability
 from datetime import date, timedelta, datetime
 from sqlalchemy.orm import joinedload
+from pytz import timezone
+from .management_intelligence import technician_id_review
 
 worklog_bp = Blueprint("worklog", __name__)
 
@@ -19,6 +21,10 @@ def work_logs():
     tech_name = request.args.get("tech_name", "").strip()
     tech_number = request.args.get("tech_number", "").strip()
     ro_number = request.args.get("ro_number", "").strip()
+    review = request.args.get("review", "")
+    pilot = current_app.config.get("MI_LOCAL_PILOT")
+    if pilot and pilot["store_id"] != current_user.store_id:
+        pilot = None
 
     base_query = (
         WorkLog.query
@@ -28,15 +34,17 @@ def work_logs():
         .filter(Team.store_id == current_user.store_id)
     )
 
-    if start_date_str:
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-    else:
-        start_date = date.today()
-
-    if end_date_str:
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-    else:
-        end_date = start_date
+    default_date = datetime.now(timezone("America/Los_Angeles")).date()
+    default_start = pilot["period_start"] if pilot else default_date
+    default_end = pilot["period_end"] if pilot else default_date
+    try:
+        start_date = date.fromisoformat(start_date_str) if start_date_str else default_start
+        end_date = date.fromisoformat(end_date_str) if end_date_str else (start_date if start_date_str else default_end)
+        if end_date < start_date:
+            raise ValueError
+    except ValueError:
+        flash("Enter a valid booking date range. Showing the default dates.", "warning")
+        start_date, end_date = default_start, default_end
 
     base_query = base_query.filter(
         WorkLog.date >= start_date,
@@ -52,15 +60,31 @@ def work_logs():
     if ro_number:
         base_query = base_query.filter(WorkLog.ro_number.ilike(f"%{ro_number}%"))
 
+    checks = {
+        "missing-ro": WorkLog.ro_number.is_(None) | (db.func.trim(WorkLog.ro_number) == ""),
+        "missing-actual": WorkLog.actual_time.is_(None),
+        "negative-sold": WorkLog.flat_rate_hours < 0,
+    }
+    review_counts = base_query.with_entities(
+        *(db.func.count(db.case((check, 1))) for check in checks.values())
+    ).one()
+    review_counts = dict(zip(checks, review_counts))
+    if review in checks:
+        base_query = base_query.filter(checks[review])
+    else:
+        review = ""
+    sold_hours, actual_hours = base_query.with_entities(
+        db.func.sum(WorkLog.flat_rate_hours), db.func.sum(WorkLog.actual_time),
+    ).one()
     pagination = (
         base_query
         .order_by(WorkLog.date.desc(), WorkLog.id.desc())
-        .paginate(page=page, per_page=25)
+        .paginate(page=max(1, page), per_page=25, error_out=False)
     )
 
     return render_template(
         "work_logs.html",
-        title="Work Logs",
+        title="Work Log",
         logs=pagination.items,
         pagination=pagination,
         start_date=start_date.strftime("%Y-%m-%d"),
@@ -68,6 +92,12 @@ def work_logs():
         tech_name=tech_name,
         tech_number=tech_number,
         ro_number=ro_number,
+        review=review,
+        review_counts=review_counts,
+        sold_hours=sold_hours,
+        actual_hours=actual_hours,
+        pilot=pilot,
+        tech_id_review=technician_id_review(pilot),
     )
 
 # =====================================================

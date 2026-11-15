@@ -1,199 +1,134 @@
 {% extends "base.html" %}
 
-{% block container_class %}container-fluid px-4{% endblock %}
+{% block styles %}
+<style>
+    .hours-download-totals { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+    .hours-download-table { max-height: 500px; overflow: auto; border: 1px solid #dbe4ee; border-radius: 8px; }
+    .hours-download-table table { min-width: 850px; font-size: .82rem; }
+    .hours-download-table th { position: sticky; top: 0; z-index: 2; background: #17283f; color: white; white-space: nowrap; }
+    .hours-download-table td { padding: .4rem .55rem; }
+    .hours-download-table .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .hours-download-table tr[hidden] { display: none; }
+    .hours-review-filter { width: auto; max-width: 100%; }
+</style>
+{% endblock %}
+
+{% macro hours(row, field) -%}
+    {{ row[field] if row and row[field] is not none else '—' }}
+{%- endmacro %}
 
 {% block content %}
-<style>
-    .recon-header {
-        background-color: #ffffff;
-        border-bottom: 3px solid #0d6efd;
-        margin-bottom: 20px;
-    }
-</style>
-
-<div class="d-flex flex-column w-100">
-
-    <div class="recon-header py-3 sticky-top shadow-sm" style="z-index: 950; margin-left: -1.5rem; margin-right: -1.5rem; padding-left: 1.5rem; padding-right: 1.5rem;">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2 class="mb-0 fw-bold text-uppercase text-primary" style="letter-spacing: 1px;">
-                Work Log Reconciliation
-            </h2>
-            {% if results %}
-            <span class="badge bg-dark fs-6">{{ results|length }} Records</span>
-            {% endif %}
-        </div>
+<header class="workspace-page-header">
+    <div>
+        <h1>Load Tech Hours Download</h1>
+        <p class="workspace-page-date mb-0">{{ store.name }} · CDK technician hours CSV</p>
     </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('worklog.work_logs') }}">Open Work Log</a>
+</header>
 
-    <div class="card shadow-sm mb-4 border-secondary">
-        <div class="card-header bg-secondary text-white fw-bold">
-            <i class="fas fa-upload me-2"></i>Step 1: Upload Data
-        </div>
-        <div class="card-body bg-light">
-            <div class="row align-items-center">
-                <div class="col-lg-6 mb-3 mb-lg-0 border-end">
-                    <h5 class="card-title text-dark fw-bold">Upload DMS Payroll/Flag Report</h5>
-                    <p class="text-muted mb-0">
-                        <i class="fas fa-info-circle me-1 text-primary"></i>
-                        Accepts CDK CSV format. Columns matched: RO(A), Date(B), Tech(E), Line(F), Actual(M), Sold(N).
-                    </p>
-                </div>
-                <div class="col-lg-6 ps-lg-4">
-                    <form method="POST" enctype="multipart/form-data" class="d-flex gap-3 align-items-center">
-                        {{ form.hidden_tag() }}
-                        <div class="flex-grow-1">
-                            {{ form.dms_file(class="form-control form-control-lg") }}
-                        </div>
-                        <div>
-                            {{ form.submit(class="btn btn-primary btn-lg fw-bold px-4 shadow-sm") }}
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {% if results %}
-    <div class="card shadow-sm border-primary mb-5">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
-            <span class="fw-bold fs-5"><i class="fas fa-clipboard-check me-2"></i>Audit Results</span>
-            
+<section class="card mb-3" aria-labelledby="tech-hours-file-title">
+    <div class="card-body py-3">
+        <h2 class="h6" id="tech-hours-file-title">Choose the CDK download</h2>
+        <p class="small mb-2">Confirm the file is for this store. The preview compares booked date, technician, RO and line, using both sold and actual hours.</p>
+        <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-end">
+            {{ form.hidden_tag() }}
             <div>
-                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="addAllMissing()">
-                    <i class="fas fa-plus-circle me-1"></i> Add All Missing
-                </button>
+                <label for="tech-hours-file" class="form-label small mb-1">Technician hours CSV</label>
+                <input id="tech-hours-file" name="dms_file" type="file" accept=".csv" class="form-control form-control-sm" required>
             </div>
-        </div>
-        
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 table-sm">
-                    <thead class="table-light text-center border-bottom">
-                        <tr>
-                            <th class="py-3">Date</th>
-                            <th class="py-3">RO #</th>
-                            <th class="py-3">Line</th>
-                            <th class="py-3 text-start">Tech</th>
-                            <th class="py-3">DMS Sold</th>
-                            <th class="py-3">App Logged</th>
-                            <th class="py-3">Variance</th>
-                            <th class="py-3">Status</th>
-                            <th class="py-3">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in results %}
-                        <tr id="row-{{ loop.index }}" class="text-center">
-                            <td class="text-secondary fw-bold">{{ row.date }}</td>
-                            <td class="fw-bold">{{ row.ro }}</td>
-                            <td><span class="badge bg-light text-dark border">{{ row.line }}</span></td>
-                            <td class="text-start fw-bold">{{ row.tech_name }}</td>
-                            <td class="text-dark fs-6">{{ "%.2f"|format(row.dms_hours) }}</td>
-                            <td class="text-primary fs-6">{{ "%.2f"|format(row.app_hours) }}</td>
-                            
-                            <td class="fw-bold fs-6 {% if row.variance > 0 %}text-warning{% elif row.variance < 0 %}text-danger{% else %}text-success{% endif %}">
-                                {{ "%+.2f"|format(row.variance) }}
-                            </td>
-                            
-                            <td>
-                                {% if row.status == 'Match' %}
-                                    <span class="badge bg-success px-3 py-2">Match</span>
-                                {% elif row.status == 'Missing' %}
-                                    <span class="badge bg-danger px-3 py-2">Missing</span>
-                                {% elif 'Unknown' in row.status %}
-                                    <span class="badge bg-secondary px-3 py-2">Unknown Tech</span>
-                                {% else %}
-                                    <span class="badge bg-warning text-dark px-3 py-2">{{ row.status }}</span>
-                                {% endif %}
-                            </td>
-                            
-                            <td>
-                                {% if row.status == 'Missing' %}
-                                    <button class="btn btn-sm btn-outline-primary fw-bold px-3 btn-add-missing"
-                                            onclick="addMissingLog(this, {{ loop.index }})"
-                                            data-tech-id="{{ row.tech_id }}"
-                                            data-date="{{ row.date }}"
-                                            data-ro="{{ row.ro }}"
-                                            data-line="{{ row.line }}"
-                                            data-sold="{{ row.dms_hours }}"
-                                            data-actual="{{ row.dms_actual }}">
-                                        <i class="fas fa-plus me-1"></i> Add
-                                    </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            <button class="btn btn-sm btn-primary" type="submit" name="action" value="preview">Preview hours</button>
+        </form>
     </div>
-    {% endif %}
+</section>
+
+{% if review %}
+{% set labels = dict(match='Match', missing='Missing in Work Log', different='Difference to check', mapping='Unconfirmed technician', **{'app-only': 'Only in Work Log'}) %}
+{% set matches = results|selectattr('kind', 'equalto', 'match')|list|length %}
+<section class="card mb-3" aria-labelledby="tech-hours-review-title">
+    <div class="card-body py-3">
+        <h2 id="tech-hours-review-title" class="h6">{{ 'Load results' if applied else 'Review the comparison' }}</h2>
+        <p class="small text-muted mb-2">{{ review.name }} · File ID {{ review.sha256[:12] }} · {{ dates|length }} booked dates from {{ dates[0] }} through {{ dates[-1] }}</p>
+        <div class="hours-download-totals small mb-2" aria-label="CDK file totals">
+            <span><strong>{{ '{:,}'.format(booking_count) }}</strong> CDK bookings</span>
+            <span><strong>{{ '{:,.2f}'.format(source_totals.sold) }}</strong> CDK sold hours</span>
+            <span><strong>{{ '{:,.2f}'.format(source_totals.actual) }}</strong> CDK actual hours</span>
+        </div>
+        <div class="hours-download-totals small border-top pt-2 mb-2" aria-label="Comparison totals">
+            {% for status, label in labels.items() %}
+            <span><strong>{{ '{:,}'.format(results|selectattr('kind', 'equalto', status)|list|length) }}</strong> {{ label|lower }}</span>
+            {% endfor %}
+        </div>
+        <p class="small text-muted mb-0">Counts above the divider are CDK bookings. The comparison groups bookings for the same date, tech, RO and line. A Work Log booking absent from this file stays in place.</p>
+    </div>
+</section>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <label for="hours-review" class="form-label small mb-0">Show</label>
+    <select id="hours-review" class="form-select form-select-sm hours-review-filter">
+        {% if matches < results|length %}<option value="review" selected>Needs review</option>{% endif %}
+        <option value="all">All groups</option>
+        {% for status, label in labels.items() %}<option value="{{ status }}">{{ label }}</option>{% endfor %}
+    </select>
+    <span class="small text-muted" id="hours-visible-count" aria-live="polite"></span>
 </div>
 
+<div class="hours-download-table mb-3" role="region" aria-label="Scrollable technician hours comparison" tabindex="0">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr><th scope="col">Booked Date</th><th scope="col">Technician</th><th scope="col">RO / Line</th>
+                <th scope="col" class="numeric">CDK Sold</th><th scope="col" class="numeric">Work Log Sold</th>
+                <th scope="col" class="numeric">CDK Actual</th><th scope="col" class="numeric">Work Log Actual</th>
+                <th scope="col">Result / Next Check</th></tr>
+        </thead>
+        <tbody>
+            {% for row in results %}
+            <tr data-review-kind="{{ row.kind }}">
+                <td class="text-nowrap">{{ row.date }}</td>
+                <td>{{ row.name or 'Unconfirmed' }}{% if row.tech %} <span class="text-muted">#{{ row.tech }}</span>{% endif %}</td>
+                <td class="text-nowrap">{{ row.ro or '—' }} / {{ row.line or '—' }}</td>
+                <td class="numeric">{{ hours(row.source, 'sold') }}</td><td class="numeric">{{ hours(row.app, 'sold') }}</td>
+                <td class="numeric">{{ hours(row.source, 'actual') }}</td><td class="numeric">{{ hours(row.app, 'actual') }}</td>
+                <td><strong>{{ 'Added to Work Log' if applied and row.kind == 'missing' else labels[row.kind] }}</strong>
+                    {% if row.issue and not (applied and row.kind == 'missing') %}<div class="text-muted">{{ row.issue }}</div>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            <tr id="hours-empty" hidden><td colspan="8" class="text-center py-3 text-muted">No groups match this view.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+{% if missing_count and not applied %}
+<form method="post">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="preview_id" value="{{ review.id }}">
+    <p class="small mb-2">Ready to add <strong>{{ '{:,}'.format(missing_count) }} bookings · {{ '{:,.2f}'.format(missing_totals.sold) }} sold hours</strong>. Differences and unconfirmed IDs stay for review.</p>
+    <button class="btn btn-primary" name="action" value="apply" type="submit">Apply missing bookings</button>
+</form>
+{% elif not applied %}
+<p class="small text-muted">No missing bookings are ready to add. Review any differences with the store.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if review %}
 <script>
-// Individual Add Function
-function addMissingLog(btn, rowIndex) {
-    const data = {
-        tech_id: btn.dataset.techId,
-        date: btn.dataset.date,
-        ro: btn.dataset.ro,
-        line: btn.dataset.line,
-        sold: btn.dataset.sold,
-        actual: btn.dataset.actual
-    };
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
-    return fetch("{{ url_for('reconciliation.add_from_audit') }}", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            const row = document.getElementById('row-' + rowIndex);
-            row.cells[5].textContent = parseFloat(data.sold).toFixed(2);
-            row.cells[6].textContent = "+0.00";
-            row.cells[6].className = "fw-bold text-success fs-6";
-            row.cells[7].innerHTML = '<span class="badge bg-success px-3 py-2">Added</span>';
-            row.cells[8].innerHTML = '<i class="fas fa-check text-success fa-lg"></i>';
-            return true;
-        } else {
-            btn.innerHTML = 'Err';
-            console.error(result.error);
-            return false;
+    const filter = document.getElementById("hours-review");
+    const entries = document.querySelectorAll("[data-review-kind]");
+    function updateHoursView() {
+        let shown = 0;
+        for (const entry of entries) {
+            const kind = entry.dataset.reviewKind;
+            const visible = filter.value === "all" || filter.value === kind || (filter.value === "review" && kind !== "match");
+            entry.hidden = !visible;
+            if (visible) shown++;
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        btn.disabled = false;
-        return false;
-    });
-}
-
-// Bulk Add Function
-async function addAllMissing() {
-    const buttons = document.querySelectorAll('.btn-add-missing');
-    if (buttons.length === 0) {
-        alert("No missing logs found to add.");
-        return;
+        document.getElementById("hours-visible-count").textContent = shown + " of " + entries.length + " groups";
+        document.getElementById("hours-empty").hidden = shown > 0;
     }
-
-    if (!confirm(`Are you sure you want to add ${buttons.length} missing log entries?`)) {
-        return;
-    }
-
-    // Loop through buttons and trigger them sequentially to avoid overwhelming the server
-    for (const btn of buttons) {
-        if (!btn.disabled) {
-            await addMissingLog(btn, btn.getAttribute('onclick').match(/\d+/)[0]);
-            // Small delay to allow UI to update and server to breathe
-            await new Promise(r => setTimeout(r, 100)); 
-        }
-    }
-    alert("Bulk import complete!");
-}
+    filter.addEventListener("change", updateHoursView);
+    updateHoursView();
 </script>
+{% endif %}
 {% endblock %}

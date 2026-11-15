@@ -1,316 +1,141 @@
 {% extends "base.html" %}
 
-{% block content %}
-
+{% block styles %}
 <style>
-    .log-header-container {
-        position: sticky;
-        top: 0;
-        z-index: 950;
-        background-color: #ffffff;
-        border-bottom: 3px solid #0d6efd;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    .work-log-filter-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+    .work-log-filter-field { flex: 1 1 125px; min-width: 0; }
+    .work-log-filter-form .form-label { font-size: .75rem; margin-bottom: 3px; }
+    .work-log-filter-form .form-control,
+    .work-log-filter-form .form-select { min-height: 31px; padding-block: .25rem; font-size: .8rem; }
+    .work-log-filter-form .form-control { padding-inline: .5rem; }
+    .work-log-filter-form .form-select { padding-left: .5rem; }
+    .work-log-totals { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+    .work-log-totals span { color: #506178; }
+    .work-log-totals strong { color: #17283f; font-variant-numeric: tabular-nums; }
+    .work-log-table {
+        max-height: max(320px, 60vh);
+        overflow: auto;
+        border: 1px solid #dbe4ee;
+        border-radius: 8px;
     }
-
-    .table-container {
-        width: 100%;
-        overflow-x: auto;
-        padding-bottom: 60px;
+    .work-log-table table { min-width: 820px; font-size: .8rem; }
+    .work-log-table th {
+        position: sticky; top: 0; z-index: 2;
+        background-color: #17283f; color: white; white-space: nowrap;
     }
-
-    thead th {
-        background-color: #212529;
-        color: white;
-        white-space: nowrap;
-        vertical-align: middle;
-    }
-
-    .action-btn {
-        margin: 0 2px;
-    }
+    .work-log-table td { padding: .4rem .5rem; }
+    .work-log-table .hours { text-align: right; font-variant-numeric: tabular-nums; }
+    .work-log-table .btn { font-size: .72rem; }
 </style>
+{% endblock %}
 
-<div class="container-fluid px-4 mt-3">
+{% block content %}
+<header class="workspace-page-header">
+    <div>
+        <h1>Work Log</h1>
+        <p class="workspace-page-date mb-0">Review booked hours by date, technician, and repair order.</p>
+    </div>
+    <div class="workspace-page-actions">
+        {% if can('manage.view') %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('reconciliation.reconcile_logs') }}">Compare CDK export</a>
+        {% endif %}
+        <a class="btn btn-primary" href="{{ url_for('worklog.new_work_log') }}">Add Work Log</a>
+    </div>
+</header>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <form method="GET" action="{{ url_for('worklog.work_logs') }}">
-                <div class="row g-3 align-items-end">
+{% if pilot %}
+<aside class="workspace-evidence-note" aria-label="Honda booking coverage">
+    <strong>{{ pilot.store_name }} local export</strong>
+    <span>Booked {{ pilot.period_start }} through {{ pilot.period_end }}. Booked date is when the hours posted. RO close date is tracked separately in the source.</span>
+</aside>
+{% endif %}
 
-                    <div class="col-md-2">
-                        <label for="start_date" class="form-label fw-bold">Start Date</label>
-                        <input
-                            type="date"
-                            name="start_date"
-                            id="start_date"
-                            class="form-control"
-                            value="{{ start_date }}"
-                        >
-                    </div>
-
-                    <div class="col-md-2">
-                        <label for="end_date" class="form-label fw-bold">End Date</label>
-                        <input
-                            type="date"
-                            name="end_date"
-                            id="end_date"
-                            class="form-control"
-                            value="{{ end_date }}"
-                        >
-                    </div>
-
-                    <div class="col-md-3">
-                        <label for="tech_name" class="form-label fw-bold">Tech Name</label>
-                        <input
-                            type="text"
-                            name="tech_name"
-                            id="tech_name"
-                            class="form-control"
-                            value="{{ tech_name }}"
-                            placeholder="Search by tech name"
-                        >
-                    </div>
-
-                    <div class="col-md-2">
-                        <label for="tech_number" class="form-label fw-bold">Tech Number</label>
-                        <input
-                            type="text"
-                            name="tech_number"
-                            id="tech_number"
-                            class="form-control"
-                            value="{{ tech_number }}"
-                            placeholder="e.g. 1234"
-                        >
-                    </div>
-
-                    <div class="col-md-2">
-                        <label for="ro_number" class="form-label fw-bold">RO Number</label>
-                        <input
-                            type="text"
-                            name="ro_number"
-                            id="ro_number"
-                            class="form-control"
-                            value="{{ ro_number }}"
-                            placeholder="Search by RO"
-                        >
-                    </div>
-
-                    <div class="col-md-1 d-grid">
-                        <button type="submit" class="btn btn-primary fw-bold">
-                            Filter
-                        </button>
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <div>
-                        <a href="{{ url_for('worklog.work_logs') }}" class="btn btn-outline-secondary btn-sm">
-                            Reset
-                        </a>
-                    </div>
-                    <div class="text-muted small">
-                        Showing {{ pagination.total }} total logs
-                    </div>
-                </div>
-            </form>
+<section class="card mb-3" aria-label="Work log filters and totals">
+    <div class="card-body py-2 px-3">
+        <form method="get" action="{{ url_for('worklog.work_logs') }}" class="work-log-filter-form">
+            {% for name, label, type, value in [
+                ('start_date', 'Booked from', 'date', start_date),
+                ('end_date', 'Booked through', 'date', end_date),
+                ('tech_name', 'Technician', 'search', tech_name),
+                ('tech_number', 'Tech #', 'search', tech_number),
+                ('ro_number', 'RO #', 'search', ro_number)
+            ] %}
+            <div class="work-log-filter-field">
+                <label class="form-label" for="{{ name }}">{{ label }}</label>
+                <input class="form-control" type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ value }}">
+            </div>
+            {% endfor %}
+            <div class="work-log-filter-field">
+                <label class="form-label" for="review">Review queue</label>
+                <select class="form-select" name="review" id="review">
+                    <option value="">All bookings</option>
+                    {% for key, label in [('missing-ro', 'Missing RO'), ('missing-actual', 'Missing actual hours'), ('negative-sold', 'Negative sold hours')] %}
+                    <option value="{{ key }}"{% if review == key %} selected{% endif %}>{{ label }} ({{ review_counts[key] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                <a href="{{ url_for('worklog.work_logs') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+        <div class="work-log-totals border-top pt-2 mt-2 small" aria-label="Totals for matching records">
+            <span><strong>{{ '{:,}'.format(pagination.total) }}</strong> bookings</span>
+            <span><strong>{{ '{:,.2f}'.format(sold_hours) if sold_hours is not none else '—' }}</strong> sold hours (FRH)</span>
+            <span><strong>{{ '{:,.2f}'.format(actual_hours) if actual_hours is not none else '—' }}</strong> actual hours recorded</span>
         </div>
     </div>
+</section>
+
+{% include "local_mi_technician_review.html" %}
+
+<div class="work-log-table" tabindex="0" role="region" aria-label="Scrollable booked hours">
+    <table class="table table-hover mb-0 align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Booked Date</th><th scope="col">Technician</th><th scope="col">RO #</th>
+                <th scope="col">Line</th><th scope="col" class="hours">Sold Hours</th><th scope="col" class="hours">Actual Hours</th>
+                <th scope="col">Review</th><th scope="col">Notes / Source</th><th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.date.strftime('%m/%d/%Y') if log.date else '—' }}</td>
+                <td>{{ log.team_member.name }}{% if log.team_member.tech_number %} <span class="text-muted">#{{ log.team_member.tech_number }}</span>{% endif %}</td>
+                <td>{{ log.ro_number or '—' }}</td>
+                <td>{{ log.line_item or '—' }}</td>
+                <td class="hours fw-semibold">{{ '%.2f'|format(log.flat_rate_hours) }}</td>
+                <td class="hours">{{ '%.2f'|format(log.actual_time) if log.actual_time is not none else '—' }}</td>
+                <td class="text-nowrap">
+                    {% if not log.ro_number or not log.ro_number.strip() %}<div class="text-danger">Missing RO</div>{% endif %}
+                    {% if log.actual_time is none %}<div class="text-danger">Missing actual hours</div>{% endif %}
+                    {% if log.flat_rate_hours < 0 %}<div class="text-danger">Negative sold hours</div>{% endif %}
+                </td>
+                <td class="text-muted">{{ log.notes or '' }}</td>
+                <td class="text-nowrap">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('worklog.edit_work_log', log_id=log.id) }}">Edit</a>
+                    <form class="d-inline" method="post" action="{{ url_for('worklog.delete_work_log', log_id=log.id) }}"
+                          onsubmit="return confirm('Delete this log entry?');">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted py-4">No bookings match these filters.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
-<div class="log-header-container py-3 mb-0">
-    <div class="container-fluid px-4">
-        <div class="d-flex justify-content-between align-items-center">
-
-            <div style="min-width: 150px;">
-                <span class="text-muted fw-bold fs-5">
-                    <i class="fas fa-list-alt me-2"></i>Work Logs
-                </span>
-            </div>
-
-            <div class="text-center px-2">
-                <h1 class="mb-0 fw-bold text-uppercase text-primary" style="font-size: 2rem; letter-spacing: 1px;">
-                    Tech Production Log
-                </h1>
-            </div>
-
-            <div class="text-end" style="min-width: 150px;">
-                <a href="{{ url_for('worklog.new_work_log') }}" class="btn btn-success fw-bold shadow-sm">
-                    <i class="fas fa-plus-circle me-2"></i>Log New Job
-                </a>
-            </div>
-
-        </div>
+{% if pagination.pages > 1 %}
+{% set filters = dict(start_date=start_date, end_date=end_date, tech_name=tech_name, tech_number=tech_number, ro_number=ro_number, review=review) %}
+<nav class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" aria-label="Booking pages">
+    <span class="small text-muted">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div class="btn-group btn-group-sm">
+        {% if pagination.has_prev %}<a class="btn btn-outline-secondary" href="{{ url_for('worklog.work_logs', page=pagination.prev_num, **filters) }}">Previous</a>{% endif %}
+        {% if pagination.has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('worklog.work_logs', page=pagination.next_num, **filters) }}">Next</a>{% endif %}
     </div>
-</div>
-
-<div class="container-fluid px-4 mt-3">
-    <div class="table-container">
-        <table class="table table-hover table-striped mb-0 align-middle">
-            <thead class="table-dark text-center">
-                <tr>
-                    <th style="width:120px;">Date</th>
-                    <th style="width:100px;">Tech #</th>
-                    <th class="text-start">Tech Name</th>
-                    <th style="width:100px;">RO #</th>
-                    <th style="width:80px;">Line</th>
-                    <th style="width:120px;">Sold (FRH)</th>
-                    <th style="width:120px;">Actual</th>
-                    <th style="width:100px;">Efficiency</th>
-                    <th class="text-start" style="width:25%;">Notes</th>
-                    <th style="width:120px;">Actions</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for log in logs %}
-                <tr class="text-center">
-
-                    <td class="fw-bold">
-                        {{ log.date.strftime('%m/%d/%Y') }}
-                    </td>
-
-                    <td class="text-secondary fw-bold">
-                        {{ log.team_member.tech_number if log.team_member.tech_number else '--' }}
-                    </td>
-
-                    <td class="text-start fw-bold">
-                        {{ log.team_member.name }}
-                    </td>
-
-                    <td>
-                        <span class="badge bg-light text-dark border">
-                            {{ log.ro_number or '--' }}
-                        </span>
-                    </td>
-
-                    <td>{{ log.line_item or '-' }}</td>
-
-                    <td class="fw-bold text-primary fs-5">
-                        {{ "%.2f"|format(log.flat_rate_hours) }}
-                    </td>
-
-                    <td class="text-secondary fw-bold">
-                        {{ "%.2f"|format(log.actual_time) if log.actual_time else '--' }}
-                    </td>
-
-                    <td>
-                        {% if log.actual_time and log.actual_time > 0 %}
-                            {% set eff = (log.flat_rate_hours / log.actual_time) * 100 %}
-                            <span class="badge rounded-pill
-                                {% if eff >= 120 %}bg-success
-                                {% elif eff >= 100 %}bg-primary
-                                {% elif eff >= 80 %}bg-warning text-dark
-                                {% else %}bg-danger{% endif %}">
-                                {{ "%.0f"|format(eff) }}%
-                            </span>
-                        {% else %}
-                            <span class="text-muted small">—</span>
-                        {% endif %}
-                    </td>
-
-                    <td class="text-start text-muted small text-wrap">
-                        {{ log.notes or '' }}
-                    </td>
-
-                    <td class="text-end" style="white-space: nowrap;">
-                        <a href="{{ url_for('worklog.edit_work_log', log_id=log.id) }}"
-                           class="btn btn-sm btn-outline-primary action-btn"
-                           title="Edit">
-                            <i class="fas fa-pencil-alt"></i>
-                        </a>
-
-                        <form action="{{ url_for('worklog.delete_work_log', log_id=log.id) }}"
-                              method="POST"
-                              class="d-inline"
-                              onsubmit="return confirm('Delete this log entry?');">
-                            <button type="submit"
-                                    class="btn btn-sm btn-outline-danger action-btn"
-                                    title="Delete">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </form>
-                    </td>
-
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="10" class="text-center py-5 text-muted bg-white">
-                        <i class="fas fa-clipboard-list fa-3x mb-3 d-block text-secondary"></i>
-                        <h4 class="text-secondary">No Logs Found</h4>
-                        <p>Adjust filters or log new work above.</p>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    {% if pagination.pages > 1 %}
-    <div class="mt-4 d-flex justify-content-center">
-        <nav>
-            <ul class="pagination mb-0">
-
-                {% if pagination.has_prev %}
-                <li class="page-item">
-                    <a class="page-link"
-                       href="{{ url_for(
-                           'worklog.work_logs',
-                           page=pagination.prev_num,
-                           start_date=start_date,
-                           end_date=end_date,
-                           tech_name=tech_name,
-                           tech_number=tech_number,
-                           ro_number=ro_number
-                       ) }}">
-                        Previous
-                    </a>
-                </li>
-                {% endif %}
-
-                {% for p in pagination.iter_pages() %}
-                    {% if p %}
-                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
-                            <a class="page-link"
-                               href="{{ url_for(
-                                   'worklog.work_logs',
-                                   page=p,
-                                   start_date=start_date,
-                                   end_date=end_date,
-                                   tech_name=tech_name,
-                                   tech_number=tech_number,
-                                   ro_number=ro_number
-                               ) }}">
-                                {{ p }}
-                            </a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">…</span>
-                        </li>
-                    {% endif %}
-                {% endfor %}
-
-                {% if pagination.has_next %}
-                <li class="page-item">
-                    <a class="page-link"
-                       href="{{ url_for(
-                           'worklog.work_logs',
-                           page=pagination.next_num,
-                           start_date=start_date,
-                           end_date=end_date,
-                           tech_name=tech_name,
-                           tech_number=tech_number,
-                           ro_number=ro_number
-                       ) }}">
-                        Next
-                    </a>
-                </li>
-                {% endif %}
-
-            </ul>
-        </nav>
-    </div>
-    {% endif %}
-</div>
-
+</nav>
+{% endif %}
 {% endblock %}

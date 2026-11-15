@@ -1,27 +1,98 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<style>
+    .download-totals { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+    .download-preview { max-height: 470px; overflow: auto; border: 1px solid #dbe4ee; border-radius: 8px; }
+    .download-preview table { min-width: 640px; font-size: .82rem; }
+    .download-preview th { position: sticky; z-index: 2; top: 0; background: #17283f; color: white; }
+    .download-preview td { padding: .45rem .6rem; }
+    .download-preview td:first-child { white-space: nowrap; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-dark text-white">
-            <h4 class="mb-0">CDK Route Sheet Audit Upload</h4>
-        </div>
-        <div class="card-body">
-            <p class="text-muted">
-                Upload your CDK Current Log CSV to audit and sync the Route Sheet.
-            </p>
-
-            <form method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Select CSV File</label>
-                    <input type="file" name="csv_file" class="form-control" required>
-                </div>
-
-                <button type="submit" class="btn btn-primary">
-                    Upload & Audit
-                </button>
-            </form>
-        </div>
+<header class="workspace-page-header">
+    <div>
+        <h1>Load Route Sheet Download</h1>
+        <p class="workspace-page-date mb-0">{{ store.name }} · CDK Route Sheet CSV</p>
     </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('routesheet.view_sheet') }}">Open Route Sheet</a>
+</header>
+
+<section class="card mb-3" aria-labelledby="download-file-title">
+    <div class="card-body py-3">
+        <h2 id="download-file-title" class="h6">Choose the CDK download</h2>
+        <p class="small mb-2">Confirm the file is for this store. Preview shows what will change and which ROs need a check.</p>
+        <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-end">
+            {{ form.hidden_tag() }}
+            <div>
+                <label class="form-label small mb-1" for="route-download-file">Route Sheet CSV</label>
+                <input id="route-download-file" type="file" name="csv_file" class="form-control form-control-sm" accept=".csv" required>
+            </div>
+            <button type="submit" name="action" value="preview" class="btn btn-sm btn-primary">Preview changes</button>
+        </form>
+    </div>
+</section>
+
+{% if review %}
+{% set counts = namespace(new=0, updated=0, same=0, review=0, missing=0, closed=0) %}
+{% for row in plan %}
+    {% if row.kind == 'New' %}{% set counts.new = counts.new + 1 %}{% endif %}
+    {% if row.kind == 'Updated' %}{% set counts.updated = counts.updated + 1 %}{% endif %}
+    {% if row.kind == 'No change' %}{% set counts.same = counts.same + 1 %}{% endif %}
+    {% if row.kind == 'Missing from file' %}{% set counts.missing = counts.missing + 1 %}{% endif %}
+    {% if row.issues %}{% set counts.review = counts.review + 1 %}{% endif %}
+    {% if row.changes.get('status') == 'Closed' %}{% set counts.closed = counts.closed + 1 %}{% endif %}
+{% endfor %}
+<section class="card mb-3" aria-labelledby="download-preview-title">
+    <div class="card-body py-3">
+        <h2 id="download-preview-title" class="h6">{{ 'Load results' if applied else 'Preview changes' }}</h2>
+        <p class="small text-muted mb-2">{{ review.name }} · File ID {{ review.sha256[:12] }}</p>
+        <div class="download-totals small mb-2" aria-label="Download totals">
+            <span><strong>{{ counts.new }}</strong> new</span>
+            <span><strong>{{ counts.updated }}</strong> updated</span>
+            <span><strong>{{ counts.same }}</strong> unchanged</span>
+            <span><strong>{{ counts.closed }}</strong> marked Closed by CDK</span>
+            <span><strong>{{ counts.review }}</strong> need review</span>
+        </div>
+        {% if counts.missing %}<p class="small mb-2"><strong>{{ counts.missing }} still-open ROs are missing from this file.</strong> Check their status in CDK.</p>{% endif %}
+        <p class="small mb-0">Applying fills in the valid fields shown below. Check flagged assignments, skipped rows and ROs missing from the file with the store.</p>
+    </div>
+</section>
+{% set field_labels = dict(status='Status', promised_time='Promised time', customer_name='Client', vehicle_info='Vehicle', service_description='Service / repair', team_member_id='Technician', asm_id='ASM') %}
+<div class="download-preview mb-3" role="region" aria-label="Scrollable route sheet changes" tabindex="0">
+    <table class="table table-hover align-middle mb-0">
+        <thead><tr><th scope="col">RO #</th><th scope="col">Change</th><th scope="col">What changes</th><th scope="col">Check with the store</th></tr></thead>
+        <tbody>
+        {% for row in plan if row.kind != 'No change' or row.issues %}
+        <tr>
+            <td class="fw-semibold">{{ row.ro }}</td><td>{{ row.kind }}</td>
+            <td>
+                {% for name, value in row.changes.items() %}
+                <div>
+                    <strong>{{ field_labels[name] }}</strong>
+                    {% if name == 'status' %}{{ (row.before[name] or '—') ~ ' → ' if row.kind != 'New' else '' }}{{ value }}
+                    {% elif name == 'promised_time' %}{{ value.replace('T', ' ') }}
+                    {% elif name in row.names %}{{ row.names[name] }}
+                    {% else %}{{ 'from CDK' if row.kind == 'New' else 'updated from CDK' }}{% endif %}
+                </div>
+                {% else %}<span class="text-muted">—</span>{% endfor %}
+            </td>
+            <td>{% for issue in row.issues %}<div>{{ issue }}</div>{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-3">The download matches the Route Sheet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
 </div>
+{% if not applied and (counts.new or counts.updated or counts.same) %}
+<form method="post">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="preview_id" value="{{ review.id }}">
+    <button class="btn btn-primary" type="submit" name="action" value="apply">Apply reviewed download</button>
+</form>
+{% endif %}
+{% endif %}
 {% endblock %}
