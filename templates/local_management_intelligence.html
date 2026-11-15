@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <h1>Management Intelligence</h1>
+  <p>{{ pilot.store_name }} · Booking window {{ pilot.period_start }} through {{ pilot.period_end }}</p>
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Evidence</h2>
+      <p>Observed production: {{ "%.2f"|format(result.true_potential.actual_frh) }} sold hours for mapped technicians.</p>
+      <p>{{ pilot.unmapped_sold_hours }} source sold hours await technician identity review.</p>
+      {% if not schedules_present %}<p>Work schedules are missing for this window. Capacity cannot be assessed.</p>{% endif %}
+      {% for limitation in result.true_potential.limitations %}<p>{{ limitation }}</p>{% endfor %}
+    </div>
+  </section>
+  <section class="card mb-3">
+    <div class="card-body">
+      <h2 class="h5">Condition and diagnosis</h2>
+      <p><strong>{{ result.condition.title }}</strong></p>
+      <p>{{ result.diagnosis.hypothesis }}</p>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-body">
+      <h2 class="h5">Recommended next step</h2>
+      <p>{{ result.management_position.recommended_intervention }}</p>
+    </div>
+  </section>
+</div>
+{% endblock %}

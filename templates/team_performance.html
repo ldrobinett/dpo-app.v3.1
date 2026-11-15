@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div><h1>Team Performance</h1><p class="text-muted mb-0">{{ today.strftime('%A, %B %d, %Y') }} · Logged hours against scheduled DPO</p></div>
+  <div class="text-muted small text-end">Last updated {{ updated.strftime('%I:%M:%S %p') }} Pacific<br>Refreshes every 60 seconds · <a href="{{ request.url }}">Refresh now</a></div>
+</div>
+<form method="get" class="card card-body mb-4">
+  <div class="row g-3 align-items-end">
+    {% for key, label, options in [('team_id', 'Team', teams), ('asm_id', "ASM's team", asms), ('tech_id', 'Technician', members)] %}
+    <div class="col-md-3"><label for="{{ key }}" class="form-label">{{ label }}</label><select name="{{ key }}" id="{{ key }}" class="form-select"><option value="">All</option>{% for option in options %}<option value="{{ option.id }}" {% if selected[key] == option.id %}selected{% endif %}>{{ option.name }}{% if key == 'asm_id' %} — {{ option.team.name }}{% endif %}</option>{% endfor %}</select></div>
+    {% endfor %}
+    <div class="col-md-3"><button class="btn btn-primary" type="submit">Apply filters</button> <a class="btn btn-outline-secondary" href="{{ url_for('team_performance.team_performance') }}">Reset</a></div>
+  </div>
+</form>
+<div class="row g-3 mb-4">
+{% for key, label in [('today','Today'), ('week','Week to date · Mon–today'), ('month','Month to date')] %}
+{% set p = totals[key] %}
+<div class="col-md-4"><div class="card h-100"><div class="card-body">
+  <h2 class="h5">{{ label }}</h2><div class="fs-2 fw-bold">{{ '%.1f'|format(p.actual) }} <span class="fs-5 text-muted">/ {{ '%.1f'|format(p.target) }} hrs</span></div>
+  {% if p.percent is not none %}<div class="{% if p.gap >= 0 %}text-success{% else %}text-danger{% endif %}">{{ '%.0f'|format(p.percent) }}% of target · {{ '%.1f'|format(p.gap|abs) }} hrs {% if p.gap >= 0 %}ahead{% else %}behind{% endif %}</div>{% else %}<div class="text-muted">No scheduled target</div>{% endif %}
+  {% if key == 'today' %}<div class="mt-2">{{ '%.1f'|format(p.remaining) }} hours remaining to daily goal</div>{% endif %}
+</div></div></div>
+{% endfor %}
+</div>
+{% if missing_schedule %}<div class="alert alert-warning">No WORK schedule found in the displayed period for: {{ missing_schedule|join(', ') }}. Check Calendar before relying on their targets.</div>{% endif %}
+<div class="card mb-3"><div class="card-header fw-bold">Technician production</div><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+<thead><tr><th>Technician / Team</th><th>Daily DPO</th><th>Today</th><th>Week to date</th><th>MTD</th><th>Today's hours remaining</th></tr></thead>
+<tbody>{% for row in rows %}<tr><td class="fw-semibold">{{ row.name }}<div class="small text-muted">{{ row.team }}{% if not row.scheduled %} · Not scheduled today{% endif %}</div></td><td>{{ '%.1f'|format(row.dpo) }}</td>
+{% for key in ['today','week','month'] %}{% set p = row[key] %}<td><div>{{ '%.1f'|format(p.actual) }} / {{ '%.1f'|format(p.target) }} hrs</div>{% if p.percent is not none %}<div class="small {% if p.gap >= 0 %}text-success{% else %}text-danger{% endif %}">{{ '%.0f'|format(p.percent) }}% · {{ '%+.1f'|format(p.gap) }} hrs</div>{% else %}<div class="small text-muted">No scheduled target</div>{% endif %}</td>{% endfor %}
+<td class="fw-bold">{{ '%.1f'|format(row.today.remaining) }}</td></tr>{% else %}<tr><td colspan="6" class="text-center py-4">No technicians match these filters.</td></tr>{% endfor %}</tbody></table></div></div>
+<p class="small text-muted">Targets use each technician's current DPO once per scheduled WORK day through today. Actuals are flat-rate hours entered in Work Logs. Today's remaining hours are the production gap; queued ready-to-work hours are not yet captured. The ASM filter shows their assigned team's production, including work from other advisors.</p>
+<script>
+let refreshTimer;
+const filterForm = document.querySelector('form[method="get"]');
+filterForm.addEventListener('change', () => clearTimeout(refreshTimer));
+refreshTimer = setTimeout(() => window.location.reload(), 60000);
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+.store-workspace {
+    --workspace-rail: 252px;
+    --workspace-navy: #122137;
+    --workspace-muted: #a9b9ce;
+    --workspace-accent: #76dcce;
+    background: #f4f6fa;
+    color: #17283f;
+}
+
+.workspace-sidebar,
+.workspace-mobile {
+    background: var(--workspace-navy);
+    color: #f1f5fc;
+    font-family: "Inter", system-ui, sans-serif;
+}
+
+.workspace-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--workspace-rail);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #243752;
+    z-index: 1020;
+}
+
+.workspace-desktop-brand {
+    padding: 24px 20px 21px;
+    border-bottom: 1px solid #2a3a52;
+}
+
+.workspace-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    text-decoration: none;
+    line-height: 1.15;
+}
+
+.workspace-brand:hover { color: #fff; }
+
+.workspace-mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: #22434a;
+    color: var(--workspace-accent);
+    flex: none;
+}
+
+.workspace-version {
+    display: block;
+    margin-top: 4px;
+    color: var(--workspace-muted);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+.workspace-menu {
+    padding: 8px 12px 14px;
+    overflow-y: auto;
+    scrollbar-color: #465873 transparent;
+    scrollbar-width: thin;
+}
+
+.workspace-section {
+    color: var(--workspace-muted);
+    margin: 16px 10px 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.workspace-link {
+    display: flex;
+    align-items: center;
+    padding: 9px 10px;
+    gap: 10px;
+    min-height: 39px;
+    border-radius: 7px;
+    color: #d7e1ef;
+    font-size: 13px;
+    font-weight: 550;
+    line-height: 1.35;
+    text-decoration: none;
+}
+
+.workspace-link i { width: 16px; text-align: center; flex: none; }
+.workspace-link:hover { background: #20334d; color: #fff; }
+.workspace-link.is-current {
+    background: #213d4c;
+    color: #dcfff9;
+    box-shadow: inset 3px 0 var(--workspace-accent);
+}
+
+.workspace-link:focus-visible,
+.workspace-brand:focus-visible,
+.workspace-toggle:focus-visible { outline: 2px solid var(--workspace-accent); outline-offset: 2px; }
+
+.workspace-group { margin-top: 6px; }
+.workspace-group summary { cursor: pointer; list-style: none; }
+.workspace-group summary::-webkit-details-marker { display: none; }
+.workspace-group summary::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    margin-left: auto;
+    margin-right: 3px;
+    border: solid var(--workspace-muted);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+}
+.workspace-group[open] summary::after { transform: rotate(225deg); }
+.workspace-submenu {
+    margin-left: 17px;
+    padding-left: 8px;
+    border-left: 1px solid #3a4c66;
+}
+.workspace-submenu .workspace-section { margin-top: 10px; }
+.workspace-submenu .workspace-link { min-height: 33px; padding-block: 6px; }
+
+.workspace-footer {
+    margin-top: auto;
+    padding: 9px 12px 12px;
+    border-top: 1px solid #2a3a52;
+}
+
+.workspace-mobile { display: none; }
+
+.workspace-content {
+    margin-inline-start: var(--workspace-rail);
+    width: auto;
+    padding: clamp(16px, 2vw, 32px);
+    min-width: 0;
+}
+
+.workspace-content .card {
+    border: 1px solid #dde4ed;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px #192b4210;
+}
+.workspace-content .card:hover { transform: none; }
+
+@media (max-width: 991.98px) {
+    .workspace-mobile {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 12px;
+    }
+    .workspace-toggle {
+        padding: 7px 11px;
+        border: 1px solid #536680;
+        border-radius: 7px;
+        background: transparent;
+        color: inherit;
+        font-size: 13px;
+    }
+    .workspace-sidebar {
+        position: static;
+        display: none;
+        width: 100%;
+        border-right: 0;
+    }
+    .workspace-sidebar.is-open { display: flex; }
+    .workspace-desktop-brand { display: none; }
+    .workspace-menu { max-height: 65vh; }
+    .workspace-content { margin-inline-start: 0; }
+}

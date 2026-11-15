@@ -103,6 +103,9 @@
 <div class="container-fluid">
 
 <h1 class="text-center mb-4">{{ title }} - {{ today_date_str }}</h1>
+<div id="wake-lock-status" class="text-center small text-muted mb-2" role="status">
+    Keep screen on: checking…
+</div>
 
 <div class="board-screen">
 
@@ -342,6 +345,42 @@ Exp: {{ "%.1f"|format(member.expected_mtd) }} hrs
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+
+// Request a screen wake lock only on the dedicated production display.
+(() => {
+    let wakeLock = null;
+    let pending = false;
+    const status = document.getElementById("wake-lock-status");
+
+    async function keepScreenOn() {
+        if (!window.isSecureContext || !("wakeLock" in navigator)) {
+            status.textContent = "Keep screen on: unavailable (requires HTTPS and a supported browser)";
+            return;
+        }
+        if (document.visibilityState !== "visible" || wakeLock || pending) return;
+
+        pending = true;
+        try {
+            const lock = await navigator.wakeLock.request("screen");
+            wakeLock = lock;
+            status.textContent = "Keep screen on: active";
+            lock.addEventListener("release", () => {
+                if (wakeLock === lock) wakeLock = null;
+                status.textContent = "Keep screen on: released — retrying when visible";
+            });
+        } catch (error) {
+            status.textContent = "Keep screen on: request denied — retrying";
+            console.warn("ProdTracker screen wake lock:", error);
+        } finally {
+            pending = false;
+        }
+    }
+
+    document.addEventListener("visibilitychange", keepScreenOn);
+    window.addEventListener("pageshow", keepScreenOn);
+    setInterval(keepScreenOn, 30000);
+    keepScreenOn();
+})();
 
 let screens = document.querySelectorAll(".board-screen");
 let index = 0;

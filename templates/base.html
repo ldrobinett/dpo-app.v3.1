@@ -25,10 +25,13 @@
     <!-- App Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 
+    <link rel="stylesheet" href="{{ url_for('static', filename='store-workspace.css') }}">
+
     {% block styles %}{% endblock %}
 </head>
 
-<body class="{% block body_class %}{% endblock %}">
+{% set store_workspace = current_user.is_authenticated and not current_user.is_operator %}
+<body class="{% if store_workspace %}store-workspace {% endif %}{% block body_class %}{% endblock %}">
 
     <!-- OPERATOR BANNER -->
     {% if current_user.is_authenticated and current_user.is_operator %}
@@ -40,226 +43,25 @@
         </div>
     {% endif %}
 
-    <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('main.home') }}">
-                ProdTracker&copy;
-                <span class="version-badge">v{{ prodtracker_version }}</span>
-            </a>
-            <button class="navbar-toggler" type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-
-                <!-- LEFT NAV -->
-                <ul class="navbar-nav me-auto">
-
-                    {% if current_user.is_authenticated and not current_user.is_operator %}
-
-                        {% if can("routes.view") %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('routesheet.view_sheet') }}">
-                                Route Sheet
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        {% if can("worklog.view") %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('worklog.work_logs') }}">
-                                Work Log
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        {% if can("schedule.view") %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('schedule.schedule_calendar') }}">
-                                Calendar
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        {% if can("production.view") %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('finance.production_display') }}">
-                                Live Production Display
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        {% if can("calculators.view") %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                                Tools & Calculators
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.mpi_calculator') }}">CP Menu/MPI Opportunity Calculator</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.appt_calculator') }}">RO and Appointment Calculator</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.cpgp_calculator') }}">CP Gross Profit Opportunity Calculator</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.capacity_calculator') }}">Capacity Opportunity Calculator</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.pace_recovery_calculator') }}">Pace Recovery Calculator</a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('calculators.appointment_lift_calculator') }}">Appointment Lift Calculator</a></li>
-                                <li>
-                                        <a class="dropdown-item" href="{{ url_for('labor_matrix.list_grids') }}">
-                                            Labor Matrix
-                                        </a>
-                                    </li>
-                            </ul>
-                        </li>
-                        {% endif %}
-
-                        {% if can("manage.view") %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                                Manage
-                            </a>
-
-                            <ul class="dropdown-menu">
-
-                                {# =============================== #}
-                                {# 1️⃣ STORE & ACCESS SETUP        #}
-                                {# =============================== #}
-                                {% if can("onboarding.manage") or can("users.manage") %}
-                                    <li><h6 class="dropdown-header">Store & Access Initial Setup</h6></li>
-
-                                    {% if can("onboarding.manage") %}
-                                        <li>
-                                            <a class="dropdown-item" href="{{ url_for('onboarding.review_setup') }}">
-                                                Store Settings
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="{{ url_for('onboarding.team_upload') }}">
-                                                Bulk Team Upload
-                                            </a>
-                                        </li>
-                                    {% endif %}
-
-                                    {% if can("users.manage") %}
-                                        <li>
-                                            <a class="dropdown-item fw-semibold"
-                                               href="{{ url_for('users.list_users') }}">
-                                                User Management
-                                            </a>
-                                        </li>
-                                    {% endif %}
-
-                                    <li><hr class="dropdown-divider"></li>
-                                {% endif %}
-
-
-                                {# =============================== #}
-                                {# 2️⃣ PERSONNEL                  #}
-                                {# =============================== #}
-                                {% if can("teams.manage") %}
-                                    <li><h6 class="dropdown-header"> Manage Personnel</h6></li>
-
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('teams.teams') }}">
-                                            Teams
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('teams.team_members') }}">
-                                            Technicians
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('teams.view_asms') }}">
-                                            Service Advisors
-                                        </a>
-                                    </li>
-
-                                    <li><hr class="dropdown-divider"></li>
-                                {% endif %}
-
-
-                                {# =============================== #}
-                                {# 3️⃣ OPERATIONS                 #}
-                                {# =============================== #}
-                                {% if can("schedule.manage") %}
-                                    <li><h6 class="dropdown-header">Operations</h6></li>
-
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('schedule.generate_schedule') }}">
-                                            Create/Modify Team Schedules
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('schedule.team_schedules') }}">
-                                            Standard Schedules
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('schedule.schedules') }}">
-                                            Manage PTO / Training
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('reconciliation.reconcile_logs') }}">
-                                            Run Reconcile Logs
-                                        </a>
-                                    </li>
-
-                                    <li><hr class="dropdown-divider"></li>
-                                {% endif %}
-
-
-                                {# =============================== #}
-                                {# 4️⃣ REPORTS                    #}
-                                {# =============================== #}
-                                {% if can("finance.view") %}
-                                    <li><h6 class="dropdown-header">Financial Inputs & Reports</h6></li>
-
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('finance.dashboard') }}">
-                                            Financial Dashboard
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{{ url_for('finance.monthly_forecast') }}">
-                                            Monthly Forecasts
-                                        </a>
-                                    </li>
-                                    
-                                {% endif %}
-
-                            </ul>
-                        </li>
-                        {% endif %}
-
-
-                    {% endif %}
-                </ul>
-
-                <!-- RIGHT NAV -->
-                <ul class="navbar-nav ms-auto">
-                    {% if current_user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('main.help_page') }}">
-                                <i class="fas fa-question-circle me-1"></i> How to Use/Help
-                            </a>
-                        </li>
-                        <li class="nav-item ms-2">
-                            <a class="btn btn-outline-light btn-sm mt-1"
-                               href="{{ url_for('auth.logout') }}">
-                                Logout
-                            </a>
-                        </li>
-                    {% endif %}
-                </ul>
-
+    {% if store_workspace %}
+        {% include 'store_navigation.html' %}
+    {% else %}
+        <nav class="navbar navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="{{ url_for('main.home') }}">
+                    ProdTracker<span class="version-badge">v{{ prodtracker_version }}</span>
+                </a>
+                {% if current_user.is_authenticated %}
+                    <div class="d-flex gap-3 align-items-center">
+                        <a class="nav-link" href="{{ url_for('main.help_page') }}">Help</a>
+                        <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Log out</a>
+                    </div>
+                {% endif %}
             </div>
-        </div>
-    </nav>
-
+        </nav>
+    {% endif %}
     <!-- CONTENT -->
-    <main class="container-fluid mt-4">
+    <main class="container-fluid {% if store_workspace %}workspace-content{% else %}mt-4{% endif %}">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -281,6 +83,9 @@
         crossorigin="anonymous"
     ></script>
 
+    {% if store_workspace %}
+    <script src="{{ url_for('static', filename='js/store-navigation.js') }}" defer></script>
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 </html>
